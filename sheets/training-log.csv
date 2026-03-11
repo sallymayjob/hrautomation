@@ -1,0 +1,6 @@
+training_id,onboarding_id,slack_id,resource_code,resource_title,resource_url,assigned_at,due_date,reminder_count,last_reminder_at,status,completed_at,celebration_posted
+TR-OB-20260303-a1b2-FOUND-W1,OB-20260303-a1b2,U7K9M2Q4P8X,FOUND-W1,Foundations Week 1,https://notion.so/rwrgroup/found-w1,2026-03-03T21:20:00Z,2026-03-10,0,,COMPLETE,2026-03-09T07:45:00Z,TRUE
+TR-OB-20260303-a1b2-FOUND-W2,OB-20260303-a1b2,U7K9M2Q4P8X,FOUND-W2,Foundations Week 2,https://notion.so/rwrgroup/found-w2,2026-03-10T08:00:00Z,2026-03-17,0,,COMPLETE,2026-03-16T06:30:00Z,TRUE
+TR-OB-20260304-c3d4-FOUND-W1,OB-20260304-c3d4,U1D5H8R2T9Z,FOUND-W1,Foundations Week 1,https://notion.so/rwrgroup/found-w1,2026-03-04T22:10:00Z,2026-03-11,1,2026-03-12T01:15:00Z,REMINDER_SENT,,FALSE
+TR-OB-20260305-e5f6-PROB-M2,OB-20260305-e5f6,U5N3C7K1L8Q,PROB-M2,Probity Module 2,https://notion.so/rwrgroup/prob-m2,2026-03-05T20:45:00Z,2026-03-19,0,,ASSIGNED,,FALSE
+TR-OB-20260310-b7c8-FRANCH-PRE,OB-20260310-b7c8,U4R8T1Y6P3N,FRANCH-PRE,Franchisee Preboarding Essentials,https://notion.so/rwrgroup/franch-pre,2026-03-11T00:15:00Z,2026-03-25,0,,ASSIGNED,,FALSE

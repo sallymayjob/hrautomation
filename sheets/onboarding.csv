@@ -1,0 +1,6 @@
+onboarding_id,employee_name,slack_id,email,role,brand,start_date,region,manager_email,manager_slack_id,dob,status,dm_sent_at,checklist_completed,row_hash
+OB-20260303-a1b2,Amelia Thompson,U7K9M2Q4P8X,amelia.thompson@gmail.com,Recruitment Consultant,RWR_HEALTH,2026-03-03,NZ,olivia.carter@rwrgroup.co.nz,U3J8L1N6V2B,1994-07-19,DM_SENT,2026-03-03T21:15:00Z,TRUE,4f3c2a1d9b8e7c6f5a4d3c2b1e0f9a8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2
+OB-20260304-c3d4,Lachlan Fraser,U1D5H8R2T9Z,lachlan.fraser@yahoo.com.au,Resourcer,HOSPOWORLD,2026-03-04,AU,emma.brown@rwrgroup.com.au,U8P2W6Q1M4R,1998-11-02,DM_SENT,2026-03-04T22:05:00Z,FALSE,7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7a6
+OB-20260305-e5f6,Sophie Ngatai,U5N3C7K1L8Q,sophie.ngatai@outlook.co.nz,Branch Manager,RETAILWORLD,2026-03-05,NZ,noah.williams@rwrgroup.co.nz,U2V9X4J7D1M,1987-04-27,DM_SENT,2026-03-05T20:40:00Z,TRUE,1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2
+OB-20260310-b7c8,Hayley McKenzie,U4R8T1Y6P3N,hayley.mckenzie@gmail.com,Franchisee,RWR_CONSTRUCTION,2026-03-10,AU,,,1990-09-14,PENDING,,FALSE,9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0d9c8b7a6f5e4d3c2b1a0f9e8
+OB-20260306-d9e0,Wiremu Rangi,U6B1F4H9K2S,wiremu.rangi@gmail.com,Admin,RWR_HEALTH,2026-03-06,NZ,isla.patel@rwrgroup.co.nz,U9L3G7S2Q5W,1992-01-30,FAILED,,FALSE,2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3
