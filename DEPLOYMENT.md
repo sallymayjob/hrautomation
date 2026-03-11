@@ -86,6 +86,18 @@ What just happened? You saved the bot password needed by the system.
 
 You're done with Phase 2. Your Slack bot app exists and is installed in your workspace.
 
+## Phase 2.5 — Set up required Slack channels (about 10 minutes)
+Before continuing, set up and validate the required Slack channels.
+
+1. Open `docs/slack-channels-guide.md`.
+2. Create all required channels with exact names.
+3. Invite `@New Hire Intake Bot` to required channels.
+4. Copy and save channel IDs for deployment.
+
+What just happened? You prepared the channel destinations the automation needs for alerts, approvals, workflow triggers, and recognition posts.
+
+You're done with Phase 2.5. Required Slack channels are now ready.
+
 ## Phase 3 — Give the system its passwords and IDs (about 20 minutes)
 This phase stores all important IDs and passwords safely.
 Google Apps Script is a Google control room that runs this automation.
@@ -94,6 +106,8 @@ Think of it like a locked office drawer for system settings.
 ### Find your Slack channel IDs
 Every channel has an ID, like a name badge number.
 The ID looks like `C01234ABCDE`.
+
+Tip: If channels are not set up yet, complete **Phase 2.5** first.
 
 1. Open Slack.
 2. Right-click `#hr-ops-alerts` in the left sidebar.
