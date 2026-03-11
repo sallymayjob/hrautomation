@@ -44,15 +44,17 @@ var COL = {
     TASK_ID: 1,
     ONBOARDING_ID: 2,
     CATEGORY: 3,
-    TASK_NAME: 4,
-    OWNER_TEAM: 5,
-    OWNER_SLACK_ID: 6,
-    STATUS: 7,
-    DUE_DATE: 8,
-    COMPLETED_AT: 9,
-    COMPLETED_BY: 10,
-    NOTES: 11,
-    EVENT_HASH: 12
+    PHASE: 4,
+    TASK_NAME: 5,
+    OWNER_TEAM: 6,
+    OWNER_SLACK_ID: 7,
+    STATUS: 8,
+    DUE_DATE: 9,
+    COMPLETED_AT: 10,
+    COMPLETED_BY: 11,
+    NOTES: 12,
+    EVENT_HASH: 13,
+    REQUIRED_FOR_COMPLETION: 14
   },
   AUDIT: {
     AUDIT_ID: 1,
@@ -237,12 +239,73 @@ SheetClient.prototype.updateOnboardingStatus = function (employeeId, status) {
   var sheet = this.getSheet_(Config.getOnboardingSheetName());
   var idColumn = this.getColumnIndexByHeaderKey_(sheet, 'onboarding_id', true);
   var statusColumn = this.getColumnIndexByHeaderKey_(sheet, 'status', true);
+  var blockedReasonColumn = this.getColumnIndexByHeaderKey_(sheet, 'blocked_reason', false);
   var rowIndex = this.findRowIndexByValue_(sheet, idColumn, employeeId);
   if (rowIndex < 0) {
     return false;
   }
+
+  var nextStatus = String(status || '').trim().toUpperCase();
+  if (nextStatus === 'COMPLETE') {
+    var gateResult = this.evaluateOnboardingCompletionGate(employeeId);
+    if (!gateResult.canComplete) {
+      sheet.getRange(rowIndex, statusColumn).setValue('BLOCKED');
+      if (blockedReasonColumn > 0) {
+        sheet.getRange(rowIndex, blockedReasonColumn).setValue(gateResult.blockedReason);
+      }
+      return false;
+    }
+  }
+
   sheet.getRange(rowIndex, statusColumn).setValue(status);
+  if (blockedReasonColumn > 0 && nextStatus !== 'BLOCKED') {
+    sheet.getRange(rowIndex, blockedReasonColumn).setValue('');
+  }
   return true;
+};
+
+SheetClient.prototype.evaluateOnboardingCompletionGate = function (employeeId) {
+  var checklist = this.getSheet_(Config.getChecklistSheetName());
+  var rows = this.getDataRows_(checklist);
+  var blockedByPhase = {};
+
+  for (var i = 0; i < rows.length; i += 1) {
+    var row = rows[i];
+    if (String(row[COL.CHECKLIST.ONBOARDING_ID - 1]) !== String(employeeId)) {
+      continue;
+    }
+
+    var required = row[COL.CHECKLIST.REQUIRED_FOR_COMPLETION - 1];
+    var isRequired = required === '' || required === null || typeof required === 'undefined' ? true : Boolean(required);
+    if (!isRequired) {
+      continue;
+    }
+
+    var status = String(row[COL.CHECKLIST.STATUS - 1] || '').trim().toUpperCase();
+    if (status === 'COMPLETE' || status === 'DONE') {
+      continue;
+    }
+
+    var phase = String(row[COL.CHECKLIST.PHASE - 1] || row[COL.CHECKLIST.CATEGORY - 1] || 'Unassigned').trim() || 'Unassigned';
+    if (!blockedByPhase[phase]) {
+      blockedByPhase[phase] = [];
+    }
+    blockedByPhase[phase].push(String(row[COL.CHECKLIST.TASK_NAME - 1] || 'Unnamed task'));
+  }
+
+  var phases = Object.keys(blockedByPhase);
+  if (phases.length === 0) {
+    return { canComplete: true, blockedReason: '' };
+  }
+
+  var message = phases.map(function (phase) {
+    return phase + ': ' + blockedByPhase[phase].join(', ');
+  }).join(' | ');
+
+  return {
+    canComplete: false,
+    blockedReason: 'Cannot mark onboarding COMPLETE. Missing required tasks by phase -> ' + message
+  };
 };
 
 SheetClient.prototype.getTrainingRows = function () {

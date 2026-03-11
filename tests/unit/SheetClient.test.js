@@ -15,7 +15,7 @@ function makeSheet(headers, rows) {
     getLastColumn: jest.fn(() => headers.length),
     getRange: jest.fn((r, c, numRows, numCols) => ({
       getValues: jest.fn(() => data.slice(r - 1, r - 1 + numRows).map((row) => row.slice(c - 1, c - 1 + numCols))),
-      setValue: jest.fn(),
+      setValue: jest.fn((v) => { data[r - 1][c - 1] = v; }),
       setValues: jest.fn((vals) => { data[r - 1] = vals[0]; })
     })),
     appendRow: jest.fn((row) => data.push(row))
@@ -45,10 +45,10 @@ describe('SheetClient', () => {
   });
 
   test('append and update training/onboarding/checklist statuses', () => {
-    const onboarding = makeSheet(['onboarding_id', 'status'], [['OB-1', 'PENDING']]);
+    const onboarding = makeSheet(['onboarding_id', 'status', 'blocked_reason'], [['OB-1', 'PENDING', '']]);
     const training = makeSheet(['employee_id', 'module_code', 'training_status', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'celebration_posted'], [['E1', 'M1', 'ASSIGNED', '', '', '', '', '', '', '', '', '', false]]);
     const audit = makeSheet(['audit_id', 'event_hash'], []);
-    const checklist = makeSheet(['task_id', 'onboarding_id', 'status', 'notes'], [['DOC-001', 'OB-1', 'PENDING', '']]);
+    const checklist = makeSheet(['task_id', 'onboarding_id', 'category', 'phase', 'task_name', 'owner_team', 'owner_slack_id', 'status', 'due_date', 'completed_at', 'completed_by', 'notes', 'event_hash', 'required_for_completion'], [['DOC-001', 'OB-1', 'Documentation', 'Documentation', 'Share employee handbook', 'People Ops', '@ops', 'PENDING', '', '', '', '', 'h1', true]]);
     SpreadsheetApp.openById.mockReturnValue({
       getSheetByName: jest.fn((n) => ({ Onboarding: onboarding, Training: training, Audit: audit, 'Checklist Tasks': checklist }[n])),
       insertSheet: jest.fn(() => checklist)
@@ -61,5 +61,34 @@ describe('SheetClient', () => {
     expect(client.markCelebrationPosted('E1', 'M1', 1)).toBe(true);
     expect(client.findChecklistTask('DOC-001', 'OB-1')).not.toBeNull();
     expect(client.updateChecklistTask('DOC-001', 'OB-1', { status: 'DONE', notes: 'ok' })).toBe(true);
+  });
+
+  test('completion gate blocks COMPLETE when required tasks are still pending', () => {
+    const onboarding = makeSheet(['onboarding_id', 'status', 'blocked_reason'], [['OB-2', 'IN_PROGRESS', '']]);
+    const training = makeSheet(['employee_id', 'module_code', 'training_status', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'celebration_posted'], []);
+    const audit = makeSheet(['audit_id', 'event_hash'], []);
+    const checklist = makeSheet(
+      ['task_id', 'onboarding_id', 'category', 'phase', 'task_name', 'owner_team', 'owner_slack_id', 'status', 'due_date', 'completed_at', 'completed_by', 'notes', 'event_hash', 'required_for_completion'],
+      [
+        ['DOC-001', 'OB-2', 'Documentation', 'Documentation', 'Collect signed contract', 'People Ops', '@ops', 'PENDING', '', '', '', '', 'h1', true],
+        ['WRK-001', 'OB-2', 'Workspace', 'Pre-onboarding', 'Provision Google account test', 'IT', '@it', 'PENDING', '', '', '', '', 'h2', true]
+      ]
+    );
+
+    SpreadsheetApp.openById.mockReturnValue({
+      getSheetByName: jest.fn((n) => ({ Onboarding: onboarding, Training: training, Audit: audit, 'Checklist Tasks': checklist }[n])),
+      insertSheet: jest.fn(() => checklist)
+    });
+
+    const { SheetClient } = require('../../gas/SheetClient.gs');
+    const client = new SheetClient();
+    expect(client.updateOnboardingStatus('OB-2', 'COMPLETE')).toBe(false);
+
+    var gate = client.evaluateOnboardingCompletionGate('OB-2');
+    expect(gate.canComplete).toBe(false);
+    expect(gate.blockedReason).toContain('Documentation');
+    expect(gate.blockedReason).toContain('Pre-onboarding');
+    expect(gate.blockedReason).toContain('Collect signed contract');
+    expect(gate.blockedReason).toContain('Provision Google account test');
   });
 });

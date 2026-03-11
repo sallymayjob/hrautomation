@@ -10,25 +10,25 @@ Perform these checks at the start of every support shift.
 1. Open the Apps Script project and verify the latest trigger runs completed without unhandled exceptions.
 2. Check execution logs for the previous 24 hours:
    - No repeated timeout or authorization errors.
-   - No surge in FAILED statuses.
+   - No surge in BLOCKED statuses.
 3. Confirm the Workspace bot account is active and can post DMs.
 
 ### 1.2 Sheet Integrity
 1. Open the production sheet and validate required tabs are present (Roster, Queue, Audit Log, Config; names may vary by deployment).
 2. Spot-check the newest 10 rows in the processing tab:
-   - Status transitions are valid (e.g., PENDING -> SENT or FAILED).
+   - Status transitions are valid (e.g., PENDING -> IN_PROGRESS -> COMPLETE, with BLOCKED when gates fail).
    - Timestamps are populated and in expected timezone.
 3. Confirm there are no accidental schema edits (missing columns, renamed headers, broken formulas).
 
 ### 1.3 Backlog and Delivery
 1. Count PENDING rows older than SLA threshold (typically 1 hour).
-2. Review FAILED rows created since last check.
+2. Review BLOCKED rows created since last check.
 3. Validate at least one successful DM in the last 24 hours (if no eligible recipients, annotate that in handoff notes).
 
 ### 1.4 Handoff Note
 Record in ops handoff:
 - Time checks completed.
-- Counts of PENDING / SENT / FAILED.
+- Counts of PENDING / IN_PROGRESS / BLOCKED / COMPLETE.
 - Any actions taken and open risks.
 
 ---
@@ -45,7 +45,7 @@ Use this when scheduled trigger did not fire, or after fixes requiring immediate
    - Confirm processed row count > 0 when eligible rows exist.
    - Confirm completion without exception.
 5. Validate outcome in sheet:
-   - Processed rows changed from PENDING to SENT (or FAILED with reason).
+   - Processed rows changed from PENDING to IN_PROGRESS (or BLOCKED with reason).
 6. If manual run succeeds but scheduler failed, recreate the broken trigger and document incident.
 
 **Guardrail:** Never run manual trigger repeatedly in rapid succession. Wait for the prior execution to finish to avoid duplicate DMs.
@@ -73,28 +73,25 @@ Perform this when ownership or access scope changes.
 
 ---
 
-## 4) FAILED Row Remediation
+## 4) BLOCKED Row Remediation
 
-Use this flow for rows marked FAILED.
+Use this flow for rows marked BLOCKED.
 
-1. Filter rows where `status = FAILED`.
+1. Filter rows where `status = BLOCKED`.
 2. Classify each failure cause:
    - **Transient** (rate limit, timeout, temporary API error).
    - **Data issue** (missing user ID, malformed row fields).
    - **Permission/auth** (token revoked, connector unauthorized).
-3. For transient failures:
+3. For gate/data blockers:
    - Fix external condition (wait/retry window).
-   - Reset row to PENDING.
+   - Set row to IN_PROGRESS after resolving blockers.
    - Re-run trigger once.
-4. For data issues:
-   - Correct row data (with audit note in comments/log).
-   - Reset to PENDING only after validation.
-5. For permission/auth issues:
-   - Resolve token/connector problem first.
-   - Then bulk-requeue only impacted rows.
-6. Record remediation result in Audit Log (row ID, root cause, operator, action, final status).
+4. For checklist gate issues:
+   - Resolve each missing required task listed in `blocked_reason` by phase (Documentation, Pre-onboarding, Day-1 readiness).
+   - Example blockers: missing contract signature, missing Google account test verification.
+5. Record remediation result in Audit Log (row ID, root cause, operator, action, final status).
 
-**Do not** delete FAILED rows; retain for auditability.
+**Do not** delete BLOCKED rows; retain for auditability.
 
 ---
 
@@ -106,8 +103,8 @@ Use when a user reports not receiving onboarding DM.
    - Correct user identifier.
    - User is active and contactable by bot.
 2. Search sheet history for existing welcome DM record:
-   - If SENT exists, confirm timestamp and target user.
-   - If FAILED exists, remediate root cause first.
+   - If IN_PROGRESS exists, confirm timestamp and target user.
+   - If BLOCKED exists, remediate root cause first.
 3. Create a controlled resend:
    - Duplicate or requeue the row with explicit `manual_resend = true` marker (or deployment equivalent).
    - Add operator note referencing ticket ID.

@@ -9,6 +9,7 @@ var CHECKLIST_HEADERS = [
   'task_id',
   'onboarding_id',
   'category',
+  'phase',
   'task_name',
   'owner_team',
   'owner_slack_id',
@@ -17,14 +18,15 @@ var CHECKLIST_HEADERS = [
   'completed_at',
   'completed_by',
   'notes',
-  'event_hash'
+  'event_hash',
+  'required_for_completion'
 ];
 
 var STATUS = {
   PENDING: 'PENDING',
-  DUPLICATE: 'DUPLICATE',
-  FAILED: 'FAILED',
-  DM_SENT: 'DM_SENT'
+  IN_PROGRESS: 'IN_PROGRESS',
+  BLOCKED: 'BLOCKED',
+  COMPLETE: 'COMPLETE'
 };
 
 var ROLE_MAPPINGS = {
@@ -96,7 +98,8 @@ function processOnboardingRow_(sheet, rowIndex) {
 
     var duplicateRow = sheetClient.checkDuplicate(ONBOARDING_SHEET_NAME, 'row_hash', rowHash, rowIndex);
     if (duplicateRow > -1) {
-      setStatus_(sheet, rowIndex, headerMap, STATUS.DUPLICATE);
+      setStatus_(sheet, rowIndex, headerMap, STATUS.BLOCKED);
+      setBlockedReason_(sheet, rowIndex, headerMap, 'Duplicate onboarding row found. Matched row index ' + duplicateRow + '.');
       auditLogger.log({
         entityType: 'Onboarding',
         entityId: String(rowData.onboarding_id || rowIndex),
@@ -152,7 +155,8 @@ function processOnboardingRow_(sheet, rowIndex) {
     generateChecklistTasks_(sheetClient, auditLogger, onboardingId, rowData, startDate);
     setValueIfColumnExists_(sheet, rowIndex, headerMap, 'dm_sent_at', new Date());
     setValueIfColumnExists_(sheet, rowIndex, headerMap, 'processed_at', new Date());
-    setStatus_(sheet, rowIndex, headerMap, STATUS.DM_SENT);
+    setStatus_(sheet, rowIndex, headerMap, STATUS.IN_PROGRESS);
+    setBlockedReason_(sheet, rowIndex, headerMap, '');
 
     auditLogger.log({
       entityType: 'Onboarding',
@@ -161,7 +165,8 @@ function processOnboardingRow_(sheet, rowIndex) {
       details: 'Onboarding processed successfully for onboarding_id=' + rowData.onboarding_id + '.'
     });
   } catch (err) {
-    setStatus_(sheet, rowIndex, headerMap, STATUS.FAILED);
+    setStatus_(sheet, rowIndex, headerMap, STATUS.BLOCKED);
+    setBlockedReason_(sheet, rowIndex, headerMap, String(err && err.message ? err.message : err));
     setValueIfColumnExists_(sheet, rowIndex, headerMap, 'error_message', String(err && err.message ? err.message : err));
     console.error('Onboarding processing failed for row ' + rowIndex + ': ' + err);
     auditLogger.error({
@@ -289,6 +294,7 @@ function generateChecklistTasks_(sheetClient, auditLogger, onboardingId, rowData
       template.task_id,
       onboardingId,
       template.category,
+      template.phase || template.category || 'Unassigned',
       template.task_name,
       template.owner_team,
       template.owner_slack_id || '',
@@ -297,7 +303,8 @@ function generateChecklistTasks_(sheetClient, auditLogger, onboardingId, rowData
       '',
       '',
       template.notes || '',
-      eventHash
+      eventHash,
+      template.required_for_completion === false ? false : true
     ]);
 
     dispatchTaskAssignment_(sheetClient, auditLogger, {
@@ -320,6 +327,67 @@ function generateChecklistTasks_(sheetClient, auditLogger, onboardingId, rowData
     action: 'CREATE',
     details: 'Generated ' + generatedCount + ' checklist task(s) from template for onboarding_id=' + onboardingId + '.'
   });
+}
+
+function evaluateOnboardingCompletionGate_(sheetClient, onboardingId) {
+  var checklistRows = sheetClient.getChecklistRows();
+  var missingByPhase = {};
+
+  for (var i = 0; i < checklistRows.length; i += 1) {
+    var row = checklistRows[i];
+    if (String(row[1]) !== String(onboardingId)) {
+      continue;
+    }
+
+    var required = row[12] === '' || row[12] === null || typeof row[12] === 'undefined' ? true : Boolean(row[12]);
+    if (!required) {
+      continue;
+    }
+
+    var taskStatus = String(row[6] || '').trim().toUpperCase();
+    var isDone = taskStatus === STATUS.COMPLETE || taskStatus === 'DONE';
+    if (isDone) {
+      continue;
+    }
+
+    var phase = String(row[3] || 'Unassigned').trim() || 'Unassigned';
+    if (!missingByPhase[phase]) {
+      missingByPhase[phase] = [];
+    }
+    missingByPhase[phase].push(String(row[4] || 'Unnamed task'));
+  }
+
+  var phases = Object.keys(missingByPhase);
+  if (phases.length === 0) {
+    return { canComplete: true, blockedReason: '' };
+  }
+
+  var phaseSummaries = phases.map(function (phase) {
+    return phase + ': ' + missingByPhase[phase].join(', ');
+  });
+
+  return {
+    canComplete: false,
+    blockedReason: 'Cannot mark onboarding COMPLETE. Missing required tasks by phase -> ' + phaseSummaries.join(' | ')
+  };
+}
+
+function tryCompleteOnboarding_(sheetClient, onboardingSheet, rowIndex, headerMap, onboardingId) {
+  var result = evaluateOnboardingCompletionGate_(sheetClient, onboardingId);
+  if (!result.canComplete) {
+    setStatus_(onboardingSheet, rowIndex, headerMap, STATUS.BLOCKED);
+    setBlockedReason_(onboardingSheet, rowIndex, headerMap, result.blockedReason);
+    return result;
+  }
+
+  setStatus_(onboardingSheet, rowIndex, headerMap, STATUS.COMPLETE);
+  setBlockedReason_(onboardingSheet, rowIndex, headerMap, '');
+  setValueIfColumnExists_(onboardingSheet, rowIndex, headerMap, 'checklist_completed', true);
+  return { canComplete: true, blockedReason: '' };
+}
+
+function setBlockedReason_(sheet, rowIndex, headerMap, message) {
+  setValueIfColumnExists_(sheet, rowIndex, headerMap, 'blocked_reason', message || '');
 }
 
 function getChecklistTemplateRows_() {
@@ -439,6 +507,8 @@ if (typeof module !== 'undefined') {
   module.exports = {
     onChangeHandler: onChangeHandler,
     processOnboardingRow_: processOnboardingRow_,
+    evaluateOnboardingCompletionGate_: evaluateOnboardingCompletionGate_,
+    tryCompleteOnboarding_: tryCompleteOnboarding_,
     templateMatchesOnboarding_: templateMatchesOnboarding_,
     resolveTaskOwnerDestination_: resolveTaskOwnerDestination_
   };
