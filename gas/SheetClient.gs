@@ -50,11 +50,16 @@ var COL = {
     OWNER_SLACK_ID: 7,
     STATUS: 8,
     DUE_DATE: 9,
-    COMPLETED_AT: 10,
-    COMPLETED_BY: 11,
-    NOTES: 12,
-    EVENT_HASH: 13,
-    REQUIRED_FOR_COMPLETION: 14
+    OFFSET_TYPE: 10,
+    OFFSET_DAYS: 11,
+    CRITICALITY: 12,
+    REMINDER_COUNT: 13,
+    LAST_REMINDER_AT: 14,
+    COMPLETED_AT: 15,
+    COMPLETED_BY: 16,
+    NOTES: 17,
+    EVENT_HASH: 18,
+    REQUIRED_FOR_COMPLETION: 19
   },
   AUDIT: {
     AUDIT_ID: 1,
@@ -364,6 +369,18 @@ SheetClient.prototype.updateTrainingStatus = function (employeeId, moduleCode, s
   return true;
 };
 
+
+SheetClient.prototype.updateTrainingReminderMetadata = function (employeeId, moduleCode, reminderCount, lastReminderAt) {
+  var sheet = this.getSheet_(Config.getTrainingSheetName());
+  var rowIndex = this.findRowIndexByValues_(sheet, COL.TRAINING.EMPLOYEE_ID, employeeId, COL.TRAINING.MODULE_CODE, moduleCode);
+  if (rowIndex < 0) {
+    return false;
+  }
+  sheet.getRange(rowIndex, COL.TRAINING.REMINDER_COUNT).setValue(Number(reminderCount || 0));
+  sheet.getRange(rowIndex, COL.TRAINING.LAST_REMINDER_AT).setValue(lastReminderAt || new Date());
+  return true;
+};
+
 SheetClient.prototype.markCelebrationPosted = function (employeeId, moduleCode, posted) {
   var sheet = this.getSheet_(Config.getTrainingSheetName());
   var rowIndex = this.findRowIndexByValues_(sheet, COL.TRAINING.EMPLOYEE_ID, employeeId, COL.TRAINING.MODULE_CODE, moduleCode);
@@ -424,6 +441,18 @@ SheetClient.prototype.updateChecklistTask = function (taskId, onboardingId, upda
   return true;
 };
 
+
+
+SheetClient.prototype.updateChecklistReminderMetadata = function (taskId, onboardingId, reminderCount, lastReminderAt) {
+  var sheet = this.getSheet_(Config.getChecklistSheetName());
+  var rowIndex = this.findRowIndexByValues_(sheet, COL.CHECKLIST.TASK_ID, taskId, COL.CHECKLIST.ONBOARDING_ID, onboardingId);
+  if (rowIndex < 0) {
+    return false;
+  }
+  sheet.getRange(rowIndex, COL.CHECKLIST.REMINDER_COUNT).setValue(Number(reminderCount || 0));
+  sheet.getRange(rowIndex, COL.CHECKLIST.LAST_REMINDER_AT).setValue(lastReminderAt || new Date());
+  return true;
+};
 
 SheetClient.prototype.getSheetRowLink = function (sheetName, rowIndex) {
   var sheet = this.getSheet_(sheetName);
