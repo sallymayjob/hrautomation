@@ -17,7 +17,10 @@
     ],
     "notes": "Must be completed in first business day",
     "phase": "Documentation",
-    "required_for_completion": true
+    "required_for_completion": true,
+    "offset_type": "FIRST_24_HOURS",
+    "offset_days": 0,
+    "criticality": "HIGH"
   },
   {
     "task_id": "WRK-001",
@@ -37,7 +40,10 @@
     ],
     "notes": "Includes shared drive and calendar access",
     "phase": "Pre-onboarding",
-    "required_for_completion": true
+    "required_for_completion": true,
+    "offset_type": "DAYS_FROM_START",
+    "offset_days": 0,
+    "criticality": "HIGH"
   },
   {
     "task_id": "WRK-002",
@@ -57,7 +63,10 @@
     ],
     "notes": "Required for all engineering hires",
     "phase": "Day-1 readiness",
-    "required_for_completion": true
+    "required_for_completion": true,
+    "offset_type": "DAYS_FROM_START",
+    "offset_days": 1,
+    "criticality": "NORMAL"
   },
   {
     "task_id": "MKT-001",
@@ -78,7 +87,10 @@
     ],
     "notes": "Skip for confidential hires",
     "phase": "Day-1 readiness",
-    "required_for_completion": false
+    "required_for_completion": false,
+    "offset_type": "DAYS_FROM_START",
+    "offset_days": 3,
+    "criticality": "LOW"
   },
   {
     "task_id": "FIN-001",
@@ -100,7 +112,10 @@
     ],
     "notes": "Region-specific tax forms apply",
     "phase": "Pre-onboarding",
-    "required_for_completion": true
+    "required_for_completion": true,
+    "offset_type": "DAYS_FROM_START",
+    "offset_days": 2,
+    "criticality": "HIGH"
   },
   {
     "task_id": "FIN-002",
@@ -120,6 +135,9 @@
     ],
     "notes": "Only if role level requires budget authority",
     "phase": "Documentation",
-    "required_for_completion": false
+    "required_for_completion": false,
+    "offset_type": "DAYS_FROM_START",
+    "offset_days": 5,
+    "criticality": "NORMAL"
   }
 ]

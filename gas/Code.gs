@@ -15,6 +15,11 @@ var CHECKLIST_HEADERS = [
   'owner_slack_id',
   'status',
   'due_date',
+  'offset_type',
+  'offset_days',
+  'criticality',
+  'reminder_count',
+  'last_reminder_at',
   'completed_at',
   'completed_by',
   'notes',
@@ -152,7 +157,7 @@ function processOnboardingRow_(sheet, rowIndex) {
 
     var onboardingId = rowData.onboarding_id || generateId('ONB');
     setValueIfColumnExists_(sheet, rowIndex, headerMap, 'onboarding_id', onboardingId);
-    generateChecklistTasks_(sheetClient, auditLogger, onboardingId, rowData, startDate);
+    generateChecklistTasks_(sheetClient, auditLogger, onboardingId, rowData, startDate, new Date());
     setValueIfColumnExists_(sheet, rowIndex, headerMap, 'dm_sent_at', new Date());
     setValueIfColumnExists_(sheet, rowIndex, headerMap, 'processed_at', new Date());
     setStatus_(sheet, rowIndex, headerMap, STATUS.IN_PROGRESS);
@@ -188,6 +193,24 @@ function computeDueDate_(startDate, probationDays, dueOffsetDays) {
   var dueDate = new Date(startDate.getTime());
   dueDate.setDate(dueDate.getDate() + offset);
   return dueDate;
+}
+
+
+function computeTemplateDueDate_(template, startDate, triggerTimestamp) {
+  var offsetType = String(template.offset_type || '').trim().toUpperCase() || 'DAYS_FROM_START';
+  var offsetDays = Number(template.offset_days);
+  if (isNaN(offsetDays)) {
+    offsetDays = Number(template.due_offset_days || 0);
+  }
+
+  if (offsetType === 'FIRST_24_HOURS') {
+    var dueFromTrigger = new Date((triggerTimestamp || new Date()).getTime());
+    dueFromTrigger.setHours(dueFromTrigger.getHours() + 24);
+    dueFromTrigger.setDate(dueFromTrigger.getDate() + offsetDays);
+    return dueFromTrigger;
+  }
+
+  return computeDueDate_(startDate, 0, offsetDays);
 }
 
 function getHeaderMap_(sheet) {
@@ -270,7 +293,7 @@ function getFirstName_(fullName) {
 }
 
 
-function generateChecklistTasks_(sheetClient, auditLogger, onboardingId, rowData, startDate) {
+function generateChecklistTasks_(sheetClient, auditLogger, onboardingId, rowData, startDate, triggerTimestamp) {
   sheetClient.ensureSheetWithHeaders(Config.getChecklistSheetName(), CHECKLIST_HEADERS);
   var templateRows = getChecklistTemplateRows_();
   var generatedCount = 0;
@@ -281,7 +304,7 @@ function generateChecklistTasks_(sheetClient, auditLogger, onboardingId, rowData
       continue;
     }
 
-    var dueDate = computeDueDate_(startDate, 0, Number(template.due_offset_days || 0));
+    var dueDate = computeTemplateDueDate_(template, startDate, triggerTimestamp);
     var eventHash = computeHash([
       onboardingId,
       template.task_id,
@@ -300,6 +323,11 @@ function generateChecklistTasks_(sheetClient, auditLogger, onboardingId, rowData
       template.owner_slack_id || '',
       'PENDING',
       dueDate,
+      String(template.offset_type || 'DAYS_FROM_START').toUpperCase(),
+      Number(!isNaN(Number(template.offset_days)) ? template.offset_days : (template.due_offset_days || 0)),
+      String(template.criticality || 'NORMAL').toUpperCase(),
+      0,
+      '',
       '',
       '',
       template.notes || '',
@@ -339,12 +367,12 @@ function evaluateOnboardingCompletionGate_(sheetClient, onboardingId) {
       continue;
     }
 
-    var required = row[12] === '' || row[12] === null || typeof row[12] === 'undefined' ? true : Boolean(row[12]);
+    var required = row[18] === '' || row[18] === null || typeof row[18] === 'undefined' ? true : Boolean(row[18]);
     if (!required) {
       continue;
     }
 
-    var taskStatus = String(row[6] || '').trim().toUpperCase();
+    var taskStatus = String(row[7] || '').trim().toUpperCase();
     var isDone = taskStatus === STATUS.COMPLETE || taskStatus === 'DONE';
     if (isDone) {
       continue;
