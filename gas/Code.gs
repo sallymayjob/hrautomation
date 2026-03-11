@@ -46,6 +46,8 @@ function onChangeHandler(e) {
     return;
   }
 
+  validateOnboardingSchema_(sheet);
+
   for (var rowIndex = 2; rowIndex <= lastRow; rowIndex += 1) {
     var headerMap = getHeaderMap_(sheet);
     var statusValue = String(sheet.getRange(rowIndex, headerMap.status).getValue() || '').trim().toUpperCase();
@@ -61,16 +63,17 @@ function processOnboardingRow_(sheet, rowIndex) {
   var auditLogger = new AuditLogger(sheetClient);
   var slackClient = new SlackClient(auditLogger);
   var headerMap = getHeaderMap_(sheet);
+  validateOnboardingSchema_(sheet, headerMap);
 
   try {
     var rowValues = sheet.getRange(rowIndex, 1, 1, sheet.getLastColumn()).getValues()[0];
     var rowData = toRowObject_(rowValues, headerMap);
 
     var rowHash = computeHash([
-      rowData.employee_id,
+      rowData.onboarding_id,
       rowData.email,
       formatDateKey_(rowData.start_date),
-      rowData.role_title,
+      rowData.role,
       rowData.manager_email
     ]);
     setValueIfColumnExists_(sheet, rowIndex, headerMap, 'row_hash', rowHash);
@@ -80,7 +83,7 @@ function processOnboardingRow_(sheet, rowIndex) {
       setStatus_(sheet, rowIndex, headerMap, STATUS.DUPLICATE);
       auditLogger.log({
         entityType: 'Onboarding',
-        entityId: String(rowData.employee_id || rowIndex),
+        entityId: String(rowData.onboarding_id || rowIndex),
         action: 'UPDATE',
         details: 'Marked as duplicate. Matched row index ' + duplicateRow + '.'
       });
@@ -94,7 +97,7 @@ function processOnboardingRow_(sheet, rowIndex) {
       setValueIfColumnExists_(sheet, rowIndex, headerMap, 'manager_slack_id', managerSlackId);
     }
 
-    var roleMapping = getRoleMapping_(rowData.role_title);
+    var roleMapping = getRoleMapping_(rowData.role);
     var startDate = parseDateValue_(rowData.start_date);
     var employeeLookup = slackClient.lookupUserByEmail(rowData.email);
     var employeeSlackId = employeeLookup && employeeLookup.user && employeeLookup.user.id ? employeeLookup.user.id : '';
@@ -103,16 +106,16 @@ function processOnboardingRow_(sheet, rowIndex) {
     }
 
     slackClient.postMessage(employeeSlackId, BlockKit.welcomeDM({
-      firstName: getFirstName_(rowData.full_name),
+      firstName: getFirstName_(rowData.employee_name),
       startDate: formatDateKey_(startDate),
-      managerName: rowData.manager_name || rowData.manager_email || 'TBD'
+      managerName: rowData.manager_email || 'TBD'
     }));
 
     for (var i = 0; i < roleMapping.resources.length; i += 1) {
       var resource = roleMapping.resources[i];
       var dueDate = computeDueDate_(startDate, roleMapping.probationDays, resource.dueOffsetDays);
       sheetClient.appendTrainingRow([
-        rowData.employee_id,
+        rowData.onboarding_id,
         resource.moduleCode,
         resource.moduleName,
         new Date(),
@@ -123,7 +126,7 @@ function processOnboardingRow_(sheet, rowIndex) {
         0,
         '',
         new Date(),
-        computeHash([rowData.employee_id, resource.moduleCode, formatDateKey_(dueDate)]),
+        computeHash([rowData.onboarding_id, resource.moduleCode, formatDateKey_(dueDate)]),
         false
       ]);
     }
@@ -138,7 +141,7 @@ function processOnboardingRow_(sheet, rowIndex) {
       entityType: 'Onboarding',
       entityId: onboardingId,
       action: 'UPDATE',
-      details: 'Onboarding processed successfully for employee_id=' + rowData.employee_id + '.'
+      details: 'Onboarding processed successfully for onboarding_id=' + rowData.onboarding_id + '.'
     });
   } catch (err) {
     setStatus_(sheet, rowIndex, headerMap, STATUS.FAILED);
@@ -178,6 +181,20 @@ function getHeaderMap_(sheet) {
     throw new Error('Onboarding sheet is missing required status column.');
   }
   return map;
+}
+
+function validateOnboardingSchema_(sheet, headerMap) {
+  var map = headerMap || getHeaderMap_(sheet);
+  var requiredKeys = ['onboarding_id', 'employee_name', 'email', 'role', 'start_date', 'manager_email', 'status'];
+  var missing = [];
+  for (var i = 0; i < requiredKeys.length; i += 1) {
+    if (!map[requiredKeys[i]]) {
+      missing.push(requiredKeys[i]);
+    }
+  }
+  if (missing.length > 0) {
+    throw new Error('Onboarding sheet schema invalid. Missing required header(s): ' + missing.join(', '));
+  }
 }
 
 function toRowObject_(rowValues, headerMap) {
