@@ -97,6 +97,41 @@ SheetClient.prototype.appendRow_ = function (sheet, rowValues) {
   return sheet.getLastRow();
 };
 
+
+SheetClient.prototype.checkDuplicate = function (sheetName, columnKeyOrIndex, value, excludeRowIndex) {
+  var sheet = this.getSheet_(sheetName);
+  var columnIndex = columnKeyOrIndex;
+
+  if (typeof columnKeyOrIndex === 'string') {
+    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var normalizedTarget = String(columnKeyOrIndex).trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+    columnIndex = -1;
+    for (var i = 0; i < headers.length; i += 1) {
+      var normalizedHeader = String(headers[i] || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+      if (normalizedHeader === normalizedTarget) {
+        columnIndex = i + 1;
+        break;
+      }
+    }
+  }
+
+  if (!columnIndex || columnIndex < 1) {
+    throw new Error('Invalid duplicate check column: ' + columnKeyOrIndex);
+  }
+
+  var rows = this.getDataRows_(sheet);
+  for (var row = 0; row < rows.length; row += 1) {
+    var rowIndex = row + 2;
+    if (excludeRowIndex && rowIndex === excludeRowIndex) {
+      continue;
+    }
+    if (rows[row][columnIndex - 1] === value) {
+      return rowIndex;
+    }
+  }
+  return -1;
+};
+
 SheetClient.prototype.getOnboardingRows = function () {
   var sheet = this.getSheet_(Config.getOnboardingSheetName());
   return this.getDataRows_(sheet);
