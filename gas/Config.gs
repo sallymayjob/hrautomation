@@ -9,6 +9,7 @@ var Config = (function () {
     ONBOARDING_SHEET_NAME: 'ONBOARDING_SHEET_NAME',
     TRAINING_SHEET_NAME: 'TRAINING_SHEET_NAME',
     AUDIT_SHEET_NAME: 'AUDIT_SHEET_NAME',
+    CHECKLIST_SHEET_NAME: 'CHECKLIST_SHEET_NAME',
     HR_ALERT_EMAIL: 'HR_ALERT_EMAIL',
     APP_TIMEZONE: 'APP_TIMEZONE',
     RETRY_MAX_ATTEMPTS: 'RETRY_MAX_ATTEMPTS',
@@ -53,6 +54,10 @@ var Config = (function () {
 
     getAuditSheetName: function () {
       return getString_(KEYS.AUDIT_SHEET_NAME);
+    },
+
+    getChecklistSheetName: function () {
+      return getString_(KEYS.CHECKLIST_SHEET_NAME);
     },
 
     getHrAlertEmail: function () {

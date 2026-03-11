@@ -1,9 +1,25 @@
-/* global SheetClient, SlackClient, AuditLogger, BlockKit, computeHash, generateId, console */
+/* global SheetClient, SlackClient, AuditLogger, BlockKit, computeHash, generateId, CHECKLIST_TASK_TEMPLATE, Config, console */
 /**
  * @fileoverview Main trigger handlers for onboarding processing.
  */
 
 var ONBOARDING_SHEET_NAME = 'Onboarding';
+
+var CHECKLIST_HEADERS = [
+  'task_id',
+  'onboarding_id',
+  'category',
+  'task_name',
+  'owner_team',
+  'owner_slack_id',
+  'status',
+  'due_date',
+  'completed_at',
+  'completed_by',
+  'notes',
+  'event_hash'
+];
+
 var STATUS = {
   PENDING: 'PENDING',
   DUPLICATE: 'DUPLICATE',
@@ -133,6 +149,7 @@ function processOnboardingRow_(sheet, rowIndex) {
 
     var onboardingId = rowData.onboarding_id || generateId('ONB');
     setValueIfColumnExists_(sheet, rowIndex, headerMap, 'onboarding_id', onboardingId);
+    generateChecklistTasks_(sheetClient, auditLogger, onboardingId, rowData, startDate);
     setValueIfColumnExists_(sheet, rowIndex, headerMap, 'dm_sent_at', new Date());
     setValueIfColumnExists_(sheet, rowIndex, headerMap, 'processed_at', new Date());
     setStatus_(sheet, rowIndex, headerMap, STATUS.DM_SENT);
@@ -247,9 +264,82 @@ function getFirstName_(fullName) {
   return String(fullName || '').trim().split(/\s+/)[0] || '';
 }
 
+
+function generateChecklistTasks_(sheetClient, auditLogger, onboardingId, rowData, startDate) {
+  sheetClient.ensureSheetWithHeaders(Config.getChecklistSheetName(), CHECKLIST_HEADERS);
+  var templateRows = getChecklistTemplateRows_();
+  var generatedCount = 0;
+
+  for (var i = 0; i < templateRows.length; i += 1) {
+    var template = templateRows[i];
+    if (!templateMatchesOnboarding_(template, rowData)) {
+      continue;
+    }
+
+    var dueDate = computeDueDate_(startDate, 0, Number(template.due_offset_days || 0));
+    var eventHash = computeHash([
+      onboardingId,
+      template.task_id,
+      template.category,
+      template.task_name,
+      formatDateKey_(dueDate)
+    ]);
+
+    sheetClient.appendChecklistTask([
+      template.task_id,
+      onboardingId,
+      template.category,
+      template.task_name,
+      template.owner_team,
+      template.owner_slack_id || '',
+      'PENDING',
+      dueDate,
+      '',
+      '',
+      template.notes || '',
+      eventHash
+    ]);
+
+    generatedCount += 1;
+  }
+
+  auditLogger.log({
+    entityType: 'ChecklistTask',
+    entityId: onboardingId,
+    action: 'CREATE',
+    details: 'Generated ' + generatedCount + ' checklist task(s) from template for onboarding_id=' + onboardingId + '.'
+  });
+}
+
+function getChecklistTemplateRows_() {
+  if (typeof CHECKLIST_TASK_TEMPLATE !== 'undefined' && CHECKLIST_TASK_TEMPLATE && CHECKLIST_TASK_TEMPLATE.length) {
+    return CHECKLIST_TASK_TEMPLATE;
+  }
+  return [];
+}
+
+function templateMatchesOnboarding_(template, rowData) {
+  return matchesRule_(template.brand_rules, rowData.brand) &&
+    matchesRule_(template.region_rules, rowData.region) &&
+    matchesRule_(template.role_rules, rowData.role);
+}
+
+function matchesRule_(rules, candidate) {
+  var normalizedCandidate = String(candidate || '').trim().toUpperCase();
+  var normalizedRules = (rules || ['*']).map(function (rule) {
+    return String(rule || '').trim().toUpperCase();
+  });
+
+  if (normalizedRules.indexOf('*') > -1) {
+    return true;
+  }
+  return normalizedRules.indexOf(normalizedCandidate) > -1;
+}
+
 if (typeof module !== 'undefined') {
   module.exports = {
     onChangeHandler: onChangeHandler,
-    processOnboardingRow_: processOnboardingRow_
+    processOnboardingRow_: processOnboardingRow_,
+    templateMatchesOnboarding_: templateMatchesOnboarding_
   };
 }

@@ -40,6 +40,20 @@ var COL = {
     COMPLETION_HASH: 12,
     CELEBRATION_POSTED: 13
   },
+  CHECKLIST: {
+    TASK_ID: 1,
+    ONBOARDING_ID: 2,
+    CATEGORY: 3,
+    TASK_NAME: 4,
+    OWNER_TEAM: 5,
+    OWNER_SLACK_ID: 6,
+    STATUS: 7,
+    DUE_DATE: 8,
+    COMPLETED_AT: 9,
+    COMPLETED_BY: 10,
+    NOTES: 11,
+    EVENT_HASH: 12
+  },
   AUDIT: {
     AUDIT_ID: 1,
     EVENT_TIMESTAMP: 2,
@@ -130,6 +144,32 @@ SheetClient.prototype.appendRow_ = function (sheet, rowValues) {
   return sheet.getLastRow();
 };
 
+SheetClient.prototype.ensureSheetWithHeaders = function (sheetName, headers) {
+  var spreadsheet = this.openSpreadsheet_();
+  var sheet = spreadsheet.getSheetByName(sheetName);
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(sheetName);
+  }
+
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(headers);
+    return sheet;
+  }
+
+  var existingHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  if (existingHeaders.length !== headers.length) {
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    return sheet;
+  }
+
+  for (var i = 0; i < headers.length; i += 1) {
+    if (this.normalizeKey_(existingHeaders[i]) !== this.normalizeKey_(headers[i])) {
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      break;
+    }
+  }
+  return sheet;
+};
 
 SheetClient.prototype.checkDuplicate = function (sheetName, columnKeyOrIndex, value, excludeRowIndex) {
   var sheet = this.getSheet_(sheetName);
@@ -268,6 +308,56 @@ SheetClient.prototype.markCelebrationPosted = function (employeeId, moduleCode, 
     return false;
   }
   sheet.getRange(rowIndex, COL.TRAINING.CELEBRATION_POSTED).setValue(Boolean(posted));
+  return true;
+};
+
+SheetClient.prototype.getChecklistRows = function () {
+  var sheet = this.getSheet_(Config.getChecklistSheetName());
+  return this.getDataRows_(sheet);
+};
+
+SheetClient.prototype.findChecklistTask = function (taskId, onboardingId) {
+  var sheet = this.getSheet_(Config.getChecklistSheetName());
+  var rowIndex = this.findRowIndexByValues_(sheet, COL.CHECKLIST.TASK_ID, taskId, COL.CHECKLIST.ONBOARDING_ID, onboardingId);
+  if (rowIndex < 0) {
+    return null;
+  }
+  return { rowIndex: rowIndex, values: sheet.getRange(rowIndex, 1, 1, sheet.getLastColumn()).getValues()[0] };
+};
+
+SheetClient.prototype.appendChecklistTask = function (rowValues) {
+  var sheet = this.getSheet_(Config.getChecklistSheetName());
+  var existing = this.findRowIndexByValues_(
+    sheet,
+    COL.CHECKLIST.TASK_ID,
+    rowValues[COL.CHECKLIST.TASK_ID - 1],
+    COL.CHECKLIST.ONBOARDING_ID,
+    rowValues[COL.CHECKLIST.ONBOARDING_ID - 1]
+  );
+  if (existing > -1) {
+    this.writeRow_(sheet, existing, rowValues);
+    return existing;
+  }
+  return this.appendRow_(sheet, rowValues);
+};
+
+SheetClient.prototype.updateChecklistTask = function (taskId, onboardingId, updates) {
+  var sheet = this.getSheet_(Config.getChecklistSheetName());
+  var rowIndex = this.findRowIndexByValues_(sheet, COL.CHECKLIST.TASK_ID, taskId, COL.CHECKLIST.ONBOARDING_ID, onboardingId);
+  if (rowIndex < 0) {
+    return false;
+  }
+
+  var headerMap = this.getHeaderMap_(sheet);
+  var updateKeys = Object.keys(updates || {});
+  for (var i = 0; i < updateKeys.length; i += 1) {
+    var key = this.normalizeKey_(updateKeys[i]);
+    var columnIndex = headerMap[key];
+    if (columnIndex) {
+      sheet.getRange(rowIndex, columnIndex).setValue(updates[updateKeys[i]]);
+    }
+  }
+
   return true;
 };
 
