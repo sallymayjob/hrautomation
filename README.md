@@ -7,12 +7,13 @@ You're done with this part.
 
 ## 2. How does it work?
 1. A new person joins the `#new-hires` Slack channel (a shared team chat room).
-2. A form (a question page) appears asking for their details.
-3. The form saves their details into a spreadsheet (an online table).
-4. The system reads the spreadsheet and sends a welcome message with training links.
-5. Every morning, the system checks upcoming or overdue training.
-6. The system sends reminder messages to the right people.
-7. When training is finished, the system posts a celebration in `#general`.
+2. HR approvals receive a direct message notification with a `Continue Workflow` button.
+3. HR clicks the button, then a form (a question page) appears asking for the new hire details.
+4. The form saves their details into a spreadsheet (an online table).
+5. The system reads the spreadsheet and sends a welcome message with training links.
+6. Every morning, the system checks upcoming or overdue training.
+7. The system sends reminder messages to the right people.
+8. When training is finished, the system posts a celebration in `#general`.
 
 Think of the spreadsheet like a filing cabinet. The system checks that filing cabinet each morning for today's messages.
 
