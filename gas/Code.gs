@@ -73,11 +73,31 @@ function onChangeHandler(e) {
 
   for (var rowIndex = 2; rowIndex <= lastRow; rowIndex += 1) {
     var headerMap = getHeaderMap_(sheet);
+    hydrateOnboardingDefaults_(sheet, rowIndex, headerMap);
     var statusValue = String(sheet.getRange(rowIndex, headerMap.status).getValue() || '').trim().toUpperCase();
     if (statusValue !== STATUS.PENDING) {
       continue;
     }
     processOnboardingRow_(sheet, rowIndex);
+  }
+}
+
+function hydrateOnboardingDefaults_(sheet, rowIndex, headerMap) {
+  var onboardingId = String(sheet.getRange(rowIndex, headerMap.onboarding_id).getValue() || '').trim();
+  if (!onboardingId) {
+    setValueIfColumnExists_(sheet, rowIndex, headerMap, 'onboarding_id', generateId('ONB'));
+  }
+
+  var statusValue = String(sheet.getRange(rowIndex, headerMap.status).getValue() || '').trim().toUpperCase();
+  if (!statusValue) {
+    setStatus_(sheet, rowIndex, headerMap, STATUS.PENDING);
+  }
+
+  if (headerMap.checklist_completed) {
+    var checklistCompleted = sheet.getRange(rowIndex, headerMap.checklist_completed).getValue();
+    if (checklistCompleted === '' || checklistCompleted === null) {
+      setValueIfColumnExists_(sheet, rowIndex, headerMap, 'checklist_completed', false);
+    }
   }
 }
 
@@ -93,7 +113,6 @@ function processOnboardingRow_(sheet, rowIndex) {
     var rowData = toRowObject_(rowValues, headerMap);
 
     var rowHash = computeHash([
-      rowData.onboarding_id,
       rowData.email,
       formatDateKey_(rowData.start_date),
       rowData.role,
