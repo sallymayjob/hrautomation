@@ -71,7 +71,7 @@ describe('RoleMapper behavior via onboarding processing', () => {
       lookupUserByEmail: jest.fn((email) => ({ user: { id: email === 'a@x.com' ? 'U1' : 'UM' } })),
       postMessage
     }));
-    global.BlockKit = { welcomeDM: jest.fn(() => []), checklistAssignment: jest.fn(() => []) };
+    global.BlockKit = { welcomeDM: jest.fn(() => []), checklistAssignment: jest.fn(() => []), assignmentNotificationDM: jest.fn(() => []) };
 
     const { processOnboardingRow_ } = require('../../gas/Code.gs');
     processOnboardingRow_(sheet, 2);
@@ -79,7 +79,8 @@ describe('RoleMapper behavior via onboarding processing', () => {
     expect(sheetClientMock.appendTrainingRow).toHaveBeenCalledTimes(2);
     expect(sheetClientMock.appendTrainingRow.mock.calls[0][0][1]).toBe('ENG-101');
     expect(postMessage).toHaveBeenCalledWith('CIT123', []);
-    expect(sheetClientMock.appendAuditIfNotExists).toHaveBeenCalledTimes(1);
+    expect(postMessage).toHaveBeenCalledWith('UM', []);
+    expect(sheetClientMock.appendAuditIfNotExists).toHaveBeenCalledTimes(2);
   });
 
   test('owner destination rules prefer direct Slack IDs and fallback to default', () => {

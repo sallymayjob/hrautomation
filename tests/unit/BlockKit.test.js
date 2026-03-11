@@ -31,5 +31,8 @@ describe('BlockKit', () => {
     const assignment = BlockKit.checklistAssignment({ employeeName: 'Alex Doe', taskName: 'Create account', dueDate: '2026-01-09', ownerLabel: '@it-helpdesk', rowLink: 'https://example.com' });
     expect(assignment[1].text.text).toContain('Alex Doe');
     expect(assignment[2].elements[0].text).toContain('Open task row');
+
+    const managerNotification = BlockKit.assignmentNotificationDM({ recipientRole: 'Manager', employeeName: 'Alex Doe', teamLabel: 'Retail / NZ / Manager', buddyLabel: 'buddy@x.com' });
+    expect(managerNotification[2].text.text).toContain('Retail / NZ / Manager');
   });
 });

@@ -102,6 +102,7 @@ You're done with Phase 2.5. Required Slack channels are now ready.
 This phase stores all important IDs and passwords safely.
 Google Apps Script is a Google control room that runs this automation.
 Think of it like a locked office drawer for system settings.
+Need extra help? Read `docs/google-apps-script-eli15-guide.md` for a beginner-friendly walkthrough.
 
 ### Find your Slack channel IDs
 Every channel has an ID, like a name badge number.
