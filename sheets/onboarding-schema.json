@@ -1,30 +1,126 @@
 {
   "schemaName": "onboarding",
-  "version": 2,
+  "version": 3,
   "sheetName": "Onboarding",
   "columns": [
-    { "index": 1, "key": "onboarding_id", "header": "onboarding_id", "type": "string", "required": true },
-    { "index": 2, "key": "employee_name", "header": "employee_name", "type": "string", "required": true },
-    { "index": 3, "key": "slack_id", "header": "slack_id", "type": "string", "required": false },
-    { "index": 4, "key": "email", "header": "email", "type": "string", "required": true },
-    { "index": 5, "key": "role", "header": "role", "type": "string", "required": true },
-    { "index": 6, "key": "brand", "header": "brand", "type": "string", "required": false },
-    { "index": 7, "key": "start_date", "header": "start_date", "type": "date", "required": true },
-    { "index": 8, "key": "region", "header": "region", "type": "string", "required": false },
-    { "index": 9, "key": "manager_email", "header": "manager_email", "type": "string", "required": true },
-    { "index": 10, "key": "manager_slack_id", "header": "manager_slack_id", "type": "string", "required": false },
-    { "index": 11, "key": "dob", "header": "dob", "type": "date", "required": false },
+    {
+      "index": 1,
+      "key": "onboarding_id",
+      "header": "onboarding_id",
+      "type": "string",
+      "required": true
+    },
+    {
+      "index": 2,
+      "key": "employee_name",
+      "header": "employee_name",
+      "type": "string",
+      "required": true
+    },
+    {
+      "index": 3,
+      "key": "slack_id",
+      "header": "slack_id",
+      "type": "string",
+      "required": false
+    },
+    {
+      "index": 4,
+      "key": "email",
+      "header": "email",
+      "type": "string",
+      "required": true
+    },
+    {
+      "index": 5,
+      "key": "role",
+      "header": "role",
+      "type": "string",
+      "required": true
+    },
+    {
+      "index": 6,
+      "key": "brand",
+      "header": "brand",
+      "type": "string",
+      "required": false
+    },
+    {
+      "index": 7,
+      "key": "start_date",
+      "header": "start_date",
+      "type": "date",
+      "required": true
+    },
+    {
+      "index": 8,
+      "key": "region",
+      "header": "region",
+      "type": "string",
+      "required": false
+    },
+    {
+      "index": 9,
+      "key": "manager_email",
+      "header": "manager_email",
+      "type": "string",
+      "required": true
+    },
+    {
+      "index": 10,
+      "key": "manager_slack_id",
+      "header": "manager_slack_id",
+      "type": "string",
+      "required": false
+    },
+    {
+      "index": 11,
+      "key": "dob",
+      "header": "dob",
+      "type": "date",
+      "required": false
+    },
     {
       "index": 12,
       "key": "status",
       "header": "status",
       "type": "enum",
       "required": true,
-      "allowedValues": ["PENDING", "DUPLICATE", "FAILED", "DM_SENT"]
+      "allowedValues": [
+        "PENDING",
+        "IN_PROGRESS",
+        "BLOCKED",
+        "COMPLETE"
+      ]
     },
-    { "index": 13, "key": "dm_sent_at", "header": "dm_sent_at", "type": "datetime", "required": false },
-    { "index": 14, "key": "checklist_completed", "header": "checklist_completed", "type": "boolean", "required": false },
-    { "index": 15, "key": "row_hash", "header": "row_hash", "type": "string", "required": false }
+    {
+      "index": 13,
+      "key": "dm_sent_at",
+      "header": "dm_sent_at",
+      "type": "datetime",
+      "required": false
+    },
+    {
+      "index": 14,
+      "key": "checklist_completed",
+      "header": "checklist_completed",
+      "type": "boolean",
+      "required": false
+    },
+    {
+      "index": 15,
+      "key": "row_hash",
+      "header": "row_hash",
+      "type": "string",
+      "required": false
+    },
+    {
+      "index": 16,
+      "key": "blocked_reason",
+      "header": "blocked_reason",
+      "type": "string",
+      "required": false
+    }
   ],
   "requiredHeaders": [
     "onboarding_id",

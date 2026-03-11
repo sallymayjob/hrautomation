@@ -289,16 +289,31 @@ Run this test before real onboarding starts.
 4. Wait up to 2 minutes.
 5. Open the Onboarding spreadsheet.
 6. Check that a new row appeared.
-7. Check that `status` changed to `DM_SENT`.
+7. Check that `status` changed to `IN_PROGRESS`.
 8. Ask the colleague to check direct messages in Slack.
 9. Confirm they received a welcome message from RWR HR Bot.
 10. Open the Audit Log spreadsheet.
-11. Confirm today's row includes `DM_SENT` in `event_type`.
+11. Confirm today's row includes an onboarding update event and no `BLOCKED` reason.
 What just happened? You confirmed form capture, welcome message, and logging all work.
 
 If any check fails, take a screenshot and send it to the tech lead.
 
 Testing complete. If all three checks passed, the system is ready for real use.
+
+
+## Onboarding completion gate logic
+- Valid onboarding statuses are `PENDING`, `IN_PROGRESS`, `BLOCKED`, `COMPLETE`.
+- The system generates checklist tasks with explicit phases (`Documentation`, `Pre-onboarding`, `Day-1 readiness`).
+- `required_for_completion = true` tasks must be `COMPLETE`/`DONE` before onboarding can move to `COMPLETE`.
+- If an operator attempts to complete onboarding early, the gate writes `BLOCKED` and a detailed `blocked_reason` grouped by phase.
+- Typical blocked reasons include missing contract completion and missing Google account test verification.
+
+### Operator actions for blocked onboarding
+1. Open the Onboarding row and copy the `blocked_reason` text.
+2. Resolve each required task in the named phase(s).
+3. Update corresponding Checklist Tasks rows to `COMPLETE`.
+4. Set onboarding status to `COMPLETE` again.
+5. Confirm `blocked_reason` is cleared.
 
 ## What happens every day (no action needed)
 - At 8:00 AM NZ time, training deadlines are checked for reminders.
@@ -315,7 +330,7 @@ You're done with this part.
 ## Keeping the system healthy (monthly, about 5 minutes)
 - [ ] Open Audit Log and check new rows exist for this month.
 - [ ] Contact the tech lead if the newest row is older than 3 days.
-- [ ] Open Onboarding and check for rows with `FAILED` status.
+- [ ] Open Onboarding and check for rows with `BLOCKED` status.
 - [ ] Send failed employee names to the tech lead.
 - [ ] Tell the tech lead if training links changed.
 - [ ] Do not edit training links yourself.
@@ -328,8 +343,9 @@ You're done with this part.
 - Check their row in the Onboarding spreadsheet.
 - If status is `PENDING`, wait 5 minutes.
 - If still `PENDING`, contact the tech lead.
-- If status is `FAILED`, contact the tech lead to reset and resend.
-- If status is `DM_SENT`, ask the new hire to check direct messages.
+- If status is `BLOCKED`, read `blocked_reason`, resolve missing tasks (for example signed contract or Google account test), then set status back to `IN_PROGRESS`.
+- If status is `IN_PROGRESS`, ask the new hire to check direct messages and verify checklist task progress.
+- Set status to `COMPLETE` only after required checklist phases (`Documentation`, `Pre-onboarding`, `Day-1 readiness`) are complete.
 - If no row exists, ask the manager to add details manually.
 - Contact the tech lead for the correct row template.
 
