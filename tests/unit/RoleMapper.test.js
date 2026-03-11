@@ -25,28 +25,67 @@ describe('RoleMapper behavior via onboarding processing', () => {
     mockGasGlobals();
     global.computeHash = jest.fn(() => 'hash');
     global.generateId = jest.fn(() => 'ONB_1');
-    global.Config = { getChecklistSheetName: jest.fn(() => 'Checklist Tasks') };
-    global.CHECKLIST_TASK_TEMPLATE = [];
+    global.Config = {
+      getChecklistSheetName: jest.fn(() => 'Checklist Tasks'),
+      getAuditSheetName: jest.fn(() => 'Audit'),
+      getItTeamChannelId: jest.fn(() => 'CIT123'),
+      getPeopleTeamChannelId: jest.fn(() => 'CPEO123'),
+      getFinanceTeamChannelId: jest.fn(() => 'CFIN123'),
+      getAdminTeamChannelId: jest.fn(() => 'CADM123'),
+      getHrTeamChannelId: jest.fn(() => 'CHR123'),
+      getLegalTeamChannelId: jest.fn(() => 'CLEG123'),
+      getOperationsTeamChannelId: jest.fn(() => 'COPS123'),
+      getDefaultAssignmentsChannelId: jest.fn(() => 'CDEF123')
+    };
+    global.CHECKLIST_TASK_TEMPLATE = [{
+      task_id: 'IT-100',
+      category: 'IT',
+      task_name: 'Provision account',
+      owner_team: 'IT',
+      owner_slack_id: '@it-helpdesk',
+      due_offset_days: 1,
+      notes: '',
+      brand_rules: ['*'],
+      region_rules: ['*'],
+      role_rules: ['*']
+    }];
   });
 
-  test('uses ENGINEER role resources', () => {
+  test('uses ENGINEER role resources and dispatches task assignment', () => {
     const headers = ['onboarding_id', 'employee_name', 'email', 'start_date', 'manager_email', 'role', 'status', 'row_hash'];
     const row = ['OB-1', 'Alex Doe', 'a@x.com', '2026-01-01', 'm@x.com', 'ENGINEER', 'PENDING', ''];
     const sheet = createSheet(headers, row);
 
-    const sheetClientMock = { checkDuplicate: jest.fn(() => -1), appendTrainingRow: jest.fn(), ensureSheetWithHeaders: jest.fn(), appendChecklistTask: jest.fn() };
+    const sheetClientMock = {
+      checkDuplicate: jest.fn(() => -1),
+      appendTrainingRow: jest.fn(),
+      ensureSheetWithHeaders: jest.fn(),
+      appendChecklistTask: jest.fn(() => 4),
+      getSheetRowLink: jest.fn(() => 'https://sheet/link'),
+      appendAuditIfNotExists: jest.fn()
+    };
     global.SheetClient = jest.fn(() => sheetClientMock);
     global.AuditLogger = jest.fn(() => ({ log: jest.fn(), error: jest.fn() }));
+    const postMessage = jest.fn();
     global.SlackClient = jest.fn(() => ({
       lookupUserByEmail: jest.fn((email) => ({ user: { id: email === 'a@x.com' ? 'U1' : 'UM' } })),
-      postMessage: jest.fn()
+      postMessage
     }));
-    global.BlockKit = { welcomeDM: jest.fn(() => []) };
+    global.BlockKit = { welcomeDM: jest.fn(() => []), checklistAssignment: jest.fn(() => []) };
 
     const { processOnboardingRow_ } = require('../../gas/Code.gs');
     processOnboardingRow_(sheet, 2);
 
     expect(sheetClientMock.appendTrainingRow).toHaveBeenCalledTimes(2);
     expect(sheetClientMock.appendTrainingRow.mock.calls[0][0][1]).toBe('ENG-101');
+    expect(postMessage).toHaveBeenCalledWith('CIT123', []);
+    expect(sheetClientMock.appendAuditIfNotExists).toHaveBeenCalledTimes(1);
+  });
+
+  test('owner destination rules prefer direct Slack IDs and fallback to default', () => {
+    const { resolveTaskOwnerDestination_ } = require('../../gas/Code.gs');
+    expect(resolveTaskOwnerDestination_('Finance', 'C99999999').rule).toBe('direct_slack_id');
+    expect(resolveTaskOwnerDestination_('Finance', '@finance').channelId).toBe('CFIN123');
+    expect(resolveTaskOwnerDestination_('Unknown', '@alias').channelId).toBe('CDEF123');
   });
 });

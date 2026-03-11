@@ -151,8 +151,17 @@ If one name is wrong, the system can fail.
 16. Paste the HR admin email, for example `hr@rwrgroup.com`.
 17. Add `ENV`.
 18. Type `production` as the value.
-19. Click "Save script properties".
-What just happened? The system now knows every address and password it needs.
+19. Add `ADMIN_TEAM_CHANNEL_ID`.
+20. Add `FINANCE_TEAM_CHANNEL_ID`.
+21. Add `HR_TEAM_CHANNEL_ID`.
+22. Add `IT_TEAM_CHANNEL_ID`.
+23. Add `LEGAL_TEAM_CHANNEL_ID`.
+24. Add `OPERATIONS_TEAM_CHANNEL_ID`.
+25. Add `PEOPLE_TEAM_CHANNEL_ID`.
+26. Add `DEFAULT_ASSIGNMENTS_CHANNEL_ID`.
+27. Paste the Slack channel IDs for each destination.
+28. Click "Save script properties".
+What just happened? The system now knows every address and password it needs, including checklist assignment destinations.
 
 You're done with Phase 3. The system now knows where everything lives.
 

@@ -361,6 +361,13 @@ SheetClient.prototype.updateChecklistTask = function (taskId, onboardingId, upda
   return true;
 };
 
+
+SheetClient.prototype.getSheetRowLink = function (sheetName, rowIndex) {
+  var sheet = this.getSheet_(sheetName);
+  var spreadsheetId = Config.getSpreadsheetId();
+  return 'https://docs.google.com/spreadsheets/d/' + spreadsheetId + '/edit#gid=' + sheet.getSheetId() + '&range=A' + rowIndex;
+};
+
 SheetClient.prototype.getAuditRows = function () {
   var sheet = this.getSheet_(Config.getAuditSheetName());
   return this.getDataRows_(sheet);

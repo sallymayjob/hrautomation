@@ -27,8 +27,19 @@ describe('integration onboarding flow', () => {
     mockGasGlobals();
     global.computeHash = jest.fn(() => 'hash');
     global.generateId = jest.fn(() => 'ONB_1');
-    global.BlockKit = { welcomeDM: jest.fn(() => []) };
-    global.Config = { getChecklistSheetName: jest.fn(() => 'Checklist Tasks') };
+    global.BlockKit = { welcomeDM: jest.fn(() => []), checklistAssignment: jest.fn(() => []) };
+    global.Config = {
+      getChecklistSheetName: jest.fn(() => 'Checklist Tasks'),
+      getAuditSheetName: jest.fn(() => 'Audit'),
+      getItTeamChannelId: jest.fn(() => 'CIT123'),
+      getPeopleTeamChannelId: jest.fn(() => 'CPEO123'),
+      getFinanceTeamChannelId: jest.fn(() => 'CFIN123'),
+      getAdminTeamChannelId: jest.fn(() => 'CADM123'),
+      getHrTeamChannelId: jest.fn(() => 'CHR123'),
+      getLegalTeamChannelId: jest.fn(() => 'CLEG123'),
+      getOperationsTeamChannelId: jest.fn(() => 'COPS123'),
+      getDefaultAssignmentsChannelId: jest.fn(() => 'CDEF123')
+    };
     global.CHECKLIST_TASK_TEMPLATE = [
       { task_id: 'DOC-001', category: 'Documentation', task_name: 'Doc', owner_team: 'People Ops', owner_slack_id: '@ops', due_offset_days: 1, brand_rules: ['*'], region_rules: ['*'], role_rules: ['*'], notes: '' }
     ];
@@ -39,7 +50,14 @@ describe('integration onboarding flow', () => {
     const row = ['OB-1', 'Alex Doe', 'a@x.com', '2026-01-01', 'm@x.com', 'MANAGER', 'PENDING', ''];
     const sheet = makeOnboardingSheet(headers, row);
 
-    const sheetClient = { checkDuplicate: jest.fn(() => -1), appendTrainingRow: jest.fn(), ensureSheetWithHeaders: jest.fn(), appendChecklistTask: jest.fn() };
+    const sheetClient = {
+      checkDuplicate: jest.fn(() => -1),
+      appendTrainingRow: jest.fn(),
+      ensureSheetWithHeaders: jest.fn(),
+      appendChecklistTask: jest.fn(() => 4),
+      getSheetRowLink: jest.fn(() => 'https://sheet/link'),
+      appendAuditIfNotExists: jest.fn()
+    };
     const auditLogger = { log: jest.fn(), error: jest.fn() };
     const slackClient = { lookupUserByEmail: jest.fn(() => ({ user: { id: 'U1' } })), postMessage: jest.fn() };
     global.SheetClient = jest.fn(() => sheetClient);

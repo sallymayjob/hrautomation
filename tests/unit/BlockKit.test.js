@@ -28,5 +28,8 @@ describe('BlockKit', () => {
     expect(BlockKit.recognitionPost({ employeeName: 'Alex' })[0].text.text).toContain('Alex');
     expect(BlockKit.birthdayDM({ firstName: 'Jo' })[0].text.text).toContain('Happy Birthday');
     expect(BlockKit.anniversaryDM({ firstName: 'Jo', years: 2 })[0].text.text).toContain('2 year');
+    const assignment = BlockKit.checklistAssignment({ employeeName: 'Alex Doe', taskName: 'Create account', dueDate: '2026-01-09', ownerLabel: '@it-helpdesk', rowLink: 'https://example.com' });
+    expect(assignment[1].text.text).toContain('Alex Doe');
+    expect(assignment[2].elements[0].text).toContain('Open task row');
   });
 });

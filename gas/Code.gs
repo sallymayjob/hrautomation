@@ -285,7 +285,7 @@ function generateChecklistTasks_(sheetClient, auditLogger, onboardingId, rowData
       formatDateKey_(dueDate)
     ]);
 
-    sheetClient.appendChecklistTask([
+    var checklistRowIndex = sheetClient.appendChecklistTask([
       template.task_id,
       onboardingId,
       template.category,
@@ -299,6 +299,17 @@ function generateChecklistTasks_(sheetClient, auditLogger, onboardingId, rowData
       template.notes || '',
       eventHash
     ]);
+
+    dispatchTaskAssignment_(sheetClient, auditLogger, {
+      onboardingId: onboardingId,
+      taskId: template.task_id,
+      taskName: template.task_name,
+      ownerTeam: template.owner_team,
+      ownerSlackId: template.owner_slack_id || '',
+      employeeName: rowData.employee_name,
+      dueDate: dueDate,
+      checklistRowIndex: checklistRowIndex
+    });
 
     generatedCount += 1;
   }
@@ -336,10 +347,99 @@ function matchesRule_(rules, candidate) {
   return normalizedRules.indexOf(normalizedCandidate) > -1;
 }
 
+
+
+function dispatchTaskAssignment_(sheetClient, auditLogger, task) {
+  var slackClient = new SlackClient(auditLogger);
+  var destination = resolveTaskOwnerDestination_(task.ownerTeam, task.ownerSlackId);
+  var dueDateLabel = formatDateKey_(task.dueDate);
+  var rowLink = sheetClient.getSheetRowLink(Config.getChecklistSheetName(), task.checklistRowIndex);
+  var notificationHash = computeHash([
+    'TASK_ASSIGNMENT',
+    task.onboardingId,
+    task.taskId,
+    destination.channelId,
+    dueDateLabel
+  ]);
+
+  var duplicate = sheetClient.checkDuplicate(Config.getAuditSheetName(), 'event_hash', notificationHash);
+  if (duplicate > -1) {
+    return;
+  }
+
+  slackClient.postMessage(destination.channelId, BlockKit.checklistAssignment({
+    employeeName: task.employeeName,
+    taskName: task.taskName,
+    dueDate: dueDateLabel,
+    ownerLabel: destination.ownerLabel,
+    rowLink: rowLink
+  }));
+
+  sheetClient.appendAuditIfNotExists(notificationHash, [
+    generateId('AUD'),
+    new Date(),
+    'system',
+    'ChecklistTask',
+    task.onboardingId + ':' + task.taskId,
+    'NOTIFY',
+    'Assignment sent to ' + destination.channelId + ' via ' + destination.rule + '.',
+    notificationHash
+  ]);
+}
+
+function resolveTaskOwnerDestination_(ownerTeam, ownerSlackId) {
+  var cleanedDestination = String(ownerSlackId || '').trim();
+  if (/^[CDGU][A-Z0-9]{8,}$/.test(cleanedDestination)) {
+    return {
+      channelId: cleanedDestination,
+      ownerLabel: cleanedDestination,
+      rule: 'direct_slack_id'
+    };
+  }
+
+  var teamKey = String(ownerTeam || '').trim().toUpperCase();
+  var byTeam = {
+    ADMIN: Config.getAdminTeamChannelId,
+    FINANCE: Config.getFinanceTeamChannelId,
+    HR: Config.getHrTeamChannelId,
+    IT: Config.getItTeamChannelId,
+    LEGAL: Config.getLegalTeamChannelId,
+    OPERATIONS: Config.getOperationsTeamChannelId,
+    PEOPLE: Config.getPeopleTeamChannelId,
+    'PEOPLE OPS': Config.getPeopleTeamChannelId
+  };
+
+  var resolver = byTeam[teamKey] || null;
+  if (!resolver && teamKey.indexOf('FINANCE') > -1) {
+    resolver = Config.getFinanceTeamChannelId;
+  } else if (!resolver && teamKey.indexOf('ADMIN') > -1) {
+    resolver = Config.getAdminTeamChannelId;
+  } else if (!resolver && teamKey.indexOf('IT') > -1) {
+    resolver = Config.getItTeamChannelId;
+  } else if (!resolver && (teamKey.indexOf('PEOPLE') > -1 || teamKey.indexOf('HR') > -1)) {
+    resolver = Config.getPeopleTeamChannelId;
+  }
+
+  if (resolver) {
+    return {
+      channelId: resolver.call(Config),
+      ownerLabel: cleanedDestination || ownerTeam || 'Team',
+      rule: 'team_channel_map'
+    };
+  }
+
+  return {
+    channelId: Config.getDefaultAssignmentsChannelId(),
+    ownerLabel: cleanedDestination || ownerTeam || 'Team',
+    rule: 'default_channel'
+  };
+}
+
 if (typeof module !== 'undefined') {
   module.exports = {
     onChangeHandler: onChangeHandler,
     processOnboardingRow_: processOnboardingRow_,
-    templateMatchesOnboarding_: templateMatchesOnboarding_
+    templateMatchesOnboarding_: templateMatchesOnboarding_,
+    resolveTaskOwnerDestination_: resolveTaskOwnerDestination_
   };
 }

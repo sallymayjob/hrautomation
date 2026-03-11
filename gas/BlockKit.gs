@@ -131,6 +131,37 @@ var BlockKit = {
     ];
   },
 
+
+
+  checklistAssignment: function (data) {
+    var rowLink = data.rowLink ? '<' + data.rowLink + '|Open task row>' : 'Row link unavailable';
+    return [
+      {
+        type: 'header',
+        text: {
+          type: 'plain_text',
+          text: ':clipboard: New onboarding task assignment'
+        }
+      },
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: '*Employee:* ' + (data.employeeName || 'Unknown') + '\n*Task:* ' + (data.taskName || 'Untitled') + '\n*Due date:* ' + (data.dueDate || 'TBD')
+        }
+      },
+      {
+        type: 'context',
+        elements: [
+          {
+            type: 'mrkdwn',
+            text: '*Owner:* ' + (data.ownerLabel || 'Unassigned') + ' • ' + rowLink
+          }
+        ]
+      }
+    ];
+  },
+
   anniversaryDM: function (data) {
     return [
       {
