@@ -25,6 +25,8 @@ describe('RoleMapper behavior via onboarding processing', () => {
     mockGasGlobals();
     global.computeHash = jest.fn(() => 'hash');
     global.generateId = jest.fn(() => 'ONB_1');
+    global.Config = { getChecklistSheetName: jest.fn(() => 'Checklist Tasks') };
+    global.CHECKLIST_TASK_TEMPLATE = [];
   });
 
   test('uses ENGINEER role resources', () => {
@@ -32,7 +34,7 @@ describe('RoleMapper behavior via onboarding processing', () => {
     const row = ['OB-1', 'Alex Doe', 'a@x.com', '2026-01-01', 'm@x.com', 'ENGINEER', 'PENDING', ''];
     const sheet = createSheet(headers, row);
 
-    const sheetClientMock = { checkDuplicate: jest.fn(() => -1), appendTrainingRow: jest.fn() };
+    const sheetClientMock = { checkDuplicate: jest.fn(() => -1), appendTrainingRow: jest.fn(), ensureSheetWithHeaders: jest.fn(), appendChecklistTask: jest.fn() };
     global.SheetClient = jest.fn(() => sheetClientMock);
     global.AuditLogger = jest.fn(() => ({ log: jest.fn(), error: jest.fn() }));
     global.SlackClient = jest.fn(() => ({
