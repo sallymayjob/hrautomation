@@ -13,7 +13,7 @@ Create these channels with the exact names below.
 |---|---|---|---|---|---|---|
 | `#new-hires` | Yes | Public | Trigger channel for the onboarding workflow form (`When a person joins a channel`). | `New hire onboarding workflow trigger channel` | `Employees are added here to trigger the onboarding intake workflow.` | N/A (selected inside Workflow Builder) |
 | `#hr-ops-alerts` | Yes | Private or Public (recommended: Private) | HR operations alerts and escalation notices. | `HR ops alerts and escalations` | `Automated alerts for onboarding exceptions, failures, and follow-up actions.` | `HR_ALERTS_CHANNEL_ID` |
-| `#hr-approvals` | Yes | Private | Approval requests and manager follow-up decisions. | `HR approvals and compliance decisions` | `Central channel for approval requests, manager responses, and audit-visible decisions.` | `HR_APPROVALS_CHANNEL_ID` |
+| `#hr-approvals` | Yes | Private | Approval requests, workflow start notifications, and manager follow-up decisions. | `HR approvals and compliance decisions` | `Central channel for approval requests, workflow-start notifications, manager responses, and audit-visible decisions.` | `HR_APPROVALS_CHANNEL_ID` |
 | `#general` | Yes | Public | Company-wide celebration and recognition posts. | `Company-wide announcements and celebrations` | `Automation posts recognition and celebration updates visible to all staff.` | `GENERAL_CHANNEL_ID` |
 
 ## Before you start

@@ -165,6 +165,7 @@ Think of it like setting automatic rules in your email inbox.
 2. Click the lightning bolt icon near the message box.
 3. Click Workflow Builder.
 What just happened? A setup window opened for automated Slack workflows.
+Tip: Open `docs/setup-list.md` in a second window so you can copy the exact dropdown options.
 4. Click "Create Workflow".
 5. Click "Start from scratch".
 6. Type `New Hire Onboarding Intake` as the workflow name.
@@ -174,64 +175,75 @@ What just happened? A setup window opened for automated Slack workflows.
 10. Select `#new-hires` from the dropdown list.
 11. Click Save.
 
-### Add the form step
+### Add HR notification message step (required before form)
 12. Click the blue `+` button.
-13. Click "Collect information in a form".
-14. Click "Add a question".
-15. Enter `New Employee Name`.
-16. Choose `Short answer`.
-17. Mark it as required.
-18. Click "Add a question".
-19. Enter `Role`.
-20. Choose `Select from a list`.
-21. Add role options from your setup list.
-22. Mark it as required.
-23. Click "Add a question".
-24. Enter `Brand`.
-25. Choose `Select from a list`.
-26. Add brand options from your setup list.
-27. Mark it as required.
-28. Click "Add a question".
-29. Enter `Region`.
-30. Choose `Select from a list`.
-31. Add `NZ` and `AU` as options.
-32. Mark it as required.
-33. Click "Add a question".
-34. Enter `Start Date`.
-35. Choose `Date`.
-36. Mark it as required.
-37. Click "Add a question".
-38. Enter `Date of Birth`.
-39. Choose `Date`.
-40. Mark it as required.
-41. Click "Add a question".
-42. Enter `Manager Email`.
-43. Choose `Short answer`.
-44. Leave it as optional.
-45. Click Save.
+13. Click `Direct Message`.
+14. Choose the HR approver recipient (the person or group that monitors approvals).
+15. In the message text, write a notification such as:
+   `A new hire has joined #new-hires. Click Continue Workflow to start onboarding intake.`
+16. Confirm the message includes the `Continue Workflow` button.
+17. Click Save.
+What just happened? HR approvers now receive a direct message notification and can start intake from the button.
+
+### Add the form step
+18. Click the blue `+` button.
+19. Click "Collect information in a form".
+20. Click "Add a question".
+21. Enter `New Employee Name`.
+22. Choose `Multiple Slack users`.
+23. Mark it as required.
+24. Optional: add hint `Tag the new starter(s) so Slack can pass their user ID(s).`.
+25. Click "Add a question".
+26. Enter `Role`.
+27. Choose `Select from a list`.
+28. Add role options from `docs/setup-list.md`.
+29. Mark it as required.
+30. Click "Add a question".
+31. Enter `Brand`.
+32. Choose `Select from a list`.
+33. Add brand options from `docs/setup-list.md`.
+34. Mark it as required.
+35. Click "Add a question".
+36. Enter `Region`.
+37. Choose `Select from a list`.
+38. Add region options from `docs/setup-list.md`.
+39. Mark it as required.
+40. Click "Add a question".
+41. Enter `Start Date`.
+42. Choose `Date`.
+43. Mark it as required.
+44. Click "Add a question".
+45. Enter `Date of Birth`.
+46. Choose `Date`.
+47. Mark it as required.
+48. Click "Add a question".
+49. Enter `Manager Email`.
+50. Choose `Slack person` (single Slack user).
+51. Leave it as optional.
+52. Click Save.
 What just happened? Slack now has a full intake form for each new hire.
 
 ### Add the spreadsheet step
-46. Click the blue `+` button.
-47. Click Google Sheets.
-48. Click "Add a spreadsheet row".
-49. Click Connect if account access is requested.
-50. Sign in with your RWR Group Google account.
-51. Select the Onboarding spreadsheet.
-52. Select `Sheet1` or `Onboarding` as the tab.
-53. Map `employee_name` to `New Employee Name`.
-54. Map `slack_id` to `Member ID` from the trigger person.
-55. Leave `email` blank.
-56. Map `role` to `Role`.
-57. Map `brand` to `Brand`.
-58. Map `start_date` to `Start Date`.
-59. Map `region` to `Region`.
-60. Map `manager_email` to `Manager Email`.
-61. Map `dob` to `Date of Birth`.
-62. Set `status` to `PENDING`.
-63. Click Save.
-64. Click Publish at the top right.
-65. Click Publish again to confirm.
+53. Click the blue `+` button.
+54. Click Google Sheets.
+55. Click "Add a spreadsheet row".
+56. Click Connect if account access is requested.
+57. Sign in with your RWR Group Google account.
+58. Select the Onboarding spreadsheet.
+59. Select `Sheet1` or `Onboarding` as the tab.
+60. Map `employee_name` to `New Employee Name` (display name).
+61. Map `slack_id` to `New Employee Name` → user ID token (not trigger person).
+62. Leave `email` blank.
+63. Map `role` to `Role`.
+64. Map `brand` to `Brand`.
+65. Map `start_date` to `Start Date`.
+66. Map `region` to `Region`.
+67. Map `manager_email` to `Manager Email` → email token (from selected Slack user).
+68. Map `dob` to `Date of Birth`.
+69. Set `status` to `PENDING`.
+70. Click Save.
+71. Click Publish at the top right.
+72. Click Publish again to confirm.
 What just happened? New hire form answers now save directly into your Onboarding sheet.
 
 You're done with Phase 4. Slack will now collect new hire details automatically.

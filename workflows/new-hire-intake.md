@@ -18,9 +18,18 @@ Use a link trigger so HR can run intake from a bookmark, pinned post, or onboard
 3. Optional: Restrict who can run it (for example HR/admin group) if your workspace policy requires it.
 4. Copy and store the generated trigger URL for HR operations documentation.
 
-## 3) Add the intake form step
+## 3) Add required pre-form message step (for channel-join triggers)
 
-Add a **Form** step after the trigger with the fields below.
+If you use `When a person joins a channel` as the trigger, Slack requires a message step with a **Continue Workflow** button before any interactive form step.
+
+1. Add step: **Direct Message**.
+2. Send to HR approvals (person or group).
+3. Message example: `A new hire joined #new-hires. Click Continue Workflow to start onboarding intake.`
+4. Save and confirm the message includes **Continue Workflow**.
+
+## 4) Add the intake form step
+
+Add a **Form** step after the message step with the fields below.
 
 | Field label | Type | Required | Notes |
 |---|---|---:|---|
@@ -30,7 +39,7 @@ Add a **Form** step after the trigger with the fields below.
 | Work email | Email | No | Leave blank if not assigned yet |
 | Job title | Short text | Yes | Offer title |
 | Department | Short text | Yes | Department name |
-| Manager email | Email | Yes | Manager of record |
+| Manager email | Slack user (single) | No | Select manager from Slack directory |
 | Start date | Date | Yes | YYYY-MM-DD from picker |
 | Employment type | Dropdown | Yes | Full-time, Part-time, Contractor, Intern |
 | Work location | Short text | Yes | Office, city/state, or Remote |
@@ -38,7 +47,7 @@ Add a **Form** step after the trigger with the fields below.
 | Equipment needed | Long text | No | Laptop, accessories, special requests |
 | Notes | Long text | No | HR-only context |
 
-## 4) Map form outputs to spreadsheet onboarding schema
+## 5) Map form outputs to spreadsheet onboarding schema
 
 Add a **Google Sheets connector** step to append one row per submission.
 
@@ -61,7 +70,7 @@ Add a **Google Sheets connector** step to append one row per submission.
 | work_email | Form: Work email |
 | job_title | Form: Job title |
 | department | Form: Department |
-| manager_email | Form: Manager email |
+| manager_email | Form: Manager email → selected user email token |
 | start_date | Form: Start date |
 | employment_type | Form: Employment type |
 | work_location | Form: Work location |
@@ -71,7 +80,7 @@ Add a **Google Sheets connector** step to append one row per submission.
 | source_workflow | Static text: `slack_new_hire_intake` |
 | dedupe_key | Concatenate if available: requester + start_date + personal_email |
 
-## 5) Authorize OAuth connectors
+## 6) Authorize OAuth connectors
 
 When adding Google Sheets actions, Slack will prompt for connector authorization.
 
@@ -82,7 +91,7 @@ When adding Google Sheets actions, Slack will prompt for connector authorization
 
 > Recommended: use a shared service account mailbox or team-owned Google identity so access persists through staffing changes.
 
-## 6) Publish and test flow
+## 7) Publish and test flow
 
 1. Click **Publish** in Workflow Builder.
 2. Run the link trigger once with test data.
@@ -92,7 +101,7 @@ When adding Google Sheets actions, Slack will prompt for connector authorization
    - Slack bot can post confirmation (if a message step was added).
 4. Run a second test with a different candidate to confirm row appends without overwriting.
 
-## 7) Duplicate-fire note (Google Apps Script dedupe behavior)
+## 8) Duplicate-fire note (Google Apps Script dedupe behavior)
 
 If the downstream Google Apps Script occasionally receives duplicate executions (for example from retries or accidental multi-submit), keep dedupe enabled:
 
