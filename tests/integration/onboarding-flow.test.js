@@ -27,7 +27,7 @@ describe('integration onboarding flow', () => {
     mockGasGlobals();
     global.computeHash = jest.fn(() => 'hash');
     global.generateId = jest.fn(() => 'ONB_1');
-    global.BlockKit = { welcomeDM: jest.fn(() => []), checklistAssignment: jest.fn(() => []) };
+    global.BlockKit = { welcomeDM: jest.fn(() => []), checklistAssignment: jest.fn(() => []), assignmentNotificationDM: jest.fn(() => []) };
     global.Config = {
       getChecklistSheetName: jest.fn(() => 'Checklist Tasks'),
       getAuditSheetName: jest.fn(() => 'Audit'),

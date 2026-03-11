@@ -133,6 +133,39 @@ var BlockKit = {
 
 
 
+
+
+  assignmentNotificationDM: function (data) {
+    var teamLabel = data.teamLabel || 'Unassigned team';
+    var buddyLabel = data.buddyLabel || 'Not assigned yet';
+    var intro = data.recipientRole === 'Buddy'
+      ? ':handshake: You have been assigned as a buddy for *' + (data.employeeName || 'a new hire') + '*.'
+      : ':busts_in_silhouette: You have a new onboarding assignment to manage.';
+
+    return [
+      {
+        type: 'header',
+        text: {
+          type: 'plain_text',
+          text: 'New onboarding assignment'
+        }
+      },
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: intro
+        }
+      },
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: '*New hire:* ' + (data.employeeName || 'Unknown') + '\n*Team to manage:* ' + teamLabel + '\n*Buddy:* ' + buddyLabel
+        }
+      }
+    ];
+  },
   checklistAssignment: function (data) {
     var rowLink = data.rowLink ? '<' + data.rowLink + '|Open task row>' : 'Row link unavailable';
     return [

@@ -140,6 +140,13 @@ function processOnboardingRow_(sheet, rowIndex) {
       setValueIfColumnExists_(sheet, rowIndex, headerMap, 'manager_slack_id', managerSlackId);
     }
 
+    var buddySlackId = String(rowData.buddy_slack_id || '').trim();
+    if (!buddySlackId && rowData.buddy_email) {
+      var buddyLookup = slackClient.lookupUserByEmail(rowData.buddy_email);
+      buddySlackId = buddyLookup && buddyLookup.user && buddyLookup.user.id ? buddyLookup.user.id : '';
+      setValueIfColumnExists_(sheet, rowIndex, headerMap, 'buddy_slack_id', buddySlackId);
+    }
+
     var roleMapping = getRoleMapping_(rowData.role);
     var startDate = parseDateValue_(rowData.start_date);
     var employeeLookup = slackClient.lookupUserByEmail(rowData.email);
@@ -153,6 +160,17 @@ function processOnboardingRow_(sheet, rowIndex) {
       startDate: formatDateKey_(startDate),
       managerName: rowData.manager_email || 'TBD'
     }));
+
+    notifyOnboardingAssignment_(sheetClient, auditLogger, slackClient, {
+      onboardingId: rowData.onboarding_id,
+      employeeName: rowData.employee_name,
+      managerSlackId: managerSlackId,
+      buddySlackId: buddySlackId,
+      buddyLabel: rowData.buddy_email || buddySlackId || 'Not assigned yet',
+      teamLabel: [rowData.brand, rowData.region, rowData.role].filter(function (value) {
+        return String(value || '').trim() !== '';
+      }).join(' / ') || 'General onboarding'
+    });
 
     for (var i = 0; i < roleMapping.resources.length; i += 1) {
       var resource = roleMapping.resources[i];
@@ -464,6 +482,64 @@ function matchesRule_(rules, candidate) {
 
 
 
+function notifyOnboardingAssignment_(sheetClient, auditLogger, slackClient, details) {
+  var onboardingId = String(details.onboardingId || '').trim();
+  if (!onboardingId) {
+    return;
+  }
+
+  var managerSlackId = String(details.managerSlackId || '').trim();
+  var buddySlackId = String(details.buddySlackId || '').trim();
+  if (!managerSlackId && !buddySlackId) {
+    return;
+  }
+
+  var notificationHash = computeHash([
+    'ONBOARDING_ASSIGNMENT_DM',
+    onboardingId,
+    managerSlackId,
+    buddySlackId
+  ]);
+
+  var duplicate = sheetClient.checkDuplicate(Config.getAuditSheetName(), 'event_hash', notificationHash);
+  if (duplicate > -1) {
+    return;
+  }
+
+  var recipients = [];
+  if (managerSlackId) {
+    slackClient.postMessage(managerSlackId, BlockKit.assignmentNotificationDM({
+      recipientRole: 'Manager',
+      employeeName: details.employeeName,
+      buddyLabel: details.buddyLabel,
+      teamLabel: details.teamLabel
+    }));
+    recipients.push('manager');
+  }
+
+  if (buddySlackId) {
+    slackClient.postMessage(buddySlackId, BlockKit.assignmentNotificationDM({
+      recipientRole: 'Buddy',
+      employeeName: details.employeeName,
+      buddyLabel: details.buddyLabel,
+      teamLabel: details.teamLabel
+    }));
+    recipients.push('buddy');
+  }
+
+  sheetClient.appendAuditIfNotExists(notificationHash, [
+    generateId('AUD'),
+    new Date(),
+    'system',
+    'Onboarding',
+    onboardingId,
+    'NOTIFY',
+    'Assignment DM sent to ' + recipients.join(' and ') + '.',
+    notificationHash
+  ]);
+}
+
+
 function dispatchTaskAssignment_(sheetClient, auditLogger, task) {
   var slackClient = new SlackClient(auditLogger);
   var destination = resolveTaskOwnerDestination_(task.ownerTeam, task.ownerSlackId);
@@ -557,6 +633,7 @@ if (typeof module !== 'undefined') {
     evaluateOnboardingCompletionGate_: evaluateOnboardingCompletionGate_,
     tryCompleteOnboarding_: tryCompleteOnboarding_,
     templateMatchesOnboarding_: templateMatchesOnboarding_,
-    resolveTaskOwnerDestination_: resolveTaskOwnerDestination_
+    resolveTaskOwnerDestination_: resolveTaskOwnerDestination_,
+    notifyOnboardingAssignment_: notifyOnboardingAssignment_
   };
 }

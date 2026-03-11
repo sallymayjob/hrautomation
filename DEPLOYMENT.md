@@ -102,6 +102,7 @@ You're done with Phase 2.5. Required Slack channels are now ready.
 This phase stores all important IDs and passwords safely.
 Google Apps Script is a Google control room that runs this automation.
 Think of it like a locked office drawer for system settings.
+Need extra help? Read `docs/google-apps-script-eli15-guide.md` for a beginner-friendly walkthrough.
 
 ### Find your Slack channel IDs
 Every channel has an ID, like a name badge number.
@@ -164,6 +165,51 @@ If one name is wrong, the system can fail.
 What just happened? The system now knows every address and password it needs, including checklist assignment destinations.
 
 You're done with Phase 3. The system now knows where everything lives.
+
+## Phase 3.5 — Load the Apps Script code from GitHub (about 15 minutes)
+This phase copies the prepared automation code into your Apps Script project.
+GitHub is where the tech lead stores the official source files.
+
+### Start from the GitHub link
+1. Ask the tech lead for the GitHub repository link for this automation.
+2. Copy that link.
+3. Paste the link into your web browser and press Enter.
+4. In GitHub, open the `gas` folder.
+What just happened? You are now looking at the exact script files that must be copied into Google Apps Script.
+
+### Copy each file into Apps Script
+1. Return to your Apps Script tab (opened in Phase 3).
+2. In the left file panel, click each existing file and delete starter code if present.
+3. In GitHub, open `gas/Code.gs`.
+4. Click the pencil icon or click **Raw**.
+5. Select all text, then copy it.
+6. In Apps Script, open `Code.gs` and paste the copied text.
+7. Click Save.
+8. Repeat steps 3 to 7 for every file in the `gas` folder:
+   - `Approvals.gs`
+   - `BlockKit.gs`
+   - `ChecklistTemplate.gs`
+   - `Config.gs`
+   - `Recognition.gs`
+   - `Reminders.gs`
+   - `Reporting.gs`
+   - `SheetClient.gs`
+   - `SlackClient.gs`
+   - `Triggers.gs`
+   - `Utils.gs`
+9. In GitHub, open `gas/appsscript.json` and copy its content.
+10. In Apps Script, click Project Settings, enable "Show appsscript.json manifest file in editor" if needed, then paste the copied JSON into `appsscript.json`.
+11. Click Save.
+What just happened? Your Apps Script project now contains the same trusted code as GitHub.
+
+### How this works
+- The `Code.gs` and helper files hold onboarding, reminders, and notification logic.
+- `SlackClient.gs` and `BlockKit.gs` build and send Slack messages.
+- `SheetClient.gs` reads and writes your Google Sheets.
+- `Triggers.gs` creates the daily schedule jobs you activate in Phase 5.
+- `appsscript.json` sets project-level configuration.
+
+You're done with Phase 3.5. The Apps Script code is now loaded and ready to run.
 
 ## Phase 4 — Connect Slack Workflow Builder to the spreadsheet (about 20 minutes)
 This phase connects Slack's form tool to your Onboarding spreadsheet.
@@ -260,6 +306,9 @@ You're done with Phase 4. Slack will now collect new hire details automatically.
 ## Phase 5 — Switch on the daily automatic checks (about 10 minutes)
 This phase turns on daily reminders and celebration checks.
 You do this once, then it runs every day.
+
+How this works: pressing Run on a setup function creates a time-based trigger in Apps Script.
+That trigger tells Google to run your checks automatically every morning at 8:00 AM NZ time.
 
 1. Return to your Apps Script tab.
 2. Click the "Select function" dropdown.
