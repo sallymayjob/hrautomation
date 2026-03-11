@@ -1,0 +1,16 @@
+[
+  {
+    "type": "section",
+    "text": {
+      "type": "mrkdwn",
+      "text": ":rotating_light: Overdue: your training due date has passed. Please complete it immediately."
+    }
+  },
+  {
+    "type": "section",
+    "text": {
+      "type": "mrkdwn",
+      "text": "*Module:* Workplace Safety 101\n*Due date:* 2026-04-10"
+    }
+  }
+]

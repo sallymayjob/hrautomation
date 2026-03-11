@@ -1,0 +1,16 @@
+[
+  {
+    "type": "section",
+    "text": {
+      "type": "mrkdwn",
+      "text": ":warning: Action needed: your training is *due today*."
+    }
+  },
+  {
+    "type": "section",
+    "text": {
+      "type": "mrkdwn",
+      "text": "*Module:* Workplace Safety 101\n*Due date:* 2026-04-10"
+    }
+  }
+]

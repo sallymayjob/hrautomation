@@ -1,0 +1,34 @@
+[
+  {
+    "type": "section",
+    "text": {
+      "type": "mrkdwn",
+      "text": "*Approval request*\nJordan Lee requested manager approval for remote work on Friday."
+    }
+  },
+  {
+    "type": "actions",
+    "elements": [
+      {
+        "type": "button",
+        "text": {
+          "type": "plain_text",
+          "text": "Approve"
+        },
+        "style": "primary",
+        "action_id": "approve_request",
+        "value": "REQ-001"
+      },
+      {
+        "type": "button",
+        "text": {
+          "type": "plain_text",
+          "text": "Deny"
+        },
+        "style": "danger",
+        "action_id": "deny_request",
+        "value": "REQ-001"
+      }
+    ]
+  }
+]

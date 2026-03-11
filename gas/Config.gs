@@ -12,7 +12,8 @@ var Config = (function () {
     HR_ALERT_EMAIL: 'HR_ALERT_EMAIL',
     APP_TIMEZONE: 'APP_TIMEZONE',
     RETRY_MAX_ATTEMPTS: 'RETRY_MAX_ATTEMPTS',
-    RETRY_DELAY_MS: 'RETRY_DELAY_MS'
+    RETRY_DELAY_MS: 'RETRY_DELAY_MS',
+    SLACK_BOT_TOKEN: 'SLACK_BOT_TOKEN'
   };
 
   function getRaw_(key) {
@@ -68,6 +69,10 @@ var Config = (function () {
 
     getRetryDelayMs: function () {
       return getNumber_(KEYS.RETRY_DELAY_MS);
+    },
+
+    getSlackBotToken: function () {
+      return getString_(KEYS.SLACK_BOT_TOKEN);
     }
   };
 })();

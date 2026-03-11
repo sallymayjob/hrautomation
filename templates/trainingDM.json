@@ -1,0 +1,18 @@
+[
+  {
+    "type": "section",
+    "text": {
+      "type": "mrkdwn",
+      "text": ":mortar_board: *Training assigned:* Workplace Safety 101"
+    }
+  },
+  {
+    "type": "context",
+    "elements": [
+      {
+        "type": "mrkdwn",
+        "text": "Due by *2026-04-10*"
+      }
+    ]
+  }
+]

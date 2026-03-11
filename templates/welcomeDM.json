@@ -1,0 +1,16 @@
+[
+  {
+    "type": "header",
+    "text": {
+      "type": "plain_text",
+      "text": "Welcome to the team, Alex!"
+    }
+  },
+  {
+    "type": "section",
+    "text": {
+      "type": "mrkdwn",
+      "text": "*Start date:* 2026-04-01\n*Manager:* Priya Singh"
+    }
+  }
+]

@@ -1,0 +1,16 @@
+[
+  {
+    "type": "section",
+    "text": {
+      "type": "mrkdwn",
+      "text": ":hourglass_flowing_sand: Friendly reminder: your training is due in *3 days*."
+    }
+  },
+  {
+    "type": "section",
+    "text": {
+      "type": "mrkdwn",
+      "text": "*Module:* Workplace Safety 101\n*Due date:* 2026-04-10"
+    }
+  }
+]
