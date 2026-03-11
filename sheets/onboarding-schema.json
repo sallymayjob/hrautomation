@@ -1,0 +1,54 @@
+{
+  "schemaName": "onboarding",
+  "version": 1,
+  "sheetName": "Onboarding",
+  "columns": [
+    {
+      "index": 1,
+      "key": "employee_id",
+      "header": "Employee ID",
+      "type": "string",
+      "required": true
+    },
+    {
+      "index": 2,
+      "key": "full_name",
+      "header": "Full Name",
+      "type": "string",
+      "required": true
+    },
+    {
+      "index": 3,
+      "key": "email",
+      "header": "Email",
+      "type": "string",
+      "required": true
+    },
+    {
+      "index": 4,
+      "key": "start_date",
+      "header": "Start Date",
+      "type": "date",
+      "required": true
+    },
+    {
+      "index": 5,
+      "key": "manager_email",
+      "header": "Manager Email",
+      "type": "string",
+      "required": true
+    },
+    {
+      "index": 6,
+      "key": "status",
+      "header": "Status",
+      "type": "enum",
+      "required": true,
+      "allowedValues": [
+        "Pending",
+        "In Progress",
+        "Completed"
+      ]
+    }
+  ]
+}

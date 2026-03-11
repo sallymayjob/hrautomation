@@ -1,0 +1,67 @@
+{
+  "schemaName": "audit",
+  "version": 1,
+  "sheetName": "Audit",
+  "columns": [
+    {
+      "index": 1,
+      "key": "audit_id",
+      "header": "Audit ID",
+      "type": "string",
+      "required": true
+    },
+    {
+      "index": 2,
+      "key": "event_timestamp",
+      "header": "Event Timestamp",
+      "type": "datetime",
+      "required": true
+    },
+    {
+      "index": 3,
+      "key": "actor_email",
+      "header": "Actor Email",
+      "type": "string",
+      "required": true
+    },
+    {
+      "index": 4,
+      "key": "entity_type",
+      "header": "Entity Type",
+      "type": "enum",
+      "required": true,
+      "allowedValues": [
+        "Employee",
+        "Training",
+        "Onboarding"
+      ]
+    },
+    {
+      "index": 5,
+      "key": "entity_id",
+      "header": "Entity ID",
+      "type": "string",
+      "required": true
+    },
+    {
+      "index": 6,
+      "key": "action",
+      "header": "Action",
+      "type": "enum",
+      "required": true,
+      "allowedValues": [
+        "CREATE",
+        "UPDATE",
+        "DELETE",
+        "STATUS_CHANGE"
+      ]
+    },
+    {
+      "index": 7,
+      "key": "details",
+      "header": "Details",
+      "type": "string",
+      "required": false
+    }
+  ]
+}
