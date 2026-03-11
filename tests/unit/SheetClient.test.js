@@ -43,14 +43,14 @@ describe('SheetClient', () => {
   });
 
   test('append and update training/onboarding statuses', () => {
-    const onboarding = makeSheet(['employee_id', 'status'], [['E1', 'PENDING']]);
+    const onboarding = makeSheet(['onboarding_id', 'status'], [['OB-1', 'PENDING']]);
     const training = makeSheet(['employee_id', 'module_code', 'training_status', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'celebration_posted'], [['E1', 'M1', 'ASSIGNED', '', '', '', '', '', '', '', '', '', false]]);
     const audit = makeSheet(['audit_id', 'event_hash'], []);
     SpreadsheetApp.openById.mockReturnValue({ getSheetByName: jest.fn((n) => ({ Onboarding: onboarding, Training: training, Audit: audit }[n])) });
 
     const { SheetClient } = require('../../gas/SheetClient.gs');
     const client = new SheetClient();
-    expect(client.updateOnboardingStatus('E1', 'DONE')).toBe(true);
+    expect(client.updateOnboardingStatus('OB-1', 'DONE')).toBe(true);
     expect(client.updateTrainingStatus('E1', 'M1', 'COMPLETED')).toBe(true);
     expect(client.markCelebrationPosted('E1', 'M1', 1)).toBe(true);
   });

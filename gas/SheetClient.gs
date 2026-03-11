@@ -5,18 +5,25 @@
 
 var COL = {
   ONBOARDING: {
+    ONBOARDING_ID: 1,
+    EMPLOYEE_NAME: 2,
+    SLACK_ID: 3,
+    EMAIL: 4,
+    ROLE: 5,
+    BRAND: 6,
+    START_DATE: 7,
+    REGION: 8,
+    MANAGER_EMAIL: 9,
+    MANAGER_SLACK_ID: 10,
+    DOB: 11,
+    STATUS: 12,
+    DM_SENT_AT: 13,
+    CHECKLIST_COMPLETED: 14,
+    ROW_HASH: 15,
+    // Backward-compatible aliases.
     EMPLOYEE_ID: 1,
     FULL_NAME: 2,
-    EMAIL: 3,
-    START_DATE: 4,
-    MANAGER_EMAIL: 5,
-    MANAGER_NAME: 6,
-    DEPARTMENT: 7,
-    ROLE_TITLE: 8,
-    LOCATION: 9,
-    CHECKLIST_HASH: 10,
-    LAST_UPDATED_AT: 11,
-    STATUS: 12
+    ROLE_TITLE: 5
   },
   TRAINING: {
     EMPLOYEE_ID: 1,
@@ -46,6 +53,32 @@ var COL = {
 };
 
 function SheetClient() {}
+
+SheetClient.prototype.normalizeKey_ = function (value) {
+  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+};
+
+SheetClient.prototype.getHeaderMap_ = function (sheet) {
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var headerMap = {};
+  for (var i = 0; i < headers.length; i += 1) {
+    var key = this.normalizeKey_(headers[i]);
+    if (key) {
+      headerMap[key] = i + 1;
+    }
+  }
+  return headerMap;
+};
+
+SheetClient.prototype.getColumnIndexByHeaderKey_ = function (sheet, headerKey, required) {
+  var headerMap = this.getHeaderMap_(sheet);
+  var normalizedKey = this.normalizeKey_(headerKey);
+  var columnIndex = headerMap[normalizedKey] || -1;
+  if (columnIndex < 1 && required) {
+    throw new Error('Required column not found on sheet "' + sheet.getName() + '": ' + headerKey);
+  }
+  return columnIndex;
+};
 
 SheetClient.prototype.openSpreadsheet_ = function () {
   return SpreadsheetApp.openById(Config.getSpreadsheetId());
@@ -103,16 +136,7 @@ SheetClient.prototype.checkDuplicate = function (sheetName, columnKeyOrIndex, va
   var columnIndex = columnKeyOrIndex;
 
   if (typeof columnKeyOrIndex === 'string') {
-    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-    var normalizedTarget = String(columnKeyOrIndex).trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-    columnIndex = -1;
-    for (var i = 0; i < headers.length; i += 1) {
-      var normalizedHeader = String(headers[i] || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-      if (normalizedHeader === normalizedTarget) {
-        columnIndex = i + 1;
-        break;
-      }
-    }
+    columnIndex = this.getColumnIndexByHeaderKey_(sheet, columnKeyOrIndex, false);
   }
 
   if (!columnIndex || columnIndex < 1) {
@@ -139,7 +163,8 @@ SheetClient.prototype.getOnboardingRows = function () {
 
 SheetClient.prototype.findOnboardingByEmployeeId = function (employeeId) {
   var sheet = this.getSheet_(Config.getOnboardingSheetName());
-  var rowIndex = this.findRowIndexByValue_(sheet, COL.ONBOARDING.EMPLOYEE_ID, employeeId);
+  var idColumn = this.getColumnIndexByHeaderKey_(sheet, 'onboarding_id', true);
+  var rowIndex = this.findRowIndexByValue_(sheet, idColumn, employeeId);
   if (rowIndex < 0) {
     return null;
   }
@@ -148,7 +173,8 @@ SheetClient.prototype.findOnboardingByEmployeeId = function (employeeId) {
 
 SheetClient.prototype.appendOnboardingRow = function (rowValues) {
   var sheet = this.getSheet_(Config.getOnboardingSheetName());
-  var existing = this.findRowIndexByValue_(sheet, COL.ONBOARDING.EMPLOYEE_ID, rowValues[COL.ONBOARDING.EMPLOYEE_ID - 1]);
+  var idColumn = this.getColumnIndexByHeaderKey_(sheet, 'onboarding_id', true);
+  var existing = this.findRowIndexByValue_(sheet, idColumn, rowValues[idColumn - 1]);
   if (existing > -1) {
     this.writeRow_(sheet, existing, rowValues);
     return existing;
@@ -158,7 +184,8 @@ SheetClient.prototype.appendOnboardingRow = function (rowValues) {
 
 SheetClient.prototype.upsertOnboardingRow = function (employeeId, rowValues) {
   var sheet = this.getSheet_(Config.getOnboardingSheetName());
-  var rowIndex = this.findRowIndexByValue_(sheet, COL.ONBOARDING.EMPLOYEE_ID, employeeId);
+  var idColumn = this.getColumnIndexByHeaderKey_(sheet, 'onboarding_id', true);
+  var rowIndex = this.findRowIndexByValue_(sheet, idColumn, employeeId);
   if (rowIndex < 0) {
     return this.appendRow_(sheet, rowValues);
   }
@@ -168,11 +195,13 @@ SheetClient.prototype.upsertOnboardingRow = function (employeeId, rowValues) {
 
 SheetClient.prototype.updateOnboardingStatus = function (employeeId, status) {
   var sheet = this.getSheet_(Config.getOnboardingSheetName());
-  var rowIndex = this.findRowIndexByValue_(sheet, COL.ONBOARDING.EMPLOYEE_ID, employeeId);
+  var idColumn = this.getColumnIndexByHeaderKey_(sheet, 'onboarding_id', true);
+  var statusColumn = this.getColumnIndexByHeaderKey_(sheet, 'status', true);
+  var rowIndex = this.findRowIndexByValue_(sheet, idColumn, employeeId);
   if (rowIndex < 0) {
     return false;
   }
-  sheet.getRange(rowIndex, COL.ONBOARDING.STATUS).setValue(status);
+  sheet.getRange(rowIndex, statusColumn).setValue(status);
   return true;
 };
 

@@ -28,8 +28,8 @@ describe('RoleMapper behavior via onboarding processing', () => {
   });
 
   test('uses ENGINEER role resources', () => {
-    const headers = ['employee_id', 'full_name', 'email', 'start_date', 'manager_email', 'manager_name', 'role_title', 'status', 'row_hash'];
-    const row = ['E1', 'Alex Doe', 'a@x.com', '2026-01-01', 'm@x.com', 'Manager', 'ENGINEER', 'PENDING', ''];
+    const headers = ['onboarding_id', 'employee_name', 'email', 'start_date', 'manager_email', 'role', 'status', 'row_hash'];
+    const row = ['OB-1', 'Alex Doe', 'a@x.com', '2026-01-01', 'm@x.com', 'ENGINEER', 'PENDING', ''];
     const sheet = createSheet(headers, row);
 
     const sheetClientMock = { checkDuplicate: jest.fn(() => -1), appendTrainingRow: jest.fn() };

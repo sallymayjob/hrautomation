@@ -31,8 +31,8 @@ describe('integration onboarding flow', () => {
   });
 
   test('pending onboarding row is processed and status updated', () => {
-    const headers = ['employee_id', 'full_name', 'email', 'start_date', 'manager_email', 'manager_name', 'role_title', 'status', 'row_hash'];
-    const row = ['E1', 'Alex Doe', 'a@x.com', '2026-01-01', 'm@x.com', 'Manager', 'MANAGER', 'PENDING', ''];
+    const headers = ['onboarding_id', 'employee_name', 'email', 'start_date', 'manager_email', 'role', 'status', 'row_hash'];
+    const row = ['OB-1', 'Alex Doe', 'a@x.com', '2026-01-01', 'm@x.com', 'MANAGER', 'PENDING', ''];
     const sheet = makeOnboardingSheet(headers, row);
 
     const sheetClient = { checkDuplicate: jest.fn(() => -1), appendTrainingRow: jest.fn() };
@@ -48,5 +48,16 @@ describe('integration onboarding flow', () => {
     expect(sheetClient.appendTrainingRow).toHaveBeenCalledTimes(2);
     expect(auditLogger.log).toHaveBeenCalled();
     expect(slackClient.postMessage).toHaveBeenCalled();
+  });
+
+  test('throws clear error when required onboarding headers are missing', () => {
+    const headers = ['onboarding_id', 'employee_name', 'email', 'start_date', 'manager_email', 'status'];
+    const row = ['OB-1', 'Alex Doe', 'a@x.com', '2026-01-01', 'm@x.com', 'PENDING'];
+    const sheet = makeOnboardingSheet(headers, row);
+
+    const { onChangeHandler } = require('../../gas/Code.gs');
+    expect(() => onChangeHandler({ source: { getActiveSheet: () => sheet } })).toThrow(
+      'Onboarding sheet schema invalid. Missing required header(s): role'
+    );
   });
 });
