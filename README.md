@@ -1,14 +1,47 @@
-# hrautomation
+# RWR-HAF Overview
 
-Baseline repository structure for HR automation, including Google Apps Script config,
-sheet schemas, workflow and template directories, and test scaffolding.
+## 1. What does this system do?
+RWR-HAF sends welcome, reminder, and celebration Slack messages for new employees. It supports RWR Health, Hospoworld, Retailworld, and RWR Construction in New Zealand and Australia. Think of it like a very organised colleague who never forgets a message and works all day, every day.
 
-## Layout
+You're done with this part.
 
-- `gas/` Google Apps Script project files.
-- `sheets/` JSON schemas for spreadsheet tabs.
-- `workflows/` Workflow definitions and orchestration artifacts.
-- `templates/` Reusable template assets.
-- `tests/unit/` Unit test files.
-- `tests/integration/` Integration test files.
-- `docs/migrations/` Migration notes and scripts.
+## 2. How does it work?
+1. A new person joins the `#new-hires` Slack channel (a shared team chat room).
+2. A form (a question page) appears asking for their details.
+3. The form saves their details into a spreadsheet (an online table).
+4. The system reads the spreadsheet and sends a welcome message with training links.
+5. Every morning, the system checks upcoming or overdue training.
+6. The system sends reminder messages to the right people.
+7. When training is finished, the system posts a celebration in `#general`.
+
+Think of the spreadsheet like a filing cabinet. The system checks that filing cabinet each morning for today's messages.
+
+You're done with this part.
+
+## 3. Who does what?
+
+| Person | What they do | How often |
+|---|---|---|
+| New hire | Receives messages and clicks training links | During onboarding period |
+| Manager | Fills in the new hire form when someone joins | Each new starter |
+| Admin team | Sets up computer, email, and Slack before day one | Each new starter |
+| HR manager | Checks progress in the spreadsheet and updates changed training links | Weekly |
+| Tech lead | Fixes issues when something breaks after setup | Rarely |
+
+You're done with this part.
+
+## 4. What you need before starting
+1. A Slack workspace (your RWR Group team chat account).
+2. A Google account with access to Sheets and Drive.
+3. A Slack app named "RWR HR Automation" created by the tech lead.
+4. Three empty Google Sheets named Onboarding, Training Log, and Audit Log.
+5. This file folder prepared by the tech lead.
+
+You're done with this part.
+
+## 5. Where to go if something is not working
+- If a new hire did not receive a welcome message, tell the tech lead. They can fix it in under five minutes.
+- If a reminder went to the wrong person, tell the tech lead immediately.
+- If you are unsure the system is running, check Audit Log. If today's rows exist, it is working.
+
+You're done with this part.
