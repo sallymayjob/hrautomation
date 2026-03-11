@@ -1,0 +1,36 @@
+{
+  "display_information": {
+    "name": "New Hire Intake Automation",
+    "description": "Outbound-only workflow app for new-hire intake and spreadsheet routing.",
+    "background_color": "#2C2D30"
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "New Hire Intake Bot",
+      "always_online": false
+    }
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "chat:write",
+        "chat:write.public",
+        "users:read",
+        "users:read.email"
+      ]
+    }
+  },
+  "settings": {
+    "event_subscriptions": {
+      "is_enabled": false,
+      "request_url": "",
+      "bot_events": []
+    },
+    "interactivity": {
+      "is_enabled": false
+    },
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": false
+  }
+}
