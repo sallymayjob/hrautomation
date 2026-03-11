@@ -131,3 +131,36 @@ Perform on scheduled security cadence or immediately after credential hygiene ev
 - Never share token over chat/email.
 - Never commit token values to repository.
 - Revoke immediately if accidental exposure is suspected.
+
+---
+
+## 7) Weekly Reporting and HR Approvals Digest
+
+Use this procedure once per week (or on-demand after significant data corrections) to refresh computed onboarding metrics, regenerate summary tabs, and publish the HR approvals digest.
+
+1. Run the weekly reporting entrypoint (`postWeeklyMetrics`).
+2. Confirm the following summary tabs are present and updated:
+   - `Summary - By Employee`
+   - `Summary - By Team Owner`
+   - `Summary - By Category`
+   - `Summary - Blocked Onboarding`
+3. In `Summary - By Employee`, validate computed fields per onboarding record:
+   - `tasks_total`
+   - `tasks_done`
+   - `tasks_overdue`
+   - `completion_pct`
+4. Validate digest delivery in the HR approvals channel (configured as `HR_TEAM_CHANNEL_ID`).
+5. Review the blocked-onboarding section in both the digest and `Summary - Blocked Onboarding` tab:
+   - Prioritize records with highest overdue counts.
+   - Use top unresolved task list to assign remediation owners.
+
+### 7.1 Digest Troubleshooting
+1. If digest is missing:
+   - Check Apps Script execution logs for Slack API errors.
+   - Verify `SLACK_BOT_TOKEN` and `HR_TEAM_CHANNEL_ID` properties.
+2. If summary tabs are stale:
+   - Re-run `postWeeklyMetrics`.
+   - Confirm onboarding/checklist tabs still use expected headers.
+3. If blocked list is unexpectedly empty:
+   - Verify onboarding `status` values are correctly set to `BLOCKED` where appropriate.
+   - Confirm unresolved checklist tasks are not incorrectly marked `DONE`/`COMPLETE`.

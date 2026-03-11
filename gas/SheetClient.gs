@@ -20,6 +20,7 @@ var COL = {
     DM_SENT_AT: 13,
     CHECKLIST_COMPLETED: 14,
     ROW_HASH: 15,
+    BLOCKED_REASON: 16,
     // Backward-compatible aliases.
     EMPLOYEE_ID: 1,
     FULL_NAME: 2,
