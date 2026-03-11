@@ -9,12 +9,12 @@ If a required channel is missing or has the wrong privacy settings, messages may
 ## Required channels
 Create these channels with the exact names below.
 
-| Channel | Required | Type | Purpose | Used by property |
-|---|---|---|---|---|
-| `#new-hires` | Yes | Public | Trigger channel for the onboarding workflow form (`When a person joins a channel`). | N/A (selected inside Workflow Builder) |
-| `#hr-ops-alerts` | Yes | Private or Public (recommended: Private) | HR operations alerts and escalation notices. | `HR_ALERTS_CHANNEL_ID` |
-| `#hr-approvals` | Yes | Private | Approval requests and manager follow-up decisions. | `HR_APPROVALS_CHANNEL_ID` |
-| `#general` | Yes | Public | Company-wide celebration and recognition posts. | `GENERAL_CHANNEL_ID` |
+| Channel | Required | Type | Purpose | Topic (recommended) | Description (recommended) | Used by property |
+|---|---|---|---|---|---|---|
+| `#new-hires` | Yes | Public | Trigger channel for the onboarding workflow form (`When a person joins a channel`). | `New hire onboarding workflow trigger channel` | `Employees are added here to trigger the onboarding intake workflow.` | N/A (selected inside Workflow Builder) |
+| `#hr-ops-alerts` | Yes | Private or Public (recommended: Private) | HR operations alerts and escalation notices. | `HR ops alerts and escalations` | `Automated alerts for onboarding exceptions, failures, and follow-up actions.` | `HR_ALERTS_CHANNEL_ID` |
+| `#hr-approvals` | Yes | Private | Approval requests and manager follow-up decisions. | `HR approvals and compliance decisions` | `Central channel for approval requests, manager responses, and audit-visible decisions.` | `HR_APPROVALS_CHANNEL_ID` |
+| `#general` | Yes | Public | Company-wide celebration and recognition posts. | `Company-wide announcements and celebrations` | `Automation posts recognition and celebration updates visible to all staff.` | `GENERAL_CHANNEL_ID` |
 
 ## Before you start
 - You need permission in Slack to create channels.
@@ -37,6 +37,17 @@ Add the right people so approvals and alerts are seen.
 - `#hr-approvals`: HR approvers and managers who approve training/compliance tasks.
 - `#general`: Usually already populated by workspace defaults.
 - `#new-hires`: Keep available for onboarding workflow triggers.
+
+## Step 2.5 — Set channel topic and description
+Set these in channel details so people understand channel purpose.
+
+1. Open the channel in Slack.
+2. Click the channel name at the top to open channel details.
+3. Click **Edit** next to **Topic** and paste the recommended topic from the table above.
+4. Click **Save**.
+5. Click **Edit** next to **Description** and paste the recommended description from the table above.
+6. Click **Save**.
+7. Repeat for all required channels.
 
 ## Step 3 — Invite the Slack app to each required channel
 After app installation, invite the bot to all channels it needs to post in.
@@ -67,6 +78,7 @@ Before moving on, confirm all checks below:
 
 - [ ] All 4 required channels exist with exact names.
 - [ ] Privacy settings match the recommended channel type.
+- [ ] Topic and description are set for each required channel.
 - [ ] `@New Hire Intake Bot` is invited to each required posting channel.
 - [ ] Channel IDs were copied and saved for deployment properties.
 
