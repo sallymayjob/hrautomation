@@ -70,6 +70,53 @@ describe('SharedHrLibrary', () => {
     expect(failure.errors[0].message).toContain('logging channel');
   });
 
+  test('writeExecutionLog writes to Automation Logs and Exceptions tabs when spreadsheet is provided', () => {
+    const { writeExecutionLog } = require('../../gas/SharedHrLibrary.gs');
+    const automationLogSheet = { appendRow: jest.fn() };
+    const exceptionsSheet = { appendRow: jest.fn() };
+    const spreadsheet = {
+      getSheetByName: jest.fn((name) => {
+        if (name === 'Automation Logs') return automationLogSheet;
+        if (name === 'Exceptions') return exceptionsSheet;
+        return null;
+      }),
+      insertSheet: jest.fn((name) => (name === 'Automation Logs' ? automationLogSheet : exceptionsSheet))
+    };
+
+    const result = writeExecutionLog({
+      spreadsheet,
+      entries: [
+        {
+          timestamp: new Date('2026-01-01T00:00:00Z'),
+          spreadsheetType: 'Onboarding',
+          function: 'processOnboardingBatch',
+          traceId: 'TRACE_X',
+          recordKey: 'RUN-1',
+          result: 'COMPLETED',
+          errorMessage: ''
+        },
+        {
+          timestamp: new Date('2026-01-01T00:00:01Z'),
+          spreadsheetType: 'Onboarding',
+          function: 'processOnboardingBatch',
+          traceId: 'TRACE_X',
+          recordKey: '2',
+          result: 'FAILED',
+          errorMessage: 'Invalid email'
+        }
+      ]
+    }, {
+      traceId: 'TRACE_X',
+      successCount: 1,
+      errorCount: 1,
+      errors: [{ message: 'Invalid email' }]
+    });
+
+    expect(result.errorCount).toBe(0);
+    expect(automationLogSheet.appendRow).toHaveBeenCalledTimes(2);
+    expect(exceptionsSheet.appendRow).toHaveBeenCalledTimes(2);
+  });
+
   test('notifyExceptions sends alerts and returns structured errors for invalid inputs', () => {
     const { notifyExceptions } = require('../../gas/SharedHrLibrary.gs');
 

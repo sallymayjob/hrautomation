@@ -3,7 +3,6 @@
  * @fileoverview Thin spreadsheet wrappers around shared HR library entry points.
  */
 
-var LIBRARY_RUN_LOG_SHEET = 'Library Runs';
 var DEFAULT_BATCH_LIMIT = 200;
 var DEFAULT_MAX_RUNTIME_MS = 5 * 60 * 1000;
 var DEFAULT_LOCK_WAIT_MS = 5000;
@@ -65,10 +64,10 @@ function runLibraryWorkflow_(options) {
     var rowPayload = readSheetRows_(sheet, opts.batchLimit || DEFAULT_BATCH_LIMIT);
     var dateWindow = createDateWindow_(opts.dateWindowMinutes, new Date());
     applyIdempotencyKeys_(rowPayload.rows, dateWindow);
-    appendWorkflowRunLog_(spreadsheet, opts.workflowName, {
-      runId: runId,
-      status: 'STARTED',
-      rowCount: rowPayload.rows.length
+    writeWorkflowExecutionLog_(spreadsheet, opts, runId, 'STARTED', {
+      rowCount: rowPayload.rows.length,
+      result: null,
+      errors: []
     });
     logWorkflowEvent_(opts.workflowName, runId, 'STARTED', 'rows=' + rowPayload.rows.length);
 
@@ -84,17 +83,24 @@ function runLibraryWorkflow_(options) {
     enforceRuntimeBudget_(opts.workflowName, startedAtMs, opts.maxRuntimeMs || DEFAULT_MAX_RUNTIME_MS);
 
     writeRowStatuses_(sheet, rowPayload, result, opts.statusColumnName);
-    appendWorkflowRunLog_(spreadsheet, opts.workflowName, {
-      runId: runId,
-      status: 'COMPLETED',
+    writeWorkflowExecutionLog_(spreadsheet, opts, runId, 'COMPLETED', {
       rowCount: rowPayload.rows.length,
-      result: result
+      result: result,
+      errors: []
     });
     logWorkflowEvent_(opts.workflowName, runId, 'COMPLETED', 'success=' + Number(result.successCount || 0) + ', errors=' + Number(result.errorCount || 0));
     sendWorkflowSummaryEmail_(opts.workflowName, rowPayload.rows.length, result, runId);
 
     return result;
   } catch (err) {
+    if (opts && opts.spreadsheetId) {
+      var failedSpreadsheet = SpreadsheetApp.openById(opts.spreadsheetId);
+      writeWorkflowExecutionLog_(failedSpreadsheet, opts, runId, 'FAILED', {
+        rowCount: 0,
+        result: null,
+        errors: [{ code: 'WORKFLOW_FAILED', rowIndex: 0, message: String(err && err.message ? err.message : err), technicalDetails: '' }]
+      });
+    }
     logWorkflowEvent_(opts.workflowName, runId, 'FAILED', String(err && err.message ? err.message : err));
     throw err;
   } finally {
@@ -199,25 +205,52 @@ function writeRowStatuses_(sheet, rowPayload, result, statusColumnName) {
   }
 }
 
-function appendWorkflowRunLog_(spreadsheet, workflowName, details) {
+function writeWorkflowExecutionLog_(spreadsheet, workflowOptions, runId, phase, details) {
+  var opts = workflowOptions || {};
   var log = details || {};
   var result = log.result || {};
-  var logSheet = spreadsheet.getSheetByName(LIBRARY_RUN_LOG_SHEET);
-  if (!logSheet) {
-    logSheet = spreadsheet.insertSheet(LIBRARY_RUN_LOG_SHEET);
-    logSheet.appendRow(['timestamp', 'workflow', 'run_id', 'status', 'rows_read', 'success_count', 'error_count', 'trace_id']);
+  var traceId = String(result.traceId || runId || '');
+  var entries = [
+    {
+      timestamp: new Date(),
+      spreadsheetType: String(opts.workflowName || 'Unknown'),
+      function: String(opts.libraryMethodName || 'unknown'),
+      traceId: traceId,
+      recordKey: String(runId || ''),
+      result: String(phase || 'COMPLETED'),
+      errorMessage: ''
+    }
+  ];
+
+  var rowErrors = Array.isArray(log.errors) ? log.errors : [];
+  var resultErrors = Array.isArray(result.errors) ? result.errors : [];
+  var errors = rowErrors.concat(resultErrors);
+  for (var i = 0; i < errors.length; i += 1) {
+    var entryError = errors[i] || {};
+    entries.push({
+      timestamp: new Date(),
+      spreadsheetType: String(opts.workflowName || 'Unknown'),
+      function: String(opts.libraryMethodName || 'unknown'),
+      traceId: traceId,
+      recordKey: String(entryError.rowIndex || runId || ''),
+      result: 'FAILED',
+      errorMessage: String(entryError.message || entryError.technicalDetails || 'Unknown failure')
+    });
   }
 
-  logSheet.appendRow([
-    new Date(),
-    workflowName,
-    String(log.runId || ''),
-    String(log.status || 'COMPLETED'),
-    Number(log.rowCount || 0),
-    Number(result.successCount || 0),
-    Number(result.errorCount || 0),
-    String(result.traceId || '')
-  ]);
+  HRLib.writeExecutionLog({
+    spreadsheet: spreadsheet,
+    spreadsheetType: opts.workflowName,
+    functionName: opts.libraryMethodName,
+    traceId: traceId,
+    runId: runId,
+    entries: entries
+  }, {
+    traceId: traceId,
+    successCount: Number(result.successCount || 0),
+    errorCount: Number(result.errorCount || errors.length),
+    errors: errors
+  });
 }
 
 function sendWorkflowSummaryEmail_(workflowName, rowCount, result, runId) {
@@ -318,7 +351,7 @@ function buildHeaderMap_(headers) {
 }
 
 function assertLibraryAvailable_() {
-  if (typeof HRLib === 'undefined' || !HRLib || typeof HRLib.processOnboardingBatch !== 'function' || typeof HRLib.runAuditChecks !== 'function') {
+  if (typeof HRLib === 'undefined' || !HRLib || typeof HRLib.processOnboardingBatch !== 'function' || typeof HRLib.runAuditChecks !== 'function' || typeof HRLib.writeExecutionLog !== 'function') {
     throw new Error('HRLib library is not available. Add the shared HR library with identifier "HRLib" and pinned version.');
   }
 }
@@ -333,6 +366,7 @@ if (typeof module !== 'undefined') module.exports = {
   normalizeHeaderKey_: normalizeHeaderKey_,
   writeRowStatuses_: writeRowStatuses_,
   buildIdempotencyKey_: buildIdempotencyKey_,
+  writeWorkflowExecutionLog_: writeWorkflowExecutionLog_,
   indexErrorsByRow_: indexErrorsByRow_,
   buildHeaderMap_: buildHeaderMap_,
   assertLibraryAvailable_: assertLibraryAvailable_
