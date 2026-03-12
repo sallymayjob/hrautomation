@@ -46,6 +46,157 @@ function runAuditChecks(rows, options) {
   return buildResult_(traceId, successCount, errors);
 }
 
+function processTrainingAssignments(rows, options) {
+  var normalizedRows = Array.isArray(rows) ? rows : [];
+  var opts = options || {};
+  var traceId = getTraceId_(opts.traceId);
+  var errors = [];
+  var successCount = 0;
+  var counts = {
+    assigned: 0,
+    skipped: 0
+  };
+
+  for (var i = 0; i < normalizedRows.length; i += 1) {
+    var row = normalizedRows[i] || {};
+    var rowErrors = validateTrainingAssignmentRow_(row, i);
+    if (rowErrors.length > 0) {
+      errors = errors.concat(rowErrors);
+      continue;
+    }
+
+    successCount += 1;
+    counts.assigned += 1;
+  }
+
+  var result = buildResult_(traceId, successCount, errors);
+  result.counts = counts;
+  return finalizeTrainingOperation_(result, opts, {
+    workflowName: 'Training',
+    functionName: 'processTrainingAssignments'
+  });
+}
+
+function runTrainingReminders(rows, options) {
+  var normalizedRows = Array.isArray(rows) ? rows : [];
+  var opts = options || {};
+  var traceId = getTraceId_(opts.traceId);
+  var errors = [];
+  var successCount = 0;
+  var counts = {
+    dueSoon: 0,
+    overdue: 0,
+    notDue: 0
+  };
+  var reminderWindowDays = Number(opts.reminderWindowDays || 3);
+  var now = opts.now instanceof Date ? opts.now : new Date();
+
+  for (var i = 0; i < normalizedRows.length; i += 1) {
+    var row = normalizedRows[i] || {};
+    var rowErrors = validateTrainingReminderRow_(row, i);
+    if (rowErrors.length > 0) {
+      errors = errors.concat(rowErrors);
+      continue;
+    }
+
+    var dueDate = row.due_date instanceof Date ? row.due_date : new Date(row.due_date);
+    var daysUntilDue = Math.ceil((dueDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+    if (daysUntilDue < 0) {
+      counts.overdue += 1;
+    } else if (daysUntilDue <= reminderWindowDays) {
+      counts.dueSoon += 1;
+    } else {
+      counts.notDue += 1;
+    }
+
+    successCount += 1;
+  }
+
+  var result = buildResult_(traceId, successCount, errors);
+  result.counts = counts;
+  return finalizeTrainingOperation_(result, opts, {
+    workflowName: 'Training',
+    functionName: 'runTrainingReminders'
+  });
+}
+
+function syncTrainingCompletion(rows, options) {
+  var normalizedRows = Array.isArray(rows) ? rows : [];
+  var opts = options || {};
+  var traceId = getTraceId_(opts.traceId);
+  var errors = [];
+  var successCount = 0;
+  var counts = {
+    completed: 0,
+    inProgress: 0,
+    pending: 0
+  };
+  var completionUpdates = [];
+
+  for (var i = 0; i < normalizedRows.length; i += 1) {
+    var row = normalizedRows[i] || {};
+    var rowErrors = validateTrainingCompletionRow_(row, i);
+    if (rowErrors.length > 0) {
+      errors = errors.concat(rowErrors);
+      continue;
+    }
+
+    var normalizedStatus = String(row.training_status || '').trim().toUpperCase();
+    var completionAt = row.completion_date;
+    if (normalizedStatus === 'COMPLETED') {
+      counts.completed += 1;
+      if (!isValidDate_(completionAt)) {
+        completionAt = new Date().toISOString();
+      }
+    } else if (normalizedStatus === 'IN_PROGRESS') {
+      counts.inProgress += 1;
+      completionAt = '';
+    } else {
+      counts.pending += 1;
+      completionAt = '';
+    }
+
+    completionUpdates.push({
+      employeeId: String(row.employee_id),
+      moduleCode: String(row.module_code),
+      trainingStatus: normalizedStatus,
+      completionDate: completionAt
+    });
+    successCount += 1;
+  }
+
+  var result = buildResult_(traceId, successCount, errors);
+  result.counts = counts;
+  result.updates = completionUpdates;
+  return finalizeTrainingOperation_(result, opts, {
+    workflowName: 'Training',
+    functionName: 'syncTrainingCompletion'
+  });
+}
+
+function finalizeTrainingOperation_(result, options, context) {
+  var opts = options || {};
+  var details = context || {};
+  var finalized = result || buildResult_(getTraceId_(opts.traceId), 0, []);
+
+  if (opts.spreadsheet || opts.logger) {
+    finalized.logResult = writeExecutionLog({
+      spreadsheet: opts.spreadsheet,
+      logger: opts.logger,
+      spreadsheetType: details.workflowName || 'Training',
+      functionName: details.functionName || 'unknown',
+      traceId: finalized.traceId,
+      runId: opts.runId || ''
+    }, finalized);
+  }
+
+  if (Array.isArray(opts.exceptionRecipients) && opts.exceptionRecipients.length > 0 && finalized.errorCount > 0) {
+    finalized.notificationResult = notifyExceptions(finalized.errors, opts.exceptionRecipients);
+  }
+
+  return finalized;
+}
+
 function writeExecutionLog(runContext, results) {
   var context = runContext || {};
   var normalizedResults = results || {};
@@ -220,6 +371,62 @@ function validateAuditRow_(row, index, seenKeys) {
   return errors;
 }
 
+function validateTrainingAssignmentRow_(row, index) {
+  var errors = [];
+  if (!row.employee_id) {
+    errors.push(buildOperatorError_('TRAINING_EMPLOYEE_ID_MISSING', index,
+      'Training assignment row ' + (index + 1) + ' is missing employee_id. Add the employee identifier and retry.'));
+  }
+  if (!row.module_code) {
+    errors.push(buildOperatorError_('TRAINING_MODULE_CODE_MISSING', index,
+      'Training assignment row ' + (index + 1) + ' is missing module_code. Add the module code mapped to the role/department.'));
+  }
+  if (!row.role && !row.department) {
+    errors.push(buildOperatorError_('TRAINING_TARGETING_MISSING', index,
+      'Training assignment row ' + (index + 1) + ' needs role or department to determine assignment eligibility.'));
+  }
+  return errors;
+}
+
+function validateTrainingReminderRow_(row, index) {
+  var errors = [];
+  if (!row.employee_id) {
+    errors.push(buildOperatorError_('TRAINING_EMPLOYEE_ID_MISSING', index,
+      'Training reminder row ' + (index + 1) + ' is missing employee_id.'));
+  }
+  if (!row.module_code) {
+    errors.push(buildOperatorError_('TRAINING_MODULE_CODE_MISSING', index,
+      'Training reminder row ' + (index + 1) + ' is missing module_code.'));
+  }
+  if (!isValidDate_(row.due_date)) {
+    errors.push(buildOperatorError_('TRAINING_DUE_DATE_INVALID', index,
+      'Training reminder row ' + (index + 1) + ' has an invalid due_date. Use a valid date.'));
+  }
+  return errors;
+}
+
+function validateTrainingCompletionRow_(row, index) {
+  var errors = [];
+  var normalizedStatus = String(row.training_status || '').trim().toUpperCase();
+  if (!row.employee_id) {
+    errors.push(buildOperatorError_('TRAINING_EMPLOYEE_ID_MISSING', index,
+      'Training completion row ' + (index + 1) + ' is missing employee_id.'));
+  }
+  if (!row.module_code) {
+    errors.push(buildOperatorError_('TRAINING_MODULE_CODE_MISSING', index,
+      'Training completion row ' + (index + 1) + ' is missing module_code.'));
+  }
+  if (!normalizedStatus) {
+    errors.push(buildOperatorError_('TRAINING_STATUS_MISSING', index,
+      'Training completion row ' + (index + 1) + ' is missing training_status.'));
+  }
+  if (normalizedStatus === 'COMPLETED' && row.completion_date && !isValidDate_(row.completion_date)) {
+    errors.push(buildOperatorError_('TRAINING_COMPLETION_DATE_INVALID', index,
+      'Training completion row ' + (index + 1) + ' has an invalid completion_date.'));
+  }
+  return errors;
+}
+
 function sendExceptionAlert_(exceptionItem, recipients, traceId) {
   var to = recipients.join(',');
   var subject = '[HR Automation] Exception Alert (' + traceId + ')';
@@ -276,6 +483,9 @@ function isValidDate_(value) {
 if (typeof module !== 'undefined') module.exports = {
   processOnboardingBatch: processOnboardingBatch,
   runAuditChecks: runAuditChecks,
+  processTrainingAssignments: processTrainingAssignments,
+  runTrainingReminders: runTrainingReminders,
+  syncTrainingCompletion: syncTrainingCompletion,
   writeExecutionLog: writeExecutionLog,
   notifyExceptions: notifyExceptions
 };
