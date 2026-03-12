@@ -7,6 +7,8 @@ var COMMAND_NAME_ONBOARDING_STATUS = '/onboarding-status';
 var COMMAND_NAME_IT_STATUS = '/it-onboarding-status';
 var COMMAND_NAME_FINANCE_STATUS = '/finance-onboarding-status';
 var COMMAND_NAME_HR_STATUS = '/hr-onboarding-status';
+var COMMAND_NAME_CHECKLIST_STATUS = '/checklist-status';
+var COMMAND_NAME_CHECKLIST_PROGRESS = '/checklist-progress';
 var MAX_DISAMBIGUATION_RESULTS = 5;
 var MAX_DUE_ITEMS = 3;
 
@@ -29,6 +31,21 @@ var TEAM_VIEW_CONFIG = {
   hr: {
     label: 'HR',
     focusTeams: ['PEOPLE', 'HR', 'LEGAL'],
+    channelGetterName: 'getHrTeamChannelId'
+  },
+  admin: {
+    label: 'Admin',
+    focusTeams: ['ADMIN', 'WORKSPACE', 'GOOGLE CHROME', 'SALESFORCE', 'SLACK', 'PRE-ONBOARDING', 'SIGNATURE STATION'],
+    channelGetterName: 'getAdminTeamChannelId'
+  },
+  marketing: {
+    label: 'Marketing',
+    focusTeams: ['MARKETING'],
+    channelGetterName: 'getDefaultAssignmentsChannelId'
+  },
+  manager: {
+    label: 'Manager',
+    focusTeams: ['MANAGER', 'PEOPLE OPS', 'HR'],
     channelGetterName: 'getHrTeamChannelId'
   }
 };
@@ -70,7 +87,7 @@ function handleSlackInteractivePayload_(payload) {
 
 function routeSlackCommand_(payload) {
   var commandName = String(payload.command || '').trim();
-  if (commandName === COMMAND_NAME_ONBOARDING_STATUS) {
+  if (commandName === COMMAND_NAME_ONBOARDING_STATUS || commandName === COMMAND_NAME_CHECKLIST_STATUS || commandName === COMMAND_NAME_CHECKLIST_PROGRESS) {
     return handleOnboardingStatusCommand_(payload, 'default', new SheetClient(), new AuditLogger(), new SlackClient());
   }
   if (commandName === COMMAND_NAME_IT_STATUS) {
@@ -144,6 +161,20 @@ function parseStatusCommandInput_(rawText) {
   };
 }
 
+
+function parseSlackUserIdFromQuery_(query) {
+  var normalized = String(query || '').trim();
+  var mentionMatch = normalized.match(/^<@([A-Z0-9]+)>$/i);
+  if (mentionMatch) {
+    return mentionMatch[1].toUpperCase();
+  }
+  var atHandleMatch = normalized.match(/^@([A-Z0-9]+)$/i);
+  if (atHandleMatch) {
+    return atHandleMatch[1].toUpperCase();
+  }
+  return '';
+}
+
 function performOnboardingStatusLookup_(query, sheetClient) {
   var resolution = resolveOnboardingCandidates_(query, sheetClient);
 
@@ -179,11 +210,19 @@ function logOnboardingStatusRead_(auditLogger, actor, query, teamLabel, matchTyp
 function resolveOnboardingCandidates_(query, sheetClient) {
   var onboardingRows = sheetClient.getOnboardingRows();
   var normalizedQuery = normalizeForMatch_(query);
+  var querySlackId = parseSlackUserIdFromQuery_(query);
   var exact = [];
 
   for (var i = 0; i < onboardingRows.length; i += 1) {
     var row = onboardingRows[i];
     var employeeName = String(row[1] || '').trim();
+    var rowSlackId = String(row[2] || '').trim().toUpperCase();
+
+    if (querySlackId && rowSlackId && rowSlackId === querySlackId) {
+      exact.push(buildCandidateFromOnboardingRow_(row));
+      continue;
+    }
+
     if (!employeeName) {
       continue;
     }
@@ -231,6 +270,7 @@ function buildCandidateFromOnboardingRow_(row) {
   return {
     onboardingId: String(row[0] || ''),
     employeeName: String(row[1] || ''),
+    slackId: String(row[2] || ''),
     status: String(row[13] || ''),
     startDate: row[6],
     manager: String(row[8] || 'Unknown'),
@@ -240,7 +280,10 @@ function buildCandidateFromOnboardingRow_(row) {
 
 function buildPhaseSnapshot_(onboardingId, checklistRows) {
   var phases = {};
+  var ownerTeams = {};
   var dueItems = [];
+  var totalTasks = 0;
+  var completedTasks = 0;
 
   for (var i = 0; i < checklistRows.length; i += 1) {
     var row = checklistRows[i];
@@ -250,6 +293,7 @@ function buildPhaseSnapshot_(onboardingId, checklistRows) {
 
     var phase = String(row[2] || 'Unassigned');
     var taskName = String(row[3] || 'Unnamed task');
+    var ownerTeam = String(row[4] || 'General');
     var status = String(row[6] || '').trim().toUpperCase();
     var dueDate = row[7];
     var isComplete = status === 'COMPLETE' || status === 'DONE';
@@ -257,13 +301,22 @@ function buildPhaseSnapshot_(onboardingId, checklistRows) {
     if (!phases[phase]) {
       phases[phase] = { total: 0, done: 0 };
     }
+    if (!ownerTeams[ownerTeam]) {
+      ownerTeams[ownerTeam] = { total: 0, done: 0 };
+    }
+
     phases[phase].total += 1;
+    ownerTeams[ownerTeam].total += 1;
+    totalTasks += 1;
+
     if (isComplete) {
       phases[phase].done += 1;
+      ownerTeams[ownerTeam].done += 1;
+      completedTasks += 1;
     } else {
       dueItems.push({
         phase: phase,
-        owningTeam: String(row[4] || 'General'),
+        owningTeam: ownerTeam,
         taskName: taskName,
         status: status || 'PENDING',
         dueDate: dueDate
@@ -277,10 +330,12 @@ function buildPhaseSnapshot_(onboardingId, checklistRows) {
 
   return {
     phases: phases,
+    ownerTeams: ownerTeams,
+    totalTasks: totalTasks,
+    completedTasks: completedTasks,
     dueItems: dueItems.slice(0, MAX_DUE_ITEMS)
   };
 }
-
 function formatOnboardingStatusSummary_(candidate, snapshot, teamView) {
   var normalizedTeamView = teamView || TEAM_VIEW_CONFIG.default;
   var phaseKeys = Object.keys(snapshot.phases);
@@ -292,6 +347,15 @@ function formatOnboardingStatusSummary_(candidate, snapshot, teamView) {
     : 'No checklist tasks found';
 
   var teamPriorityDueItems = prioritizeDueItemsForTeam_(snapshot.dueItems, normalizedTeamView.focusTeams);
+  var completionPercent = snapshot.totalTasks > 0
+    ? Math.round((snapshot.completedTasks / snapshot.totalTasks) * 100)
+    : 0;
+  var teamProgressSummary = Object.keys(snapshot.ownerTeams || {}).length > 0
+    ? Object.keys(snapshot.ownerTeams).sort().map(function (teamName) {
+      var stats = snapshot.ownerTeams[teamName];
+      return teamName + ' ' + stats.done + '/' + stats.total;
+    }).join(' | ')
+    : 'No owner team checklist tasks found';
 
   var dueSummary = teamPriorityDueItems.length > 0
     ? teamPriorityDueItems.map(function (item) {
@@ -306,6 +370,8 @@ function formatOnboardingStatusSummary_(candidate, snapshot, teamView) {
     '• Status: ' + (candidate.status || 'Unknown'),
     '• Manager: ' + candidate.manager,
     '• Buddy: ' + candidate.buddy,
+    '• Checklist progress: ' + snapshot.completedTasks + '/' + snapshot.totalTasks + ' (' + completionPercent + '%)',
+    '• Owner teams: ' + teamProgressSummary,
     '• Phase completion: ' + phaseSummary,
     '• Key due items:\n' + dueSummary,
     '',
@@ -462,6 +528,7 @@ if (typeof module !== 'undefined') {
     normalizeForMatch_: normalizeForMatch_,
     logOnboardingStatusRead_: logOnboardingStatusRead_,
     parseSlackPayloadEnvelope_: parseSlackPayloadEnvelope_,
-    handleSlackInteractivePayload_: handleSlackInteractivePayload_
+    handleSlackInteractivePayload_: handleSlackInteractivePayload_,
+    parseSlackUserIdFromQuery_: parseSlackUserIdFromQuery_
   };
 }
