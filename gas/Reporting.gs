@@ -10,6 +10,11 @@ var WEEKLY_REPORT_SHEETS = {
   BLOCKED: 'Summary - Blocked Onboarding'
 };
 
+
+function appendWorkflowLifecycleRow_(sheetClient, event) {
+  return sheetClient.appendWorkflowLifecycleEvent(event);
+}
+
 function postWeeklyMetrics() {
   var sheetClient = new SheetClient();
   var trainingRows = sheetClient.getTrainingRows();
