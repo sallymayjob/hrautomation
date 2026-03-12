@@ -34,6 +34,7 @@ Use either **two** files (audit merged into training) or **three** files (separa
 ### A) Onboarding Spreadsheet imports
 - `sheets/onboarding.csv` -> tab name `Onboarding`
 - `sheets/checklist.csv` -> tab name `Checklist`
+- `sheets/onboarding-status-tracker.csv` -> tab name `Onboarding_Status_Tracker` (optional monitoring tracker import)
 
 ### B) Training Spreadsheet imports
 - `sheets/training.csv` -> tab name `Learners`
