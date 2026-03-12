@@ -1,6 +1,6 @@
-# SOP: Run Onboarding and Audit **now** (plain-language)
+# SOP: Run Onboarding, Training, and Audit **now** (plain-language)
 
-Use this when you need to run the workflow immediately (not wait for the schedule).
+Use this when you need to run HR workflow steps immediately (instead of waiting for scheduled triggers).
 
 > Screenshot note: these images are example click maps so users know exactly where to click.
 
@@ -10,79 +10,47 @@ Use this when you need to run the workflow immediately (not wait for the schedul
 
 ---
 
-## 1) How to run Onboarding now
+## Flow diagram
 
-1. Open the **Onboarding** Google Sheet.
-2. Click **Extensions** (top menu).
-3. Click **Apps Script**.
-4. In Apps Script, open the function dropdown (**Select function**).
-5. Choose **`runOnboarding`**.
-6. Click **Run** (▶).
-7. Wait for the status to finish.
-8. Click **Executions** and confirm the latest run says **Completed**.
-9. Go back to the **Onboarding** tab and check recent rows.
-
-What to check in the **Onboarding** tab after run:
-- `status` should move toward **IN_PROGRESS** or **COMPLETE**.
-- If something is blocked, `status` may show **BLOCKED** and `blocked_reason` explains why.
-- `trace_id` should be filled for processed rows.
+**New Hire -> Onboarding -> Training -> Audit**
 
 ---
 
-## 2) How to run Audit now
+## 1) When to use Onboarding sheet
 
-1. Open the **Audit** Google Sheet.
-2. Click **Extensions**.
-3. Click **Apps Script**.
-4. In **Select function**, choose **`runAudit`**.
-5. Click **Run** (▶).
-6. Open **Executions** and confirm the newest run says **Completed**.
-7. Open the **Audit** tab and confirm new rows were appended.
+Use the **Onboarding** sheet first for every new hire record.
 
-What to check in the **Audit** tab after run:
-- A new row appears at the bottom.
-- `event_timestamp` has the current time.
-- `action` / `details` are populated.
-- `event_hash` is populated.
+- **Button/function to run:** Open **Extensions → Apps Script**, then in **Select function** choose **`runOnboarding`**, then click **Run** (▶).
+- **Success message:** In **Executions**, the latest run for `runOnboarding` shows **Completed**. In the **Onboarding** tab, rows start moving from `PENDING` to `IN_PROGRESS` or `COMPLETE`.
+- **Most common error + immediate fix:** `Sheet not found: ...` → Go to **Project Settings → Script Properties** and make sure `ONBOARDING_SHEET_NAME` exactly matches the tab name **Onboarding**.
 
 ---
 
-## 3) What success looks like
+## 2) When to use Training sheet
 
-You are done when all of these are true:
+Use the **Training** sheet after onboarding is complete and you need to assign, sync, or remind training tasks.
 
-- Apps Script **Executions** shows **Completed** for the function you ran.
-- **Onboarding** tab rows are updating (status and trace fields).
-- **Audit** tab gets a fresh event row with timestamp.
-- No new repeating errors in Executions.
-
----
-
-## 4) Top 5 errors and what button/cell to check
-
-| Error you may see | What it means in plain words | Exactly what to check |
-|---|---|---|
-| `Missing required Script Property: ...` | A required setting is empty. | In Apps Script, go to **Project Settings → Script Properties**. Check the missing key exactly (for example `ONBOARDING_SHEET_NAME`, `AUDIT_SHEET_NAME`, spreadsheet IDs). |
-| `Sheet not found: ...` | The tab name does not match the setting. | Check the tab name at the bottom of the sheet, then check **Script Properties** (`ONBOARDING_SHEET_NAME` or `AUDIT_SHEET_NAME`). Names must match exactly. |
-| `Schema mismatch... Missing required header(s)` | A required column header was changed or deleted. | Open row 1 of the affected tab (**Onboarding** or **Audit**) and confirm required headers exist (for example `status`, `blocked_reason`, `event_timestamp`, `event_hash`). |
-| `Skipped ... because another run is in progress.` | Someone already clicked Run and it is still running. | Open **Executions** and wait for the active run to finish. Do not click Run repeatedly. |
-| `Authorization required` / permission error | Your Google account has not approved access yet. | Click **Run** again and complete the Google permission pop-up. Use the correct work account with editor access. |
+- **Button/function to run:** Open **Extensions → Apps Script**, then in **Select function** choose **`runTrainingAssignments`** (or **`runTrainingReminders`** for reminder-only follow-up), then click **Run** (▶).
+- **Success message:** In **Executions**, the latest run for the training function shows **Completed**. In the **Training** tab, rows update (for example new assignments or reminder/status updates).
+- **Most common error + immediate fix:** `Sheet not found: ...` → Go to **Project Settings → Script Properties** and make sure `TRAINING_SHEET_NAME` exactly matches the tab name **Training**.
 
 ---
 
-## 5) Who to contact with trace ID
+## 3) When to use Audit sheet
 
-When you escalate, include the **trace ID** so support can find the exact run quickly.
+Use the **Audit** sheet after training milestones are done, or when you need a compliance/evidence log update.
 
-Send this to your **tech lead / automation support owner**:
+- **Button/function to run:** Open **Extensions → Apps Script**, then in **Select function** choose **`runAudit`**, then click **Run** (▶).
+- **Success message:** In **Executions**, the latest run for `runAudit` shows **Completed**. In the **Audit** tab, a new row appears with values like `event_timestamp`, `action`, and `event_hash`.
+- **Most common error + immediate fix:** `Schema mismatch... Missing required header(s)` → In the **Audit** tab, check row 1 and restore required headers exactly (including `event_timestamp`, `action`, `details`, `event_hash`).
 
-- Function run: `runOnboarding` or `runAudit`
-- Time run started
-- Sheet + tab name (for example: **Onboarding → Onboarding**)
-- Row number(s) affected
-- `trace_id` value from the sheet row (or from execution logs)
+---
+
+## Quick escalation note (if still blocked)
+
+Send your tech lead:
+- Function name you ran (`runOnboarding`, `runTrainingAssignments`, `runTrainingReminders`, or `runAudit`)
+- Timestamp of the run
+- Sheet + tab name
 - Screenshot of the error in **Executions**
-
-Suggested message template:
-
-> "Please help with HR automation. Function: `runOnboarding`. Sheet/tab: Onboarding → Onboarding. Trace ID: `<paste trace_id>`. Error: `<paste short error>`."
+- `trace_id` (if shown in the row)
