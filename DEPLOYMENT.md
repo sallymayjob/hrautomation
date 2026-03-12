@@ -230,8 +230,8 @@ What just happened? Your Apps Script project now contains the same trusted code 
 
 You're done with Phase 3.5. The Apps Script code is now loaded and ready to run.
 
-## Phase 3.6 — Add the onboarding status slash command (about 10 minutes)
-This phase connects a read-only Slack command to your Apps Script web app.
+## Phase 3.6 — Add team onboarding status slash commands (about 15 minutes)
+This phase connects read-only Slack commands to your Apps Script web app.
 
 1. In Apps Script, click **Deploy** > **New deployment**.
 2. Choose type **Web app**.
@@ -244,13 +244,36 @@ This phase connects a read-only Slack command to your Apps Script web app.
 9. In **Command**, enter `/onboarding-status`.
 10. In **Request URL**, paste the Apps Script Web app URL from step 5.
 11. In **Short Description**, enter `Read-only onboarding status lookup`.
-12. In **Usage Hint**, enter `<new hire name>`.
+12. In **Usage Hint**, enter `<new hire name> [--share]`.
 13. Click **Save**.
-14. Reinstall or update the app in your workspace if Slack prompts you.
+14. Repeat steps 8 to 13 for each team command:
+   - `/it-onboarding-status` with description `IT-focused onboarding status lookup`
+   - `/finance-onboarding-status` with description `Finance-focused onboarding status lookup`
+   - `/hr-onboarding-status` with description `HR-focused onboarding status lookup`
+15. Reinstall or update the app in your workspace if Slack prompts you.
 
-What just happened? Slack can now send `/onboarding-status` queries to Apps Script, and the script returns onboarding summaries without editing records. Status updates remain Sheets-only (read-only in Slack).
+What just happened? Slack can now send team-specific status queries to one shared Apps Script lookup implementation. The requester receives an ephemeral response; adding `--share` also posts the same summary to the mapped team channel for transparency.
 
-You're done with Phase 3.6. The slash command path is live for status checks.
+You're done with Phase 3.6. Team slash command entry points are live for status checks.
+
+### Team command reference and expected output
+
+Each command accepts a new hire name as input and supports optional `--share` to also post in the team channel.
+
+| Command | Primary audience | Input | Output emphasis | Optional transparency post |
+|---|---|---|---|---|
+| `/onboarding-status` | General/HR | `<new hire name> [--share]` | Balanced overview of onboarding status, manager/buddy, phase completion, and next due items. | `HR_TEAM_CHANNEL_ID` |
+| `/it-onboarding-status` | IT team | `<new hire name> [--share]` | Same lookup, but key due items are reordered to show IT/security-owned tasks first (for example provisioning/access setup). | `IT_TEAM_CHANNEL_ID` |
+| `/finance-onboarding-status` | Finance team | `<new hire name> [--share]` | Same lookup, but key due items are reordered to show finance/payroll/compliance-owned tasks first. | `FINANCE_TEAM_CHANNEL_ID` |
+| `/hr-onboarding-status` | HR team | `<new hire name> [--share]` | Same lookup, with people/HR/legal-owned tasks shown first. | `HR_TEAM_CHANNEL_ID` |
+
+Expected response format (ephemeral):
+- `Onboarding status: <new hire>`
+- `Team view: <HR|IT|Finance>`
+- `Onboarding ID`, `Status`, `Manager`, `Buddy`
+- `Phase completion` summary
+- `Key due items` list (ordered by team focus)
+- Read-only note directing status edits to Google Sheets
 
 ## Phase 4 — Connect Slack Workflow Builder to the spreadsheet (about 20 minutes)
 This phase connects Slack's form tool to your Onboarding spreadsheet.

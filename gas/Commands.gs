@@ -1,11 +1,37 @@
-/* global SheetClient, AuditLogger, ContentService */
+/* global SheetClient, AuditLogger, ContentService, SlackClient, Config */
 /**
  * @fileoverview Slack slash command handlers for read-only onboarding lookups.
  */
 
 var COMMAND_NAME_ONBOARDING_STATUS = '/onboarding-status';
+var COMMAND_NAME_IT_STATUS = '/it-onboarding-status';
+var COMMAND_NAME_FINANCE_STATUS = '/finance-onboarding-status';
+var COMMAND_NAME_HR_STATUS = '/hr-onboarding-status';
 var MAX_DISAMBIGUATION_RESULTS = 5;
 var MAX_DUE_ITEMS = 3;
+
+var TEAM_VIEW_CONFIG = {
+  default: {
+    label: 'HR',
+    focusTeams: ['PEOPLE', 'HR', 'LEGAL'],
+    channelGetterName: 'getHrTeamChannelId'
+  },
+  it: {
+    label: 'IT',
+    focusTeams: ['IT', 'SECURITY'],
+    channelGetterName: 'getItTeamChannelId'
+  },
+  finance: {
+    label: 'Finance',
+    focusTeams: ['FINANCE', 'PAYROLL', 'COMPLIANCE'],
+    channelGetterName: 'getFinanceTeamChannelId'
+  },
+  hr: {
+    label: 'HR',
+    focusTeams: ['PEOPLE', 'HR', 'LEGAL'],
+    channelGetterName: 'getHrTeamChannelId'
+  }
+};
 
 function doPost(e) {
   var envelope = (e && e.parameter) || {};
@@ -45,7 +71,16 @@ function handleSlackInteractivePayload_(payload) {
 function routeSlackCommand_(payload) {
   var commandName = String(payload.command || '').trim();
   if (commandName === COMMAND_NAME_ONBOARDING_STATUS) {
-    return handleOnboardingStatusCommand_(payload, new SheetClient(), new AuditLogger());
+    return handleOnboardingStatusCommand_(payload, 'default', new SheetClient(), new AuditLogger(), new SlackClient());
+  }
+  if (commandName === COMMAND_NAME_IT_STATUS) {
+    return handleOnboardingStatusCommand_(payload, 'it', new SheetClient(), new AuditLogger(), new SlackClient());
+  }
+  if (commandName === COMMAND_NAME_FINANCE_STATUS) {
+    return handleOnboardingStatusCommand_(payload, 'finance', new SheetClient(), new AuditLogger(), new SlackClient());
+  }
+  if (commandName === COMMAND_NAME_HR_STATUS) {
+    return handleOnboardingStatusCommand_(payload, 'hr', new SheetClient(), new AuditLogger(), new SlackClient());
   }
 
   return {
@@ -54,46 +89,81 @@ function routeSlackCommand_(payload) {
   };
 }
 
-function handleOnboardingStatusCommand_(payload, sheetClient, auditLogger) {
-  var query = String(payload.text || '').trim();
+function handleOnboardingStatusCommand_(payload, teamViewKey, sheetClient, auditLogger, slackClient) {
+  var parsedInput = parseStatusCommandInput_(payload.text || '');
+  var query = parsedInput.query;
+  var shareToTeamChannel = parsedInput.shareToTeamChannel;
   var actor = String(payload.user_name || payload.user_id || 'unknown');
+  var teamView = TEAM_VIEW_CONFIG[teamViewKey] || TEAM_VIEW_CONFIG.default;
 
   if (!query) {
-    logOnboardingStatusRead_(auditLogger, actor, query, 'invalid_query', 0);
+    logOnboardingStatusRead_(auditLogger, actor, query, teamView.label, 'invalid_query', 0);
     return {
       response_type: 'ephemeral',
       text: 'Usage: /onboarding-status <new hire name>\nExample: /onboarding-status Amelia Thompson'
     };
   }
 
-  var resolution = resolveOnboardingCandidates_(query, sheetClient);
-  logOnboardingStatusRead_(auditLogger, actor, query, resolution.matchType, resolution.candidates.length);
+  var lookupResult = performOnboardingStatusLookup_(query, sheetClient);
+  logOnboardingStatusRead_(auditLogger, actor, query, teamView.label, lookupResult.matchType, lookupResult.candidates.length);
 
-  if (resolution.candidates.length === 0) {
+  if (lookupResult.candidates.length === 0) {
     return {
       response_type: 'ephemeral',
       text: 'No onboarding records found for "' + query + '".'
     };
   }
 
-  if (resolution.candidates.length > 1) {
+  if (lookupResult.candidates.length > 1) {
     return {
       response_type: 'ephemeral',
-      text: formatDisambiguationMessage_(query, resolution.candidates)
+      text: formatDisambiguationMessage_(query, lookupResult.candidates)
     };
   }
 
-  var candidate = resolution.candidates[0];
-  var checklistRows = sheetClient.getChecklistRows();
-  var snapshot = buildPhaseSnapshot_(candidate.onboardingId, checklistRows);
+  var candidate = lookupResult.candidates[0];
+  var snapshot = lookupResult.snapshot;
+  var summaryText = formatOnboardingStatusSummary_(candidate, snapshot, teamView);
+
+  if (shareToTeamChannel) {
+    postTeamTransparencyUpdate_(teamView, candidate, summaryText, slackClient);
+  }
 
   return {
     response_type: 'ephemeral',
-    text: formatOnboardingStatusSummary_(candidate, snapshot)
+    text: summaryText
   };
 }
 
-function logOnboardingStatusRead_(auditLogger, actor, query, matchType, resultCount) {
+function parseStatusCommandInput_(rawText) {
+  var text = String(rawText || '').trim();
+  var shareToTeamChannel = /\s--share\b/i.test(' ' + text);
+  return {
+    shareToTeamChannel: shareToTeamChannel,
+    query: text.replace(/\s--share\b/ig, '').trim()
+  };
+}
+
+function performOnboardingStatusLookup_(query, sheetClient) {
+  var resolution = resolveOnboardingCandidates_(query, sheetClient);
+
+  if (resolution.candidates.length !== 1) {
+    return {
+      matchType: resolution.matchType,
+      candidates: resolution.candidates,
+      snapshot: null
+    };
+  }
+
+  var checklistRows = sheetClient.getChecklistRows();
+  return {
+    matchType: resolution.matchType,
+    candidates: resolution.candidates,
+    snapshot: buildPhaseSnapshot_(resolution.candidates[0].onboardingId, checklistRows)
+  };
+}
+
+function logOnboardingStatusRead_(auditLogger, actor, query, teamLabel, matchType, resultCount) {
   if (!auditLogger || typeof auditLogger.log !== 'function') {
     return;
   }
@@ -102,7 +172,7 @@ function logOnboardingStatusRead_(auditLogger, actor, query, matchType, resultCo
     entityType: 'OnboardingCommand',
     entityId: COMMAND_NAME_ONBOARDING_STATUS,
     action: 'READ',
-    details: 'query="' + query + '"; match_type=' + matchType + '; result_count=' + resultCount
+    details: 'team=' + teamLabel + '; query="' + query + '"; match_type=' + matchType + '; result_count=' + resultCount
   });
 }
 
@@ -193,6 +263,7 @@ function buildPhaseSnapshot_(onboardingId, checklistRows) {
     } else {
       dueItems.push({
         phase: phase,
+        owningTeam: String(row[4] || 'General'),
         taskName: taskName,
         status: status || 'PENDING',
         dueDate: dueDate
@@ -210,7 +281,8 @@ function buildPhaseSnapshot_(onboardingId, checklistRows) {
   };
 }
 
-function formatOnboardingStatusSummary_(candidate, snapshot) {
+function formatOnboardingStatusSummary_(candidate, snapshot, teamView) {
+  var normalizedTeamView = teamView || TEAM_VIEW_CONFIG.default;
   var phaseKeys = Object.keys(snapshot.phases);
   var phaseSummary = phaseKeys.length > 0
     ? phaseKeys.map(function (phase) {
@@ -219,14 +291,17 @@ function formatOnboardingStatusSummary_(candidate, snapshot) {
     }).join(' | ')
     : 'No checklist tasks found';
 
-  var dueSummary = snapshot.dueItems.length > 0
-    ? snapshot.dueItems.map(function (item) {
-      return '- ' + item.phase + ': ' + item.taskName + ' (' + item.status + ', due ' + formatDateForDisplay_(item.dueDate) + ')';
+  var teamPriorityDueItems = prioritizeDueItemsForTeam_(snapshot.dueItems, normalizedTeamView.focusTeams);
+
+  var dueSummary = teamPriorityDueItems.length > 0
+    ? teamPriorityDueItems.map(function (item) {
+      return '- [' + item.owningTeam + '] ' + item.phase + ': ' + item.taskName + ' (' + item.status + ', due ' + formatDateForDisplay_(item.dueDate) + ')';
     }).join('\n')
     : '- No open due items';
 
   return [
     '*Onboarding status: ' + candidate.employeeName + '*',
+    '• Team view: ' + normalizedTeamView.label,
     '• Onboarding ID: ' + (candidate.onboardingId || 'Unknown'),
     '• Status: ' + (candidate.status || 'Unknown'),
     '• Manager: ' + candidate.manager,
@@ -236,6 +311,59 @@ function formatOnboardingStatusSummary_(candidate, snapshot) {
     '',
     '_Slack is read-only for onboarding status. Edit records in Google Sheets._'
   ].join('\n');
+}
+
+function prioritizeDueItemsForTeam_(dueItems, focusTeams) {
+  var focusLookup = {};
+  for (var i = 0; i < focusTeams.length; i += 1) {
+    focusLookup[String(focusTeams[i]).toUpperCase()] = true;
+  }
+
+  return dueItems
+    .slice()
+    .sort(function (a, b) {
+      var aFocused = focusLookup[String(a.owningTeam || '').toUpperCase()] ? 1 : 0;
+      var bFocused = focusLookup[String(b.owningTeam || '').toUpperCase()] ? 1 : 0;
+      if (aFocused !== bFocused) {
+        return bFocused - aFocused;
+      }
+      return safeDateSort_(a.dueDate) - safeDateSort_(b.dueDate);
+    })
+    .slice(0, MAX_DUE_ITEMS);
+}
+
+function postTeamTransparencyUpdate_(teamView, candidate, summaryText, slackClient) {
+  if (!slackClient || typeof slackClient.postMessage !== 'function') {
+    return;
+  }
+
+  try {
+    var getterName = teamView.channelGetterName;
+    if (!Config || typeof Config[getterName] !== 'function') {
+      return;
+    }
+    var teamChannelId = Config[getterName]();
+    slackClient.postMessage(teamChannelId, [
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: '*Transparency update requested by command user*\n' + summaryText
+        }
+      },
+      {
+        type: 'context',
+        elements: [
+          {
+            type: 'mrkdwn',
+            text: 'Onboarding ID: ' + (candidate.onboardingId || 'Unknown')
+          }
+        ]
+      }
+    ]);
+  } catch (err) {
+    // Keep slash command response successful even if optional transparency post fails.
+  }
 }
 
 function formatDisambiguationMessage_(query, candidates) {
@@ -323,9 +451,12 @@ if (typeof module !== 'undefined') {
     doPost: doPost,
     routeSlackCommand_: routeSlackCommand_,
     handleOnboardingStatusCommand_: handleOnboardingStatusCommand_,
+    parseStatusCommandInput_: parseStatusCommandInput_,
+    performOnboardingStatusLookup_: performOnboardingStatusLookup_,
     resolveOnboardingCandidates_: resolveOnboardingCandidates_,
     buildPhaseSnapshot_: buildPhaseSnapshot_,
     formatOnboardingStatusSummary_: formatOnboardingStatusSummary_,
+    prioritizeDueItemsForTeam_: prioritizeDueItemsForTeam_,
     formatDisambiguationMessage_: formatDisambiguationMessage_,
     scoreFuzzyNameMatch_: scoreFuzzyNameMatch_,
     normalizeForMatch_: normalizeForMatch_,

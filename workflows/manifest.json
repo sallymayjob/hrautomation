@@ -16,6 +16,27 @@
         "url": "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec",
         "usage_hint": "<new hire name>",
         "should_escape": false
+      },
+      {
+        "command": "/it-onboarding-status",
+        "description": "IT-focused onboarding status lookup by employee name",
+        "url": "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec",
+        "usage_hint": "<new hire name> [--share]",
+        "should_escape": false
+      },
+      {
+        "command": "/finance-onboarding-status",
+        "description": "Finance-focused onboarding status lookup by employee name",
+        "url": "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec",
+        "usage_hint": "<new hire name> [--share]",
+        "should_escape": false
+      },
+      {
+        "command": "/hr-onboarding-status",
+        "description": "HR-focused onboarding status lookup by employee name",
+        "url": "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec",
+        "usage_hint": "<new hire name> [--share]",
+        "should_escape": false
       }
     ]
   },
