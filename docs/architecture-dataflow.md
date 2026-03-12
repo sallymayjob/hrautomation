@@ -71,6 +71,13 @@ All sheet reads/writes must validate expected headers and required columns befor
 
 Fail-closed is intentional: incomplete writes are harder to recover than blocked writes.
 
+
+## Audit data sets: runtime vs dashboard
+
+- **Runtime audit ledger (canonical):** `Audit` tab in the audit spreadsheet, with headers from `sheets/audit-schema.json` (`audit_id`, `event_timestamp`, `actor_email`, `entity_type`, `entity_id`, `action`, `details`, `event_hash`).
+- **Dashboard operations log (non-runtime):** Training tab `Audit_Log`, seeded from `sheets/training-tabs/training-operations-log.csv` for reporting examples only.
+- Do not use `Audit_Log` as the write target for Apps Script runtime audit append operations.
+
 ## Troubleshooting
 
 ### Mismatched IDs between sheets

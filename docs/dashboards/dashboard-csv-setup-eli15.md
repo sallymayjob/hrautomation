@@ -17,9 +17,10 @@ Use **two different Google Sheets files**:
 2. **Training Spreadsheet** (contains LMS tabs + training dashboard)
    - Raw tabs: `Learners`, `Lesson Submissions`, `Queue`, `Lesson QA Records`, `Courses`, `Lesson Metrics`, `Modules`, `Lessons`, `Slack Threads`, `Audit_Log`
    - Dashboard tabs: `Training_KPI`, `Training_Module`, `Training_Course`, `Training_Operations`
-   - Purpose: LMS analytics + operational monitoring (progress, gaps, submissions, queue load, and automation issues from `Audit_Log`).
+   - Purpose: LMS analytics + operational monitoring (progress, gaps, submissions, queue load, and automation issues summarized in `Audit_Log`).
 
-> `audit.csv` is no longer a separate spreadsheet input in this setup.
+> **Important:** The project's runtime audit ledger is the dedicated `Audit` sheet (schema in `sheets/audit-schema.json`, fixture in `sheets/audit-log.csv`).
+> `Audit_Log` in the training workbook is a dashboard operations fixture only (non-runtime).
 
 ---
 
@@ -39,7 +40,7 @@ Use **two different Google Sheets files**:
 - `sheets/training-tabs/modules.csv` -> tab name `Modules`
 - `sheets/training-tabs/lessons.csv` -> tab name `Lessons`
 - `sheets/training-tabs/slack-threads.csv` -> tab name `Slack Threads`
-- `sheets/training-tabs/audit_log.csv` -> tab name `Audit_Log`
+- `sheets/training-tabs/training-operations-log.csv` -> tab name `Audit_Log` (**non-runtime dashboard fixture**)
 
 > These tab names match your provided training sheet tabs.
 
@@ -105,7 +106,7 @@ This dashboard answers:
 - How many employees are taking each lesson/module/course?
 - What is complete, in progress, overdue, or still assigned?
 - Where are the training gaps for onboarded employees?
-- Are there any operations issues from `Audit_Log` (automation failures)?
+- Are there any operations issues from `Audit_Log` dashboard summaries (automation failures)?
 
 ### `Training_KPI.csv`
 ```csv
@@ -134,7 +135,7 @@ Probity Program,12,5,5,2,42
 Franchisee Preboarding,8,3,4,1,38
 ```
 
-### `Training_Operations.csv` (from `Queue` + `Audit_Log`)
+### `Training_Operations.csv` (from `Queue` + dashboard `Audit_Log`)
 ```csv
 metric,value,definition
 queue_pending_count,2,"Rows in Queue where QueueStatus is Pending"
@@ -164,6 +165,7 @@ critical_error_count,1,"Rows in Audit_Log where event_type is ERROR"
 ## 5) Simple recap
 - **Onboarding spreadsheet** = onboarding + checklist + onboarding dashboard.
 - **Training spreadsheet** = learners/LMS tabs + training dashboard + operations view.
-- **No separate audit spreadsheet**: use `Audit_Log` inside Training.
+- **Runtime audit ledger**: keep the dedicated `Audit` sheet (append-only system record).
+- **Dashboard operations log**: use Training `Audit_Log` only for analytics/visualization fixtures.
 
 Two spreadsheets, cleaner reporting, easier maintenance.
