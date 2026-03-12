@@ -24,7 +24,10 @@ describe('BlockKit', () => {
 
   test('builds approval and celebration messages', () => {
     const { BlockKit } = require('../../gas/BlockKit.gs');
-    expect(BlockKit.approvalCard({ requestId: 'REQ-9' })[1].elements).toHaveLength(2);
+    const approvalCard = BlockKit.approvalCard({ requestId: 'REQ-9' });
+    expect(approvalCard[1].type).toBe('context');
+    expect(approvalCard[1].elements[0].text).toContain('read-only');
+    expect(approvalCard[1].elements[0].text).toContain('REQ-9');
     expect(BlockKit.recognitionPost({ employeeName: 'Alex' })[0].text.text).toContain('Alex');
     expect(BlockKit.birthdayDM({ firstName: 'Jo' })[0].text.text).toContain('Happy Birthday');
     expect(BlockKit.anniversaryDM({ firstName: 'Jo', years: 2 })[0].text.text).toContain('2 year');

@@ -41,6 +41,13 @@ You're done with this part.
 
 You're done with this part.
 
+
+## Slack editing guardrail (important)
+Slack command responses and Slack message interactions are **read-only** for onboarding and checklist verification.
+- Use Slack to view onboarding/checklist progress.
+- Make all status edits in Google Sheets (Onboarding, Checklist Tasks, and Training Log as applicable).
+- Do not expect Slack buttons or interactive actions to update statuses.
+
 ## 5. Where to go if something is not working
 - If a new hire did not receive a welcome message, tell the tech lead. They can fix it in under five minutes.
 - If a reminder went to the wrong person, tell the tech lead immediately.

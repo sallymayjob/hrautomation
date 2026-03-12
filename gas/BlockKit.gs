@@ -80,27 +80,11 @@ var BlockKit = {
         }
       },
       {
-        type: 'actions',
+        type: 'context',
         elements: [
           {
-            type: 'button',
-            text: {
-              type: 'plain_text',
-              text: 'Approve'
-            },
-            style: 'primary',
-            action_id: 'approve_request',
-            value: data.requestId || 'REQ-001'
-          },
-          {
-            type: 'button',
-            text: {
-              type: 'plain_text',
-              text: 'Deny'
-            },
-            style: 'danger',
-            action_id: 'deny_request',
-            value: data.requestId || 'REQ-001'
+            type: 'mrkdwn',
+            text: ':information_source: Slack responses are read-only. Review in Slack and update approval or status fields in Google Sheets. (Request: ' + (data.requestId || 'REQ-001') + ')'
           }
         ]
       }
