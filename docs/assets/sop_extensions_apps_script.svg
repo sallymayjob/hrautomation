@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700">
+  <rect width="1200" height="700" fill="#f1f3f4"/>
+  <rect x="40" y="30" width="1120" height="640" fill="#fff" stroke="#dadce0"/>
+  <text x="70" y="60" font-family="Arial" font-size="24" fill="#202124">Google Sheet (example): click Extensions → Apps Script</text>
+  <line x1="40" y1="95" x2="1160" y2="95" stroke="#dadce0"/>
+  <g font-family="Arial" font-size="18" fill="#202124">
+    <text x="70" y="125">File</text><text x="130" y="125">Edit</text><text x="190" y="125">View</text>
+    <text x="250" y="125">Insert</text><text x="320" y="125">Format</text><text x="405" y="125">Data</text>
+    <text x="465" y="125">Tools</text>
+  </g>
+  <rect x="540" y="102" width="122" height="30" rx="6" fill="#fff59d"/>
+  <text x="550" y="124" font-family="Arial" font-size="18" fill="#202124">Extensions</text>
+  <text x="680" y="125" font-family="Arial" font-size="18" fill="#202124">Help</text>
+  <rect x="560" y="138" width="200" height="90" fill="#fff" stroke="#dadce0"/>
+  <rect x="562" y="140" width="196" height="38" fill="#e8f0fe"/>
+  <text x="585" y="165" font-family="Arial" font-size="18" fill="#202124">Apps Script</text>
+  <text x="585" y="205" font-family="Arial" font-size="18" fill="#202124">Add-ons</text>
+  <rect x="70" y="170" width="1060" height="470" fill="#fff" stroke="#eceff1"/>
+</svg>
