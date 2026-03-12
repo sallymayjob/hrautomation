@@ -1,65 +1,19 @@
-# Auto-generated ID scheme and cross-sheet ID map (Google Sheets named formulas)
+# Auto-generated ID scheme and cross-sheet ID map (OB 001 increment format)
 
-Yes — this can be done as **Named Functions** (Google Sheets), so you can reuse one formula definition and keep sheet cells clean.
+This version uses one simple format everywhere:
 
-## 1) Create reusable Named Functions
+- `OB 001`
+- `OB 002`
+- `OB 003`
+- ...
 
-In Google Sheets, go to:
-`Data` → `Named functions` → `Add new function`
+No Apps Script required.
 
-Create the following.
-
-### A) `AUTO_ID`
-
-**Name**: `AUTO_ID`  
-**Description**: Build a stable ID from prefix + date + row number.  
-**Arguments**:
-- `prefix`
-- `date_value`
-- `row_num`
-
-**Formula definition**:
-
-```gs
-=prefix & "-" & TEXT(date_value,"yyyymmdd") & "-" & TEXT(row_num,"0000")
-```
-
----
-
-### B) `ID_MAP`
-
-**Name**: `ID_MAP`  
-**Description**: Combine onboarding and training IDs into one live map.  
-**Arguments**:
-- `on_name_rng`
-- `on_id_rng`
-- `on_person_rng`
-- `on_email_rng`
-- `tr_name_rng`
-- `tr_id_rng`
-- `tr_person_rng`
-- `tr_email_rng`
-
-**Formula definition**:
-
-```gs
-=QUERY(
-  {
-    IF(on_name_rng="",,"onboarding"), on_id_rng, on_person_rng, on_email_rng;
-    IF(tr_name_rng="",,"training"), tr_id_rng, tr_person_rng, tr_email_rng
-  },
-  "where Col2 is not null",
-  0
-)
-```
-
-## 2) Use Named Function for onboarding IDs
+## 1) Onboarding sheet (`onboarding_id` in column A)
 
 Assumptions:
-- Onboarding columns match `sheets/onboarding.csv`.
-- `onboarding_id` is column `A`.
-- Name/driver column is `B` (`employee_name`).
-- `start_date` is column `H`.
+- `Onboarding!B` is your driver column (for example `employee_name`).
+- `onboarding_id` is in `Onboarding!A`.
 
 Put this in `Onboarding!A1`:
 
@@ -67,21 +21,22 @@ Put this in `Onboarding!A1`:
 ={"onboarding_id";
   ARRAYFORMULA(
     IF(B2:B="",,
-      AUTO_ID("OB", H2:H, ROW(B2:B)-1)
+      "OB " & TEXT(ROW(B2:B)-1,"000")
     )
   )
 }
 ```
 
-Pattern: `OB-20260303-0001`.
+This gives `OB 001`, `OB 002`, `OB 003`, ... for onboarding rows.
 
-## 3) Use Named Function for training IDs
+## 2) Training sheet (`training_id` in new column A)
 
 Assumptions:
-- Training columns match `sheets/training.csv`.
 - Add a new first column `A` named `training_id`.
 - Existing `UserID` shifts from `A` to `B`.
-- `Joined Date` is column `H`.
+- `Training!B` is your driver column.
+
+To keep IDs unique across both sheets, training starts after onboarding count.
 
 Put this in `Training!A1`:
 
@@ -89,30 +44,34 @@ Put this in `Training!A1`:
 ={"training_id";
   ARRAYFORMULA(
     IF(B2:B="",,
-      AUTO_ID("TR", H2:H, ROW(B2:B)-1)
+      "OB " & TEXT(COUNTA(Onboarding!B2:B) + ROW(B2:B)-1,"000")
     )
   )
 }
 ```
 
-Pattern: `TR-20260309-0001`.
+Example: if onboarding has 25 populated rows, first training row becomes `OB 026`.
 
-## 4) Build the combined ID map with Named Function
+## 3) Combined ID map tab
 
-Create tab `ID_MAP` and put this in `ID_MAP!A1`:
+Create a tab named `ID_MAP` and put this in `ID_MAP!A1`:
 
 ```gs
 ={"source","generated_id","person_key","email";
-  ID_MAP(
-    Onboarding!B2:B, Onboarding!A2:A, Onboarding!C2:C, Onboarding!D2:D,
-    Training!B2:B,   Training!A2:A,   Training!B2:B,   Training!D2:D
+  QUERY(
+    {
+      IF(Onboarding!B2:B="",,"onboarding"), Onboarding!A2:A, Onboarding!C2:C, Onboarding!D2:D;
+      IF(Training!B2:B="",,"training"),   Training!A2:A,   Training!B2:B,   Training!D2:D
+    },
+    "where Col2 is not null",
+    0
   )
 }
 ```
 
-This stays auto-updated whenever either sheet gets new rows.
+This keeps a live map of all IDs from both sheets.
 
-## 5) Optional duplicate check
+## 4) Optional duplicate check
 
 Put this in `ID_MAP!F1`:
 
@@ -122,8 +81,8 @@ Put this in `ID_MAP!F1`:
 }
 ```
 
-Any value `>1` indicates a duplicate generated ID.
+Any value greater than `1` means a duplicate ID.
 
 ## Notes
-- This is formula-only (no Apps Script).
-- If you sort rows frequently, use a frozen `created_at` timestamp column as the date input for `AUTO_ID` to keep IDs immutable.
+- IDs are formula-generated and update automatically as rows are added.
+- If rows are re-ordered or deleted, row-based IDs can shift. If you need immutable IDs, paste values after generation or use a frozen helper index column.
