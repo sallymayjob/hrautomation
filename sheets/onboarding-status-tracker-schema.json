@@ -1,0 +1,51 @@
+{
+  "schemaName": "onboarding_status_tracker",
+  "version": 1,
+  "baseHeaders": [
+    "Task_ID",
+    "Onboarding_ID",
+    "User_ID",
+    "Employee_Name"
+  ],
+  "statusHeaders": [
+    "Have you emailed the Letter of Offer (L.O.O) to new employee",
+    "Have you prepared and emailed the Employment contract to the new employee",
+    "GMAIL: Email Address & Password Set-up & Tested",
+    "GMAIL: Email Address & Password Tested",
+    "GMAIL: Add to Distribution List",
+    "GMAIL: Would you like to delegate their inbox to yours?",
+    "GMAIL: Sign into the new account and test that the email signature is correct",
+    "ADMIN: All new employee information completed in Admin Console",
+    "DRIVE: Remove all documents off Drive – Save in RWR Head Office File",
+    "DRIVE: Added to appropriate brand folder",
+    "New Signature Set-up",
+    "Add the following bookmarks: Gmail, Calendar, Drive, JobAdder, Slack",
+    "Add the Jobadder / People Adder extension",
+    "Salesforce Account Set-up",
+    "Salesforce Remove all employee documents",
+    "Salesforce Ad quota assigned to new employee",
+    "Slack Account Created",
+    "Added to correct channels",
+    "Test Slack logins",
+    "Add to New Employee Channel",
+    "Send Pre-Onboarding Pack to new employee’s home address - First 24 Hours",
+    "Create Login Details",
+    "Load New Employee in Slack",
+    "Send Welcome Email with Slack details and how to log in to new employee cc: Manager",
+    "Send Manager New Employee Set Up Welcome email (contact details & logins)",
+    "Add Start date, Anniversary, and Birthday to CEO, Operations and Franchisee Calendar",
+    "Seek Premium: Account Set-up",
+    "Trade Me Scout: Account Set-up (NZ ONLY)",
+    "MARKETING: Reminder set for E-newsletter",
+    "Bio & Photo added to Website",
+    "Added to Xero (corporate only)",
+    "Payroll Spreadsheet (corporate only)",
+    "Added to Results Spreadsheet",
+    "Granted Access to update L&H"
+  ],
+  "allowedStatusValues": [
+    "Pending",
+    "In Progress",
+    "Completed"
+  ]
+}
