@@ -199,6 +199,7 @@ What just happened? You are now looking at the exact script files that must be c
    - `Approvals.gs`
    - `BlockKit.gs`
    - `ChecklistTemplate.gs`
+   - `Commands.gs`
    - `Config.gs`
    - `Recognition.gs`
    - `Reminders.gs`
@@ -216,10 +217,33 @@ What just happened? Your Apps Script project now contains the same trusted code 
 - The `Code.gs` and helper files hold onboarding, reminders, and notification logic.
 - `SlackClient.gs` and `BlockKit.gs` build and send Slack messages.
 - `SheetClient.gs` reads and writes your Google Sheets.
+- `Commands.gs` handles incoming Slack slash commands (for example `/onboarding-status`) with read-only lookups.
 - `Triggers.gs` creates the daily schedule jobs you activate in Phase 5.
 - `appsscript.json` sets project-level configuration.
 
 You're done with Phase 3.5. The Apps Script code is now loaded and ready to run.
+
+## Phase 3.6 — Add the onboarding status slash command (about 10 minutes)
+This phase connects a read-only Slack command to your Apps Script web app.
+
+1. In Apps Script, click **Deploy** > **New deployment**.
+2. Choose type **Web app**.
+3. Set **Execute as** to your deployment owner account.
+4. Set **Who has access** to `Anyone` (or `Anyone in workspace` if Slack can reach it).
+5. Click **Deploy** and copy the Web app URL (it ends with `/exec`).
+6. Open your Slack app settings at `api.slack.com/apps`.
+7. Click **Slash Commands** in the left menu.
+8. Click **Create New Command**.
+9. In **Command**, enter `/onboarding-status`.
+10. In **Request URL**, paste the Apps Script Web app URL from step 5.
+11. In **Short Description**, enter `Read-only onboarding status lookup`.
+12. In **Usage Hint**, enter `<new hire name>`.
+13. Click **Save**.
+14. Reinstall or update the app in your workspace if Slack prompts you.
+
+What just happened? Slack can now send `/onboarding-status` queries to Apps Script, and the script returns onboarding summaries without editing records.
+
+You're done with Phase 3.6. The slash command path is live for status checks.
 
 ## Phase 4 — Connect Slack Workflow Builder to the spreadsheet (about 20 minutes)
 This phase connects Slack's form tool to your Onboarding spreadsheet.
