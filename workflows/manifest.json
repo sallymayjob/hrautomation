@@ -1,7 +1,7 @@
 {
   "display_information": {
     "name": "New Hire Intake Automation",
-    "description": "Outbound-only workflow app for new-hire intake and spreadsheet routing.",
+    "description": "Outbound workflow app for onboarding and training operations routed through Workflow Builder + Google Sheets.",
     "background_color": "#2C2D30"
   },
   "features": {
@@ -11,17 +11,10 @@
     },
     "slash_commands": [
       {
-        "command": "/onboarding-status",
-        "description": "Read-only onboarding status lookup by employee name",
+        "command": "/checklist-status",
+        "description": "Read-only onboarding checklist status lookup",
         "url": "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec",
-        "usage_hint": "<new hire name>",
-        "should_escape": false
-      },
-      {
-        "command": "/it-onboarding-status",
-        "description": "IT-focused onboarding status lookup by employee name",
-        "url": "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec",
-        "usage_hint": "<new hire name> [--share]",
+        "usage_hint": "<employee name or id> [--share]",
         "should_escape": false
       },
       {
@@ -37,23 +30,79 @@
         "url": "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec",
         "usage_hint": "<new hire name> [--share]",
         "should_escape": false
+      },
+      {
+        "command": "/it-onboarding-status",
+        "description": "IT-focused onboarding status lookup by employee name",
+        "url": "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec",
+        "usage_hint": "<new hire name> [--share]",
+        "should_escape": false
+      },
+      {
+        "command": "/onboarding-status",
+        "description": "Read-only onboarding status lookup by employee name",
+        "url": "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec",
+        "usage_hint": "<new hire name>",
+        "should_escape": false
+      },
+      {
+        "command": "/training-add-course",
+        "description": "Start add-course workflow in Workflow Builder",
+        "url": "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec",
+        "usage_hint": "",
+        "should_escape": false
+      },
+      {
+        "command": "/training-add-module",
+        "description": "Start add-module workflow in Workflow Builder",
+        "url": "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec",
+        "usage_hint": "",
+        "should_escape": false
+      },
+      {
+        "command": "/training-enroll",
+        "description": "Start learner enrollment workflow in Workflow Builder",
+        "url": "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec",
+        "usage_hint": "",
+        "should_escape": false
       }
     ]
   },
   "oauth_config": {
+    "redirect_urls": [
+      "https://slack.com/workflow-step"
+    ],
     "scopes": {
       "bot": [
         "commands",
         "chat:write",
         "chat:write.public",
         "users:read",
-        "users:read.email"
+        "users:read.email",
+        "channels:read",
+        "groups:read",
+        "im:read",
+        "mpim:read",
+        "triggers:read",
+        "triggers:write",
+        "workflow.steps:execute",
+        "workflow.steps:manage"
       ]
     }
   },
   "settings": {
+    "event_subscriptions": {
+      "request_url": "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec",
+      "bot_events": [
+        "workflow_step_execute"
+      ]
+    },
+    "interactivity": {
+      "is_enabled": true,
+      "request_url": "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec"
+    },
     "org_deploy_enabled": false,
     "socket_mode_enabled": false,
-    "token_rotation_enabled": false
+    "token_rotation_enabled": true
   }
 }
