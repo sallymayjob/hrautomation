@@ -6,6 +6,12 @@
 var DEFAULT_BATCH_LIMIT = 200;
 var DEFAULT_MAX_RUNTIME_MS = 5 * 60 * 1000;
 var DEFAULT_LOCK_WAIT_MS = 5000;
+var EXCEPTIONS_SHEET_NAME = 'Exceptions';
+var HANDOFF_DASHBOARD_SHEET_NAME = 'Handoff Dashboard';
+var HANDOFF_SLA_DAYS = {
+  onboarding_to_training: 2,
+  training_to_audit: 7
+};
 
 function runOnboarding() {
   return runLibraryWorkflow_({
@@ -104,17 +110,19 @@ function runLibraryWorkflow_(options) {
     }
 
     var rowPayload = readSheetRows_(sheet, opts.batchLimit || DEFAULT_BATCH_LIMIT);
+    var handoffOutcome = applyHandoffChecks_(opts, rowPayload, spreadsheet, runId);
+    var executionPayload = handoffOutcome.payload;
     var dateWindow = createDateWindow_(opts.dateWindowMinutes, new Date());
-    applyIdempotencyKeys_(rowPayload.rows, dateWindow);
+    applyIdempotencyKeys_(executionPayload.rows, dateWindow);
     writeWorkflowExecutionLog_(spreadsheet, opts, runId, 'STARTED', {
-      rowCount: rowPayload.rows.length,
+      rowCount: executionPayload.rows.length,
       result: null,
       errors: []
     });
-    logWorkflowEvent_(opts.workflowName, runId, 'STARTED', 'rows=' + rowPayload.rows.length);
+    logWorkflowEvent_(opts.workflowName, runId, 'STARTED', 'rows=' + executionPayload.rows.length);
 
     enforceRuntimeBudget_(opts.workflowName, startedAtMs, opts.maxRuntimeMs || DEFAULT_MAX_RUNTIME_MS);
-    var result = HRLib[opts.libraryMethodName](rowPayload.rows, {
+    var result = HRLib[opts.libraryMethodName](executionPayload.rows, {
       sourceSheet: opts.sheetName,
       sourceWorkflow: opts.workflowName,
       runId: runId,
@@ -123,16 +131,17 @@ function runLibraryWorkflow_(options) {
       dateWindowEndIso: dateWindow.endIso
     });
     enforceRuntimeBudget_(opts.workflowName, startedAtMs, opts.maxRuntimeMs || DEFAULT_MAX_RUNTIME_MS);
+    result = mergeHandoffFailuresIntoResult_(result, handoffOutcome.failures, runId);
 
-    writeRowStatuses_(sheet, rowPayload, result, opts.statusColumnName);
+    writeRowStatuses_(sheet, executionPayload, result, opts.statusColumnName);
     writeWorkflowExecutionLog_(spreadsheet, opts, runId, 'COMPLETED', {
-      rowCount: rowPayload.rows.length,
+      rowCount: executionPayload.rows.length,
       result: result,
       errors: []
     });
-    appendRunSummaryToLogsTab_(spreadsheet, opts, runId, rowPayload.rows.length, result, 'COMPLETED');
+    appendRunSummaryToLogsTab_(spreadsheet, opts, runId, executionPayload.rows.length, result, 'COMPLETED');
     logWorkflowEvent_(opts.workflowName, runId, 'COMPLETED', 'success=' + Number(result.successCount || 0) + ', errors=' + Number(result.errorCount || 0));
-    sendWorkflowSummaryEmail_(opts.workflowName, rowPayload.rows.length, result, runId);
+    sendWorkflowSummaryEmail_(opts.workflowName, executionPayload.rows.length, result, runId);
 
     return result;
   } catch (err) {
@@ -152,6 +161,143 @@ function runLibraryWorkflow_(options) {
       lock.releaseLock();
     }
   }
+}
+
+function applyHandoffChecks_(workflowOptions, rowPayload, spreadsheet, runId) {
+  var opts = workflowOptions || {};
+  var rows = (rowPayload && rowPayload.rows) || [];
+  var rowIndexes = (rowPayload && rowPayload.rowIndexes) || [];
+  var failures = [];
+  var filteredRows = [];
+  var filteredIndexes = [];
+  var dashboardRows = [];
+  var stage = '';
+
+  for (var i = 0; i < rows.length; i += 1) {
+    var row = rows[i] || {};
+    var failureReason = '';
+    if (opts.workflowName === 'Onboarding') {
+      stage = 'Onboarding -> Training';
+      var hasWorkEmail = !isMissingCellValue_(row.workemail) || !isMissingCellValue_(row.work_email) || !isMissingCellValue_(row.email);
+      var hasStartDate = !isMissingCellValue_(row.startdate) || !isMissingCellValue_(row.start_date);
+      if (!hasWorkEmail || !hasStartDate) {
+        failureReason = 'Onboarding -> Training requires WorkEmail and StartDate.';
+      }
+    } else if (opts.workflowName === 'Training Sync') {
+      stage = 'Training -> Audit';
+      if (String(row.trainingstatus || row.training_status || '').toUpperCase() !== 'COMPLETE') {
+        failureReason = 'Training -> Audit requires TrainingStatus = COMPLETE.';
+      }
+    }
+
+    if (failureReason) {
+      var employeeId = resolveEmployeeId_(row);
+      failures.push({
+        code: 'HANDOFF_CHECK_FAILED',
+        rowIndex: filteredRows.length,
+        employeeId: employeeId,
+        message: failureReason
+      });
+      appendExceptionLog_(spreadsheet, {
+        traceId: runId,
+        sheet: opts.sheetName,
+        employeeId: employeeId,
+        reason: failureReason
+      });
+      var ageDays = getDaysSince_(row.startdate || row.start_date || row.assigned_date || row.trainingassigneddate || row.last_updated_at);
+      var slaDays = stage === 'Onboarding -> Training' ? HANDOFF_SLA_DAYS.onboarding_to_training : HANDOFF_SLA_DAYS.training_to_audit;
+      if (ageDays !== null && ageDays > slaDays) {
+        dashboardRows.push([stage, employeeId, ageDays, slaDays, failureReason]);
+      }
+      continue;
+    }
+
+    filteredRows.push(row);
+    filteredIndexes.push(rowIndexes[i]);
+  }
+
+  if (stage) {
+    writeHandoffDashboard_(spreadsheet, stage, dashboardRows);
+  }
+
+  return {
+    failures: failures,
+    payload: {
+      headers: rowPayload.headers,
+      rows: filteredRows,
+      rowIndexes: filteredIndexes
+    }
+  };
+}
+
+function mergeHandoffFailuresIntoResult_(result, handoffFailures, fallbackTraceId) {
+  var merged = result || {};
+  merged.errors = (merged.errors || []).concat(handoffFailures || []);
+  merged.errorCount = Number(merged.errorCount || 0) + Number((handoffFailures || []).length);
+  merged.traceId = merged.traceId || fallbackTraceId;
+  return merged;
+}
+
+function appendExceptionLog_(spreadsheet, exceptionEntry) {
+  var sheet = spreadsheet.getSheetByName(EXCEPTIONS_SHEET_NAME);
+  if (!sheet && spreadsheet && typeof spreadsheet.insertSheet === 'function') {
+    sheet = spreadsheet.insertSheet(EXCEPTIONS_SHEET_NAME);
+  }
+  if (!sheet || typeof sheet.appendRow !== 'function') {
+    return;
+  }
+  if (sheet.getLastRow && sheet.getLastRow() === 0) {
+    sheet.appendRow(['timestamp', 'traceId', 'sheet', 'employeeId', 'reason']);
+  }
+  sheet.appendRow([
+    new Date(),
+    String(exceptionEntry.traceId || ''),
+    String(exceptionEntry.sheet || ''),
+    String(exceptionEntry.employeeId || ''),
+    String(exceptionEntry.reason || '')
+  ]);
+}
+
+function writeHandoffDashboard_(spreadsheet, stage, rows) {
+  var sheet = spreadsheet.getSheetByName(HANDOFF_DASHBOARD_SHEET_NAME);
+  if (!sheet && spreadsheet && typeof spreadsheet.insertSheet === 'function') {
+    sheet = spreadsheet.insertSheet(HANDOFF_DASHBOARD_SHEET_NAME);
+  }
+  if (!sheet || typeof sheet.clear !== 'function') {
+    return;
+  }
+
+  sheet.clear();
+  sheet.appendRow(['stage', 'employee_id', 'days_stuck', 'sla_days', 'reason']);
+
+  if (!rows || rows.length === 0) {
+    sheet.appendRow([String(stage || ''), '', 0, 0, 'No employees currently above SLA threshold']);
+    return;
+  }
+
+  for (var i = 0; i < rows.length; i += 1) {
+    sheet.appendRow(rows[i]);
+  }
+}
+
+function resolveEmployeeId_(row) {
+  return String(row.employee_id || row.employeeid || row.onboarding_id || row.onboardingid || row.training_id || row.trainingid || 'unknown');
+}
+
+function isMissingCellValue_(value) {
+  return String(value || '').trim() === '';
+}
+
+function getDaysSince_(value) {
+  if (!value) {
+    return null;
+  }
+  var parsedDate = value instanceof Date ? value : new Date(value);
+  if (!(parsedDate instanceof Date) || isNaN(parsedDate.getTime())) {
+    return null;
+  }
+  var elapsedMs = new Date().getTime() - parsedDate.getTime();
+  return Math.floor(elapsedMs / (24 * 60 * 60 * 1000));
 }
 
 function appendRunSummaryToLogsTab_(spreadsheet, workflowOptions, runId, rowCount, result, phase) {
@@ -450,6 +596,10 @@ if (typeof module !== 'undefined') module.exports = {
   buildIdempotencyKey_: buildIdempotencyKey_,
   writeWorkflowExecutionLog_: writeWorkflowExecutionLog_,
   appendRunSummaryToLogsTab_: appendRunSummaryToLogsTab_,
+  applyHandoffChecks_: applyHandoffChecks_,
+  mergeHandoffFailuresIntoResult_: mergeHandoffFailuresIntoResult_,
+  appendExceptionLog_: appendExceptionLog_,
+  writeHandoffDashboard_: writeHandoffDashboard_,
   indexErrorsByRow_: indexErrorsByRow_,
   buildHeaderMap_: buildHeaderMap_,
   assertLibraryAvailable_: assertLibraryAvailable_

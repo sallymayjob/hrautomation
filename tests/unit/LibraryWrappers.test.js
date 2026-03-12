@@ -3,7 +3,9 @@ describe('LibraryWrappers', () => {
     return {
       getDataRange: jest.fn(() => ({ getValues: jest.fn(() => rows) })),
       getRange: jest.fn(() => ({ setValue: jest.fn() })),
-      appendRow: jest.fn()
+      appendRow: jest.fn(),
+      getLastRow: jest.fn(() => 0),
+      clear: jest.fn()
     };
   }
 
@@ -39,8 +41,8 @@ describe('LibraryWrappers', () => {
 
   test('runOnboarding reads sheet rows, calls HRLib, writes status, and emails summary', () => {
     const sourceSheet = createSheet([
-      ['onboarding_id', 'employee_name', 'status'],
-      ['ONB-1', 'Ava', 'PENDING']
+      ['onboarding_id', 'employee_name', 'email', 'start_date', 'status'],
+      ['ONB-1', 'Ava', 'ava@example.com', '2026-01-01', 'PENDING']
     ]);
     const logSheet = { appendRow: jest.fn() };
     const spreadsheet = {
@@ -53,10 +55,10 @@ describe('LibraryWrappers', () => {
     const result = runOnboarding();
 
     expect(global.HRLib.processOnboardingBatch).toHaveBeenCalledWith(
-      [expect.objectContaining({ onboarding_id: 'ONB-1', employee_name: 'Ava', status: 'PENDING' })],
+      [expect.objectContaining({ onboarding_id: 'ONB-1', employee_name: 'Ava', email: 'ava@example.com', start_date: '2026-01-01', status: 'PENDING' })],
       expect.objectContaining({ sourceWorkflow: 'Onboarding' })
     );
-    expect(sourceSheet.getRange).toHaveBeenCalledWith(2, 3);
+    expect(sourceSheet.getRange).toHaveBeenCalledWith(2, 5);
     expect(MailApp.sendEmail).toHaveBeenCalled();
     expect(result.traceId).toBe('TRACE1');
   });
@@ -160,6 +162,76 @@ describe('LibraryWrappers', () => {
     })).toThrow('Library failed');
 
     expect(global.HRLib.writeExecutionLog).toHaveBeenCalled();
+  });
+
+  test('onboarding handoff blocks rows missing WorkEmail or StartDate and logs exception details', () => {
+    const sourceSheet = createSheet([
+      ['employee_id', 'email', 'start_date', 'status'],
+      ['E-1', '', '2026-01-01', 'PENDING']
+    ]);
+    const exceptionsSheet = { appendRow: jest.fn(), getLastRow: jest.fn(() => 0) };
+    const dashboardSheet = { appendRow: jest.fn(), clear: jest.fn() };
+    const logsSheet = { appendRow: jest.fn(), getLastRow: jest.fn(() => 0) };
+    const spreadsheet = {
+      getSheetByName: jest.fn((name) => {
+        if (name === 'Onboarding') return sourceSheet;
+        if (name === 'Exceptions') return exceptionsSheet;
+        if (name === 'Handoff Dashboard') return dashboardSheet;
+        if (name === 'Logs') return logsSheet;
+        return null;
+      }),
+      insertSheet: jest.fn((name) => {
+        if (name === 'Exceptions') return exceptionsSheet;
+        if (name === 'Handoff Dashboard') return dashboardSheet;
+        return logsSheet;
+      })
+    };
+    global.SpreadsheetApp = { openById: jest.fn(() => spreadsheet) };
+
+    const { runOnboarding } = require('../../gas/LibraryWrappers.gs');
+    const result = runOnboarding();
+
+    expect(global.HRLib.processOnboardingBatch).toHaveBeenCalledWith([], expect.any(Object));
+    expect(exceptionsSheet.appendRow).toHaveBeenCalledWith(expect.arrayContaining(['timestamp', 'traceId', 'sheet', 'employeeId', 'reason']));
+    expect(exceptionsSheet.appendRow).toHaveBeenCalledWith(expect.arrayContaining([expect.any(String), 'Onboarding', 'E-1', 'Onboarding -> Training requires WorkEmail and StartDate.']));
+    expect(result.errorCount).toBe(1);
+  });
+
+  test('training-to-audit handoff requires COMPLETE status during training sync', () => {
+    const sourceSheet = createSheet([
+      ['employee_id', 'training_status', 'assigned_date'],
+      ['E-1', 'ASSIGNED', '2026-01-01'],
+      ['E-2', 'COMPLETE', '2026-01-01']
+    ]);
+    const exceptionsSheet = { appendRow: jest.fn(), getLastRow: jest.fn(() => 0) };
+    const dashboardSheet = { appendRow: jest.fn(), clear: jest.fn() };
+    const logsSheet = { appendRow: jest.fn(), getLastRow: jest.fn(() => 0) };
+    const spreadsheet = {
+      getSheetByName: jest.fn((name) => {
+        if (name === 'Training') return sourceSheet;
+        if (name === 'Exceptions') return exceptionsSheet;
+        if (name === 'Handoff Dashboard') return dashboardSheet;
+        if (name === 'Logs') return logsSheet;
+        return null;
+      }),
+      insertSheet: jest.fn((name) => {
+        if (name === 'Exceptions') return exceptionsSheet;
+        if (name === 'Handoff Dashboard') return dashboardSheet;
+        return logsSheet;
+      })
+    };
+    global.SpreadsheetApp = { openById: jest.fn(() => spreadsheet) };
+
+    const { runTrainingSync } = require('../../gas/LibraryWrappers.gs');
+    const result = runTrainingSync();
+
+    expect(global.HRLib.syncTrainingCompletion).toHaveBeenCalledWith(
+      [expect.objectContaining({ employee_id: 'E-2', training_status: 'COMPLETE' })],
+      expect.any(Object)
+    );
+    expect(exceptionsSheet.appendRow).toHaveBeenCalledWith(expect.arrayContaining([expect.any(String), 'Training', 'E-1', 'Training -> Audit requires TrainingStatus = COMPLETE.']));
+    expect(result.errorCount).toBe(1);
+    expect(dashboardSheet.appendRow).toHaveBeenCalledWith(['stage', 'employee_id', 'days_stuck', 'sla_days', 'reason']);
   });
 
 });
