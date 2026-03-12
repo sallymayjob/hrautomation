@@ -86,6 +86,39 @@ var REQUIRED_NAMED_FUNCTIONS = {
   }
 };
 
+var DASHBOARD_SCHEMAS = {
+  onboarding: {
+    spreadsheetIdGetter: function () {
+      return Config.getOnboardingSpreadsheetId();
+    },
+    tabs: {
+      Onboarding_Dashboard: ['section', 'metric', 'value', 'target', 'trend', 'last_refreshed_at'],
+      Onboarding_KPI: ['kpi_key', 'kpi_label', 'kpi_value', 'kpi_target', 'kpi_delta', 'as_of_date'],
+      Onboarding_Pivot: ['pivot_dimension', 'pivot_value', 'total_records', 'completed_records', 'completion_rate', 'overdue_records']
+    }
+  },
+  training: {
+    spreadsheetIdGetter: function () {
+      return Config.getTrainingSpreadsheetId();
+    },
+    tabs: {
+      Training_Dashboard: ['section', 'metric', 'value', 'target', 'trend', 'last_refreshed_at'],
+      Training_KPI: ['kpi_key', 'kpi_label', 'kpi_value', 'kpi_target', 'kpi_delta', 'as_of_date'],
+      Training_Pivot: ['pivot_dimension', 'pivot_value', 'assigned_count', 'completed_count', 'completion_rate', 'overdue_count']
+    }
+  },
+  audit: {
+    spreadsheetIdGetter: function () {
+      return Config.getAuditSpreadsheetId();
+    },
+    tabs: {
+      Audit_Dashboard: ['section', 'metric', 'value', 'target', 'trend', 'last_refreshed_at'],
+      Audit_KPI: ['kpi_key', 'kpi_label', 'kpi_value', 'kpi_target', 'kpi_delta', 'as_of_date'],
+      Audit_Pivot: ['pivot_dimension', 'pivot_value', 'event_count', 'unique_actor_count', 'change_rate', 'period_start']
+    }
+  }
+};
+
 function SheetClient() {}
 
 SheetClient.prototype.validateRequiredNamedFunctions = function (auditLogger) {
@@ -293,6 +326,85 @@ SheetClient.prototype.ensureSheetWithHeaders = function (sheetName, headers) {
     }
   }
   return sheet;
+};
+
+SheetClient.prototype.ensureDashboardTabsAndHeaders = function () {
+  var dashboardKeys = Object.keys(DASHBOARD_SCHEMAS);
+  var result = {
+    updated: [],
+    mismatches: []
+  };
+
+  for (var i = 0; i < dashboardKeys.length; i += 1) {
+    var dashboardKey = dashboardKeys[i];
+    var schema = DASHBOARD_SCHEMAS[dashboardKey];
+    var spreadsheet = this.openSpreadsheetById_(schema.spreadsheetIdGetter());
+    var tabNames = Object.keys(schema.tabs);
+
+    for (var j = 0; j < tabNames.length; j += 1) {
+      var tabName = tabNames[j];
+      var expectedHeaders = schema.tabs[tabName];
+      var sheet = spreadsheet.getSheetByName(tabName);
+
+      if (!sheet) {
+        sheet = spreadsheet.insertSheet(tabName);
+      }
+
+      var ensureResult = this.ensureHeadersWithoutDataLoss_(sheet, expectedHeaders);
+      if (ensureResult.updated) {
+        result.updated.push(dashboardKey + ':' + tabName);
+      }
+      if (ensureResult.mismatches.length > 0) {
+        result.mismatches.push({
+          dashboard: dashboardKey,
+          tabName: tabName,
+          issues: ensureResult.mismatches
+        });
+      }
+    }
+  }
+
+  if (result.mismatches.length > 0) {
+    throw new Error('Dashboard schema mismatch detected. Resolve header conflicts or follow docs/rollback-plan.md before rerunning setup.');
+  }
+
+  return result;
+};
+
+SheetClient.prototype.ensureHeadersWithoutDataLoss_ = function (sheet, expectedHeaders) {
+  var updated = false;
+  var mismatches = [];
+
+  if (sheet.getLastRow() === 0) {
+    sheet.getRange(1, 1, 1, expectedHeaders.length).setValues([expectedHeaders]);
+    return {
+      updated: true,
+      mismatches: []
+    };
+  }
+
+  var currentColumnCount = Math.max(sheet.getLastColumn(), expectedHeaders.length);
+  var currentHeaders = sheet.getRange(1, 1, 1, currentColumnCount).getValues()[0];
+
+  for (var i = 0; i < expectedHeaders.length; i += 1) {
+    var existingValue = String(currentHeaders[i] || '').trim();
+    var expectedValue = String(expectedHeaders[i] || '').trim();
+
+    if (!existingValue) {
+      sheet.getRange(1, i + 1).setValue(expectedValue);
+      updated = true;
+      continue;
+    }
+
+    if (this.normalizeKey_(existingValue) !== this.normalizeKey_(expectedValue)) {
+      mismatches.push('column ' + (i + 1) + ' expected "' + expectedValue + '" but found "' + existingValue + '"');
+    }
+  }
+
+  return {
+    updated: updated,
+    mismatches: mismatches
+  };
 };
 
 SheetClient.prototype.checkDuplicate = function (sheetName, columnKeyOrIndex, value, excludeRowIndex) {
