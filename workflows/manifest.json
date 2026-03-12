@@ -8,7 +8,16 @@
     "bot_user": {
       "display_name": "New Hire Intake Bot",
       "always_online": false
-    }
+    },
+    "slash_commands": [
+      {
+        "command": "/onboarding-status",
+        "description": "Read-only onboarding status lookup by employee name",
+        "url": "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec",
+        "usage_hint": "<new hire name>",
+        "should_escape": false
+      }
+    ]
   },
   "oauth_config": {
     "scopes": {
