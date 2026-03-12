@@ -39,7 +39,8 @@ Add a **Form** step after the message step with the fields below.
 | Work email | Email | No | Leave blank if not assigned yet |
 | Job title | Short text | Yes | Offer title |
 | Department | Short text | Yes | Department name |
-| Manager email | Slack user (single) | No | Select manager from Slack directory |
+| Buddy email | Slack user (single) | Yes | Select peer buddy from Slack directory |
+| Manager email | Slack user (single) | Yes | Select manager trainer from Slack directory |
 | Start date | Date | Yes | YYYY-MM-DD from picker |
 | Employment type | Dropdown | Yes | Full-time, Part-time, Contractor, Intern |
 | Work location | Short text | Yes | Office, city/state, or Remote |
@@ -55,7 +56,7 @@ Add a **Google Sheets connector** step to append one row per submission.
 2. Select target spreadsheet and worksheet.
 3. Ensure worksheet headers exactly match this schema (left to right):
 
-`submission_ts, slack_requester_id, slack_requester_email, first_name, last_name, personal_email, work_email, job_title, department, manager_email, start_date, employment_type, work_location, country, equipment_needed, notes, source_workflow, dedupe_key`
+`submission_ts, slack_requester_id, slack_requester_email, first_name, last_name, personal_email, work_email, job_title, department, buddy_email, manager_email, start_date, employment_type, work_location, country, equipment_needed, notes, source_workflow, dedupe_key`
 
 4. Map fields:
 
@@ -70,6 +71,7 @@ Add a **Google Sheets connector** step to append one row per submission.
 | work_email | Form: Work email |
 | job_title | Form: Job title |
 | department | Form: Department |
+| buddy_email | Form: Buddy email → selected user email token |
 | manager_email | Form: Manager email → selected user email token |
 | start_date | Form: Start date |
 | employment_type | Form: Employment type |

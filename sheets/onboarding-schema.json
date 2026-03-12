@@ -86,6 +86,20 @@
     },
     {
       "index": 11,
+      "key": "buddy_email",
+      "header": "buddy_email",
+      "type": "string",
+      "required": true
+    },
+    {
+      "index": 12,
+      "key": "buddy_slack_id",
+      "header": "buddy_slack_id",
+      "type": "string",
+      "required": false
+    },
+    {
+      "index": 13,
       "key": "dob",
       "header": "dob",
       "type": "date",
@@ -93,7 +107,7 @@
       "population": "workflow"
     },
     {
-      "index": 12,
+      "index": 14,
       "key": "status",
       "header": "status",
       "type": "enum",
@@ -107,7 +121,7 @@
       "population": "script"
     },
     {
-      "index": 13,
+      "index": 15,
       "key": "dm_sent_at",
       "header": "dm_sent_at",
       "type": "datetime",
@@ -115,7 +129,7 @@
       "population": "script"
     },
     {
-      "index": 14,
+      "index": 16,
       "key": "checklist_completed",
       "header": "checklist_completed",
       "type": "boolean",
@@ -124,7 +138,7 @@
       "source": "SYS_IS_COMPLETE(required_count, completed_count)"
     },
     {
-      "index": 15,
+      "index": 17,
       "key": "row_hash",
       "header": "row_hash",
       "type": "string",
@@ -132,7 +146,7 @@
       "population": "script"
     },
     {
-      "index": 16,
+      "index": 18,
       "key": "blocked_reason",
       "header": "blocked_reason",
       "type": "string",
@@ -147,6 +161,7 @@
     "role",
     "start_date",
     "manager_email",
+    "buddy_email",
     "status"
   ],
   "schemaConfigTab": "_sys_config",

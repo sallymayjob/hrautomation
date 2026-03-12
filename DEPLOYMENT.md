@@ -280,34 +280,40 @@ What just happened? HR approvers now receive a direct message notification and c
 46. Choose `Date`.
 47. Mark it as required.
 48. Click "Add a question".
-49. Enter `Manager Email`.
+49. Enter `Buddy Email`.
 50. Choose `Slack person` (single Slack user).
-51. Leave it as optional.
-52. Click Save.
-What just happened? Slack now has a full intake form for each new hire.
+51. Mark it as required.
+52. Click "Add a question".
+53. Enter `Manager Email`.
+54. Choose `Slack person` (single Slack user).
+55. Mark it as required.
+56. Click Save.
+What just happened? Slack now has a full intake form for each new hire, including a required buddy (peer) and manager (trainer).
 
 ### Add the spreadsheet step
-53. Click the blue `+` button.
-54. Click Google Sheets.
-55. Click "Add a spreadsheet row".
-56. Click Connect if account access is requested.
-57. Sign in with your RWR Group Google account.
-58. Select the Onboarding spreadsheet.
-59. Select `Sheet1` or `Onboarding` as the tab.
-60. Map `employee_name` to `New Employee Name` (display name).
-61. Map `slack_id` to `New Employee Name` → user ID token (not trigger person).
-62. Leave `email` blank.
-63. Map `role` to `Role`.
-64. Map `brand` to `Brand`.
-65. Map `start_date` to `Start Date`.
-66. Map `region` to `Region`.
-67. Map `manager_email` to `Manager Email` → email token (from selected Slack user).
-68. Map `dob` to `Date of Birth`.
-69. Set `status` to `PENDING`.
-70. Click Save.
-71. Click Publish at the top right.
-72. Click Publish again to confirm.
-What just happened? New hire form answers now save directly into your Onboarding sheet.
+57. Click the blue `+` button.
+58. Click Google Sheets.
+59. Click "Add a spreadsheet row".
+60. Click Connect if account access is requested.
+61. Sign in with your RWR Group Google account.
+62. Select the Onboarding spreadsheet.
+63. Select `Sheet1` or `Onboarding` as the tab.
+64. Leave `onboarding_id` blank so Apps Script auto-generates it.
+65. Map `employee_name` to `New Employee Name` (display name).
+66. Map `slack_id` to `New Employee Name` → user ID token (not trigger person).
+67. Leave `email` blank.
+68. Map `role` to `Role`.
+69. Map `brand` to `Brand`.
+70. Map `start_date` to `Start Date`.
+71. Map `region` to `Region`.
+72. Map `buddy_email` to `Buddy Email` → email token (from selected Slack user).
+73. Map `manager_email` to `Manager Email` → email token (from selected Slack user).
+74. Map `dob` to `Date of Birth`.
+75. Set `status` to `PENDING`.
+76. Click Save.
+77. Click Publish at the top right.
+78. Click Publish again to confirm.
+What just happened? New hire form answers now save directly into your Onboarding sheet, with onboarding IDs generated automatically by the automation script.
 
 You're done with Phase 4. Slack will now collect new hire details automatically.
 
@@ -346,11 +352,13 @@ Run this test before real onboarding starts.
 4. Wait up to 2 minutes.
 5. Open the Onboarding spreadsheet.
 6. Check that a new row appeared.
-7. Check that `status` changed to `IN_PROGRESS`.
-8. Ask the colleague to check direct messages in Slack.
-9. Confirm they received a welcome message from RWR HR Bot.
-10. Open the Audit Log spreadsheet.
-11. Confirm today's row includes an onboarding update event and no `BLOCKED` reason.
+7. Check that `onboarding_id` was auto-generated.
+8. Check that both `buddy_email` and `manager_email` were captured.
+9. Check that `status` changed to `IN_PROGRESS`.
+10. Ask the colleague to check direct messages in Slack.
+11. Confirm they received a welcome message from RWR HR Bot.
+12. Open the Audit Log spreadsheet.
+13. Confirm today's row includes an onboarding update event and no `BLOCKED` reason.
 What just happened? You confirmed form capture, welcome message, and logging all work.
 
 If any check fails, take a screenshot and send it to the tech lead.

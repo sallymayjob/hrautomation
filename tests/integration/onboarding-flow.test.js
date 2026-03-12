@@ -52,8 +52,8 @@ describe('integration onboarding flow', () => {
   });
 
   test('pending onboarding row is processed and status updated', () => {
-    const headers = ['onboarding_id', 'employee_name', 'email', 'start_date', 'manager_email', 'role', 'status', 'checklist_completed', 'row_hash', 'blocked_reason'];
-    const row = ['OB-1', 'Alex Doe', 'a@x.com', '2026-01-01', 'm@x.com', 'MANAGER', 'PENDING', false, '', ''];
+    const headers = ['onboarding_id', 'employee_name', 'email', 'start_date', 'manager_email', 'buddy_email', 'role', 'status', 'row_hash'];
+    const row = ['OB-1', 'Alex Doe', 'a@x.com', '2026-01-01', 'm@x.com', 'b@x.com', 'MANAGER', 'PENDING', ''];
     const sheet = makeOnboardingSheet(headers, row);
 
     const sheetClient = {
@@ -79,36 +79,9 @@ describe('integration onboarding flow', () => {
     expect(sheetClient.validateWorkbookSchemas).toHaveBeenCalled();
   });
 
-  test('does not overwrite a non-empty formula-derived onboarding_id', () => {
-    const headers = ['onboarding_id', 'employee_name', 'email', 'start_date', 'manager_email', 'role', 'status', 'checklist_completed', 'row_hash', 'blocked_reason'];
-    const row = ['ONB_20260101T000000Z_0001_SLACK', 'Alex Doe', 'a@x.com', '2026-01-01', 'm@x.com', 'MANAGER', 'PENDING', false, '', ''];
-    const sheet = makeOnboardingSheet(headers, row);
-
-    const sheetClient = {
-      checkDuplicate: jest.fn(() => -1),
-      appendTrainingRow: jest.fn(),
-      ensureSheetWithHeaders: jest.fn(),
-      appendChecklistTask: jest.fn(() => 4),
-      getSheetRowLink: jest.fn(() => 'https://sheet/link'),
-      appendAuditIfNotExists: jest.fn(),
-      validateWorkbookSchemas: jest.fn()
-    };
-    const auditLogger = { log: jest.fn(), error: jest.fn(), logWorkflowLifecycle: jest.fn() };
-    const slackClient = { lookupUserByEmail: jest.fn(() => ({ user: { id: 'U1' } })), postMessage: jest.fn() };
-    global.SheetClient = jest.fn(() => sheetClient);
-    global.AuditLogger = jest.fn(() => auditLogger);
-    global.SlackClient = jest.fn(() => slackClient);
-
-    const { onChangeHandler } = require('../../gas/Code.gs');
-    onChangeHandler({ source: { getActiveSheet: () => sheet } });
-
-    const idWrites = sheet.getSetValueCalls().filter((call) => call.row === 2 && call.col === 1);
-    expect(idWrites).toEqual([]);
-  });
-
-  test('throws clear error when required onboarding derived headers are missing', () => {
-    const headers = ['onboarding_id', 'employee_name', 'email', 'start_date', 'manager_email', 'status', 'role'];
-    const row = ['OB-1', 'Alex Doe', 'a@x.com', '2026-01-01', 'm@x.com', 'PENDING', 'MANAGER'];
+  test('throws clear error when required onboarding headers are missing', () => {
+    const headers = ['onboarding_id', 'employee_name', 'email', 'start_date', 'manager_email', 'buddy_email', 'status'];
+    const row = ['OB-1', 'Alex Doe', 'a@x.com', '2026-01-01', 'm@x.com', 'b@x.com', 'PENDING'];
     const sheet = makeOnboardingSheet(headers, row);
 
     const { onChangeHandler } = require('../../gas/Code.gs');

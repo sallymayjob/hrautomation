@@ -53,8 +53,8 @@ describe('RoleMapper behavior via onboarding processing', () => {
   });
 
   test('uses ENGINEER role resources and dispatches task assignment', () => {
-    const headers = ['onboarding_id', 'employee_name', 'email', 'start_date', 'manager_email', 'role', 'status', 'row_hash'];
-    const row = ['OB-1', 'Alex Doe', 'a@x.com', '2026-01-01', 'm@x.com', 'ENGINEER', 'PENDING', ''];
+    const headers = ['onboarding_id', 'employee_name', 'email', 'start_date', 'manager_email', 'buddy_email', 'role', 'status', 'row_hash'];
+    const row = ['OB-1', 'Alex Doe', 'a@x.com', '2026-01-01', 'm@x.com', 'b@x.com', 'ENGINEER', 'PENDING', ''];
     const sheet = createSheet(headers, row);
 
     const sheetClientMock = {
