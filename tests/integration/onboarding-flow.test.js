@@ -86,8 +86,32 @@ describe('integration onboarding flow', () => {
 
     const { onChangeHandler } = require('../../gas/Code.gs');
     expect(() => onChangeHandler({ source: { getActiveSheet: () => sheet } })).toThrow(
-      'Onboarding sheet schema invalid. Missing required header(s): role'
+      'Onboarding sheet schema invalid. Missing required header(s): employee_name/email/role or first_name/personal_email/job_title'
     );
+  });
+
+  test('intake-style onboarding rows without status still generate checklist rows', () => {
+    const headers = ['first_name', 'last_name', 'personal_email', 'job_title', 'department', 'buddy_email', 'manager_email', 'start_date', 'country'];
+    const row = ['Alex', 'Doe', 'a@x.com', 'Engineer', 'Technology', 'b@x.com', 'm@x.com', '2026-01-01', 'NZ'];
+    const sheet = makeOnboardingSheet(headers, row);
+
+    const sheetClient = {
+      ensureSheetWithHeaders: jest.fn(),
+      appendChecklistTask: jest.fn(() => 4),
+      getSheetRowLink: jest.fn(() => 'https://sheet/link'),
+      checkDuplicate: jest.fn(() => -1),
+      appendAuditIfNotExists: jest.fn(),
+      validateWorkbookSchemas: jest.fn()
+    };
+    const auditLogger = { log: jest.fn(), error: jest.fn(), logWorkflowLifecycle: jest.fn() };
+    global.SheetClient = jest.fn(() => sheetClient);
+    global.AuditLogger = jest.fn(() => auditLogger);
+    global.SlackClient = jest.fn(() => ({ lookupUserByEmail: jest.fn(), postMessage: jest.fn() }));
+
+    const { onChangeHandler } = require('../../gas/Code.gs');
+    onChangeHandler({ source: { getActiveSheet: () => sheet } });
+
+    expect(sheetClient.appendChecklistTask).toHaveBeenCalledTimes(1);
   });
 
   test('schema version mismatch blocks processing before row writes', () => {

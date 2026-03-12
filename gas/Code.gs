@@ -78,8 +78,7 @@ function onChangeHandler(e) {
   for (var rowIndex = 2; rowIndex <= lastRow; rowIndex += 1) {
     var headerMap = getHeaderMap_(sheet);
     hydrateOnboardingDefaults_(sheet, rowIndex, headerMap);
-    var statusValue = String(sheet.getRange(rowIndex, headerMap.status).getValue() || '').trim().toUpperCase();
-    if (statusValue !== STATUS.PENDING) {
+    if (!shouldProcessOnboardingRow_(sheet, rowIndex, headerMap)) {
       continue;
     }
 
@@ -121,34 +120,42 @@ function processOnboardingRow_(sheet, rowIndex, workflowContext) {
   try {
     var rowValues = sheet.getRange(rowIndex, 1, 1, sheet.getLastColumn()).getValues()[0];
     var rowData = toRowObject_(rowValues, headerMap);
+    var normalizedRowData = normalizeOnboardingRowData_(rowData);
+
+    if (!headerMap.status) {
+      processChecklistOnlyOnboardingRow_(sheetClient, auditLogger, normalizedRowData);
+      return;
+    }
 
     var rowHash = computeHash([
-      rowData.email,
-      formatDateKey_(rowData.start_date),
-      rowData.role,
-      rowData.manager_email
+      normalizedRowData.email,
+      formatDateKey_(normalizedRowData.start_date),
+      normalizedRowData.role,
+      normalizedRowData.manager_email
     ]);
-    setValueIfColumnExists_(sheet, rowIndex, headerMap, 'row_hash', rowHash);
+    if (headerMap.row_hash) {
+      setValueIfColumnExists_(sheet, rowIndex, headerMap, 'row_hash', rowHash);
+    }
 
-    var duplicateRow = sheetClient.checkDuplicate(Config.getOnboardingSheetName(), 'row_hash', rowHash, rowIndex);
+    var duplicateRow = headerMap.row_hash ? sheetClient.checkDuplicate(Config.getOnboardingSheetName(), 'row_hash', rowHash, rowIndex) : -1;
     if (duplicateRow > -1) {
       setStatus_(sheet, rowIndex, headerMap, STATUS.BLOCKED);
       setBlockedReason_(sheet, rowIndex, headerMap, 'Duplicate onboarding row found. Matched row index ' + duplicateRow + '.');
       auditLogger.log({
         entityType: 'Onboarding',
-        entityId: String(rowData.onboarding_id || rowIndex),
+        entityId: String(normalizedRowData.onboarding_id || rowIndex),
         action: 'UPDATE',
         details: 'Marked as duplicate. Matched row index ' + duplicateRow + '.'
       });
       return;
     }
 
-    var managerEmail = String(rowData.manager_email || '').trim();
+    var managerEmail = String(normalizedRowData.manager_email || '').trim();
     if (!managerEmail) {
       throw new Error('Manager email is required for onboarding so the trainer can be assigned.');
     }
 
-    var buddyEmail = String(rowData.buddy_email || '').trim();
+    var buddyEmail = String(normalizedRowData.buddy_email || '').trim();
     if (!buddyEmail) {
       throw new Error('Buddy email is required for onboarding so a peer can be assigned.');
     }
@@ -158,34 +165,34 @@ function processOnboardingRow_(sheet, rowIndex, workflowContext) {
     managerSlackId = managerLookup && managerLookup.user && managerLookup.user.id ? managerLookup.user.id : '';
     setValueIfColumnExists_(sheet, rowIndex, headerMap, 'manager_slack_id', managerSlackId);
 
-    var buddySlackId = String(rowData.buddy_slack_id || '').trim();
+    var buddySlackId = String(normalizedRowData.buddy_slack_id || '').trim();
     if (!buddySlackId) {
       var buddyLookup = slackClient.lookupUserByEmail(buddyEmail);
       buddySlackId = buddyLookup && buddyLookup.user && buddyLookup.user.id ? buddyLookup.user.id : '';
       setValueIfColumnExists_(sheet, rowIndex, headerMap, 'buddy_slack_id', buddySlackId);
     }
 
-    var roleMapping = getRoleMapping_(rowData.role);
-    var startDate = parseDateValue_(rowData.start_date);
-    var employeeLookup = slackClient.lookupUserByEmail(rowData.email);
+    var roleMapping = getRoleMapping_(normalizedRowData.role);
+    var startDate = parseDateValue_(normalizedRowData.start_date);
+    var employeeLookup = slackClient.lookupUserByEmail(normalizedRowData.email);
     var employeeSlackId = employeeLookup && employeeLookup.user && employeeLookup.user.id ? employeeLookup.user.id : '';
     if (!employeeSlackId) {
-      throw new Error('Unable to resolve employee Slack ID for email: ' + rowData.email);
+      throw new Error('Unable to resolve employee Slack ID for email: ' + normalizedRowData.email);
     }
 
     slackClient.postMessage(employeeSlackId, BlockKit.welcomeDM({
-      firstName: getFirstName_(rowData.employee_name),
+      firstName: getFirstName_(normalizedRowData.employee_name),
       startDate: formatDateKey_(startDate),
       managerName: managerEmail || 'TBD'
     }));
 
     notifyOnboardingAssignment_(sheetClient, auditLogger, slackClient, {
-      onboardingId: rowData.onboarding_id,
-      employeeName: rowData.employee_name,
+      onboardingId: normalizedRowData.onboarding_id,
+      employeeName: normalizedRowData.employee_name,
       managerSlackId: managerSlackId,
       buddySlackId: buddySlackId,
       buddyLabel: buddyEmail || buddySlackId || 'Not assigned yet',
-      teamLabel: [rowData.brand, rowData.region, rowData.role].filter(function (value) {
+      teamLabel: [normalizedRowData.brand, normalizedRowData.region, normalizedRowData.role].filter(function (value) {
         return String(value || '').trim() !== '';
       }).join(' / ') || 'General onboarding'
     });
@@ -194,7 +201,7 @@ function processOnboardingRow_(sheet, rowIndex, workflowContext) {
       var resource = roleMapping.resources[i];
       var dueDate = computeDueDate_(startDate, roleMapping.probationDays, resource.dueOffsetDays);
       sheetClient.appendTrainingRow([
-        rowData.onboarding_id,
+        normalizedRowData.onboarding_id,
         resource.moduleCode,
         resource.moduleName,
         new Date(),
@@ -205,16 +212,16 @@ function processOnboardingRow_(sheet, rowIndex, workflowContext) {
         0,
         '',
         new Date(),
-        computeHash([rowData.onboarding_id, resource.moduleCode, formatDateKey_(dueDate)]),
+        computeHash([normalizedRowData.onboarding_id, resource.moduleCode, formatDateKey_(dueDate)]),
         false
       ]);
     }
 
-    var onboardingId = rowData.onboarding_id || generateId('ONB');
-    if (!rowData.onboarding_id) {
+    var onboardingId = normalizedRowData.onboarding_id || generateId('ONB');
+    if (!normalizedRowData.onboarding_id) {
       setValueIfColumnExists_(sheet, rowIndex, headerMap, 'onboarding_id', onboardingId);
     }
-    generateChecklistTasks_(sheetClient, auditLogger, onboardingId, rowData, startDate, new Date());
+    generateChecklistTasks_(sheetClient, auditLogger, onboardingId, normalizedRowData, startDate, new Date());
     setValueIfColumnExists_(sheet, rowIndex, headerMap, 'dm_sent_at', new Date());
     setValueIfColumnExists_(sheet, rowIndex, headerMap, 'processed_at', new Date());
     setStatus_(sheet, rowIndex, headerMap, STATUS.IN_PROGRESS);
@@ -224,7 +231,7 @@ function processOnboardingRow_(sheet, rowIndex, workflowContext) {
       entityType: 'Onboarding',
       entityId: onboardingId,
       action: 'UPDATE',
-      details: 'Onboarding processed successfully for onboarding_id=' + rowData.onboarding_id + '.'
+      details: 'Onboarding processed successfully for onboarding_id=' + onboardingId + '.'
     });
     runContext.onboardingId = onboardingId;
   } catch (err) {
@@ -346,16 +353,33 @@ function getHeaderMap_(sheet) {
       map[key] = i + 1;
     }
   }
-  if (!map.status) {
-    throw new Error('Onboarding sheet is missing required status column.');
-  }
   return map;
+}
+
+function shouldProcessOnboardingRow_(sheet, rowIndex, headerMap) {
+  if (headerMap.status) {
+    var statusValue = String(sheet.getRange(rowIndex, headerMap.status).getValue() || '').trim().toUpperCase();
+    return statusValue === STATUS.PENDING;
+  }
+  if (headerMap.checklist_completed) {
+    return !Boolean(sheet.getRange(rowIndex, headerMap.checklist_completed).getValue());
+  }
+  return true;
 }
 
 function validateOnboardingSchema_(sheet, headerMap) {
   var map = headerMap || getHeaderMap_(sheet);
-  var requiredKeys = ['onboarding_id', 'employee_name', 'email', 'role', 'start_date', 'manager_email', 'buddy_email', 'status'];
+  var legacyRequiredKeys = ['start_date', 'manager_email', 'buddy_email'];
+  var intakeRequiredKeys = ['first_name', 'last_name', 'personal_email', 'job_title', 'department', 'start_date', 'manager_email', 'buddy_email'];
   var missing = [];
+  var hasLegacyIdentity = map.employee_name && map.email && map.role;
+  var hasIntakeIdentity = map.first_name && map.personal_email && map.job_title;
+
+  if (!hasLegacyIdentity && !hasIntakeIdentity) {
+    missing.push('employee_name/email/role or first_name/personal_email/job_title');
+  }
+
+  var requiredKeys = hasLegacyIdentity ? legacyRequiredKeys : intakeRequiredKeys;
   for (var i = 0; i < requiredKeys.length; i += 1) {
     if (!map[requiredKeys[i]]) {
       missing.push(requiredKeys[i]);
@@ -378,6 +402,9 @@ function toRowObject_(rowValues, headerMap) {
 }
 
 function setStatus_(sheet, rowIndex, headerMap, statusValue) {
+  if (!headerMap.status) {
+    return;
+  }
   sheet.getRange(rowIndex, headerMap.status).setValue(statusValue);
   setValueIfColumnExists_(sheet, rowIndex, headerMap, 'last_updated_at', new Date());
 }
@@ -419,6 +446,46 @@ function getFirstName_(fullName) {
   return String(fullName || '').trim().split(/\s+/)[0] || '';
 }
 
+function normalizeOnboardingRowData_(rowData) {
+  var firstName = String(rowData.first_name || '').trim();
+  var lastName = String(rowData.last_name || '').trim();
+  var employeeName = String(rowData.employee_name || '').trim();
+  if (!employeeName) {
+    employeeName = [firstName, lastName].filter(function (value) { return value !== ''; }).join(' ').trim();
+  }
+
+  var onboardingId = String(rowData.onboarding_id || '').trim();
+  var startDate = rowData.start_date;
+  var primaryEmail = String(rowData.email || rowData.work_email || rowData.personal_email || '').trim().toLowerCase();
+
+  if (!onboardingId) {
+    onboardingId = buildDeterministicOnboardingId_(primaryEmail, employeeName, startDate);
+  }
+
+  return {
+    onboarding_id: onboardingId,
+    employee_name: employeeName,
+    email: primaryEmail,
+    role: String(rowData.role || rowData.job_title || '').trim(),
+    start_date: startDate,
+    manager_email: String(rowData.manager_email || '').trim(),
+    buddy_email: String(rowData.buddy_email || '').trim(),
+    buddy_slack_id: String(rowData.buddy_slack_id || '').trim(),
+    brand: String(rowData.brand || rowData.department || '').trim(),
+    region: String(rowData.region || rowData.country || '').trim()
+  };
+}
+
+function buildDeterministicOnboardingId_(email, employeeName, startDate) {
+  var hash = String(computeHash([email, employeeName, formatDateKey_(startDate)]) || '').replace(/[^a-zA-Z0-9]/g, '');
+  return 'ONB-' + (hash.slice(0, 10) || generateId('ONB'));
+}
+
+function processChecklistOnlyOnboardingRow_(sheetClient, auditLogger, normalizedRowData) {
+  var startDate = parseDateValue_(normalizedRowData.start_date);
+  generateChecklistTasks_(sheetClient, auditLogger, normalizedRowData.onboarding_id, normalizedRowData, startDate, new Date());
+}
+
 
 function generateChecklistTasks_(sheetClient, auditLogger, onboardingId, rowData, startDate, triggerTimestamp) {
   sheetClient.ensureSheetWithHeaders(Config.getChecklistSheetName(), CHECKLIST_HEADERS);
@@ -457,6 +524,24 @@ function generateChecklistTasks_(sheetClient, auditLogger, onboardingId, rowData
       checklistRowIndex: checklistRowIndex
     });
 
+    generatedCount += 1;
+  }
+
+  if (generatedCount === 0) {
+    var fallbackTaskId = 'GEN-' + String(onboardingId).replace(/[^a-zA-Z0-9_-]/g, '').slice(-10);
+    sheetClient.appendChecklistTask([
+      fallbackTaskId,
+      onboardingId,
+      'Onboarding',
+      'Review onboarding details and prepare day-1 checklist',
+      'People Ops',
+      Config.getPeopleTeamChannelId(),
+      'PENDING',
+      computeDueDate_(startDate, 0, 1),
+      triggerTimestamp || new Date(),
+      'system',
+      'Auto-generated fallback task because no checklist template matched the onboarding row.'
+    ]);
     generatedCount += 1;
   }
 
