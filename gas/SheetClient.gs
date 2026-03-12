@@ -1,4 +1,4 @@
-/* global SpreadsheetApp, Config */
+/* global SpreadsheetApp, Config, Utilities */
 /**
  * @fileoverview Spreadsheet data access helpers.
  */
@@ -74,7 +74,78 @@ var COL = {
   }
 };
 
+var REQUIRED_NAMED_FUNCTIONS = {
+  SYS_MAKE_ID: {
+    sampleFormula: '=SYS_MAKE_ID("ONB", DATE(2026,1,1), 1, "MANUAL")'
+  },
+  SYS_IS_COMPLETE: {
+    sampleFormula: '=SYS_IS_COMPLETE(3, 2)'
+  },
+  SYS_EVENT_KEY: {
+    sampleFormula: '=SYS_EVENT_KEY("ONB_20260101T000000Z_0001", "CREATE", DATE(2026,1,1))'
+  }
+};
+
 function SheetClient() {}
+
+SheetClient.prototype.validateRequiredNamedFunctions = function (auditLogger) {
+  var sheetIds = [
+    Config.getOnboardingSpreadsheetId(),
+    Config.getTrainingSpreadsheetId(),
+    Config.getAuditSpreadsheetId()
+  ];
+  var missing = [];
+
+  for (var i = 0; i < sheetIds.length; i += 1) {
+    var spreadsheetId = sheetIds[i];
+    if (!spreadsheetId) {
+      continue;
+    }
+    missing = missing.concat(this.validateRequiredNamedFunctionsOnSpreadsheet_(spreadsheetId));
+  }
+
+  if (missing.length > 0 && auditLogger && typeof auditLogger.log === 'function') {
+    auditLogger.log({
+      entityType: 'System',
+      entityId: 'named_functions',
+      action: 'UPDATE',
+      details: 'Missing required named function(s): ' + missing.join(', ')
+    });
+  }
+
+  return {
+    valid: missing.length === 0,
+    missingFunctions: missing
+  };
+};
+
+SheetClient.prototype.validateRequiredNamedFunctionsOnSpreadsheet_ = function (spreadsheetId) {
+  var spreadsheet = this.openSpreadsheetById_(spreadsheetId);
+  var missing = [];
+  var probeSheetName = '_sys_named_fn_probe';
+  var probeSheet = spreadsheet.getSheetByName(probeSheetName);
+  if (!probeSheet) {
+    probeSheet = spreadsheet.insertSheet(probeSheetName);
+  } else {
+    probeSheet.clear();
+  }
+
+  var functionNames = Object.keys(REQUIRED_NAMED_FUNCTIONS);
+  for (var i = 0; i < functionNames.length; i += 1) {
+    var functionName = functionNames[i];
+    var formula = REQUIRED_NAMED_FUNCTIONS[functionName].sampleFormula;
+    var range = probeSheet.getRange(i + 1, 1);
+    range.setFormula(formula);
+    SpreadsheetApp.flush();
+    var displayValue = String(range.getDisplayValue() || '').trim();
+    if (displayValue.indexOf('#NAME?') > -1) {
+      missing.push(functionName + '@' + spreadsheetId);
+    }
+  }
+
+  spreadsheet.deleteSheet(probeSheet);
+  return missing;
+};
 
 SheetClient.prototype.normalizeKey_ = function (value) {
   return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');

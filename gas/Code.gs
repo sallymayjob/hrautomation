@@ -191,7 +191,9 @@ function processOnboardingRow_(sheet, rowIndex) {
     }
 
     var onboardingId = rowData.onboarding_id || generateId('ONB');
-    setValueIfColumnExists_(sheet, rowIndex, headerMap, 'onboarding_id', onboardingId);
+    if (!rowData.onboarding_id) {
+      setValueIfColumnExists_(sheet, rowIndex, headerMap, 'onboarding_id', onboardingId);
+    }
     generateChecklistTasks_(sheetClient, auditLogger, onboardingId, rowData, startDate, new Date());
     setValueIfColumnExists_(sheet, rowIndex, headerMap, 'dm_sent_at', new Date());
     setValueIfColumnExists_(sheet, rowIndex, headerMap, 'processed_at', new Date());

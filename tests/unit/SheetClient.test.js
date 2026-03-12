@@ -7,6 +7,25 @@ function mockGasGlobals() {
   global.ScriptApp = { newTrigger: jest.fn() };
 }
 
+
+function makeProbeSheet(name, missingFunctions) {
+  const formulas = {};
+  return {
+    getName: jest.fn(() => name || '_sys_named_fn_probe'),
+    clear: jest.fn(),
+    getRange: jest.fn((r, c) => ({
+      setFormula: jest.fn((formula) => {
+        formulas[r + ':' + c] = formula;
+      }),
+      getDisplayValue: jest.fn(() => {
+        const formula = formulas[r + ':' + c] || '';
+        const missing = (missingFunctions || []).find((fnName) => formula.indexOf(fnName) > -1);
+        return missing ? '#NAME?' : 'ok';
+      })
+    }))
+  };
+}
+
 function makeSheet(headers, rows) {
   const data = [headers].concat(rows);
   return {
@@ -63,6 +82,32 @@ describe('SheetClient', () => {
     expect(client.markCelebrationPosted('E1', 'M1', 1)).toBe(true);
     expect(client.findChecklistTask('DOC-001', 'OB-1')).not.toBeNull();
     expect(client.updateChecklistTask('DOC-001', 'OB-1', { status: 'DONE', notes: 'ok' })).toBe(true);
+  });
+
+
+  test('validateRequiredNamedFunctions reports missing named functions', () => {
+    const onboarding = makeSheet(['onboarding_id'], []);
+    const probeSheet = makeProbeSheet('_sys_named_fn_probe', ['SYS_EVENT_KEY']);
+    const spreadsheet = {
+      getSheetByName: jest.fn((name) => {
+        if (name === '_sys_named_fn_probe') return probeSheet;
+        return onboarding;
+      }),
+      insertSheet: jest.fn(() => probeSheet),
+      deleteSheet: jest.fn()
+    };
+
+    SpreadsheetApp.openById.mockReturnValue(spreadsheet);
+    SpreadsheetApp.flush = jest.fn();
+
+    const { SheetClient } = require('../../gas/SheetClient.gs');
+    const client = new SheetClient();
+    const auditLogger = { log: jest.fn() };
+    const result = client.validateRequiredNamedFunctions(auditLogger);
+
+    expect(result.valid).toBe(false);
+    expect(result.missingFunctions.join(',')).toContain('SYS_EVENT_KEY');
+    expect(auditLogger.log).toHaveBeenCalled();
   });
 
   test('completion gate blocks COMPLETE when required tasks are still pending', () => {
