@@ -8,70 +8,81 @@
       "key": "onboarding_id",
       "header": "onboarding_id",
       "type": "string",
-      "required": true
+      "required": true,
+      "population": "formula",
+      "source": "SYS_MAKE_ID(prefix, dt, seq, trigger)"
     },
     {
       "index": 2,
       "key": "employee_name",
       "header": "employee_name",
       "type": "string",
-      "required": true
+      "required": true,
+      "population": "workflow"
     },
     {
       "index": 3,
       "key": "slack_id",
       "header": "slack_id",
       "type": "string",
-      "required": false
+      "required": false,
+      "population": "script"
     },
     {
       "index": 4,
       "key": "email",
       "header": "email",
       "type": "string",
-      "required": true
+      "required": true,
+      "population": "workflow"
     },
     {
       "index": 5,
       "key": "role",
       "header": "role",
       "type": "string",
-      "required": true
+      "required": true,
+      "population": "workflow"
     },
     {
       "index": 6,
       "key": "brand",
       "header": "brand",
       "type": "string",
-      "required": false
+      "required": false,
+      "population": "workflow"
     },
     {
       "index": 7,
       "key": "start_date",
       "header": "start_date",
       "type": "date",
-      "required": true
+      "required": true,
+      "population": "workflow"
     },
     {
       "index": 8,
       "key": "region",
       "header": "region",
       "type": "string",
-      "required": false
+      "required": false,
+      "population": "workflow"
     },
     {
       "index": 9,
       "key": "manager_email",
       "header": "manager_email",
       "type": "string",
-      "required": true
+      "required": true,
+      "population": "workflow"
     },
     {
       "index": 10,
       "key": "manager_slack_id",
       "header": "manager_slack_id",
       "type": "string",
-      "required": false
+      "required": false,
+      "population": "script"
     },
     {
       "index": 11,
@@ -92,7 +103,8 @@
       "key": "dob",
       "header": "dob",
       "type": "date",
-      "required": false
+      "required": false,
+      "population": "workflow"
     },
     {
       "index": 14,
@@ -105,35 +117,41 @@
         "IN_PROGRESS",
         "BLOCKED",
         "COMPLETE"
-      ]
+      ],
+      "population": "script"
     },
     {
       "index": 15,
       "key": "dm_sent_at",
       "header": "dm_sent_at",
       "type": "datetime",
-      "required": false
+      "required": false,
+      "population": "script"
     },
     {
       "index": 16,
       "key": "checklist_completed",
       "header": "checklist_completed",
       "type": "boolean",
-      "required": false
+      "required": false,
+      "population": "formula",
+      "source": "SYS_IS_COMPLETE(required_count, completed_count)"
     },
     {
       "index": 17,
       "key": "row_hash",
       "header": "row_hash",
       "type": "string",
-      "required": false
+      "required": false,
+      "population": "script"
     },
     {
       "index": 18,
       "key": "blocked_reason",
       "header": "blocked_reason",
       "type": "string",
-      "required": false
+      "required": false,
+      "population": "script"
     }
   ],
   "requiredHeaders": [
@@ -145,5 +163,7 @@
     "manager_email",
     "buddy_email",
     "status"
-  ]
+  ],
+  "schemaConfigTab": "_sys_config",
+  "schemaVersionMetadataKey": "Onboarding.schema_version"
 }

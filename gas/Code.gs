@@ -3,8 +3,6 @@
  * @fileoverview Main trigger handlers for onboarding processing.
  */
 
-var ONBOARDING_SHEET_NAME = 'Onboarding';
-
 var CHECKLIST_HEADERS = [
   'task_id',
   'onboarding_id',
@@ -34,6 +32,15 @@ var STATUS = {
   COMPLETE: 'COMPLETE'
 };
 
+
+var WORKFLOW_NAME = 'onboarding_workflow';
+
+var WORKFLOW_EVENT_TYPES = {
+  WORKFLOW_CALLED: 'WORKFLOW_CALLED',
+  WORKFLOW_STARTED: 'WORKFLOW_STARTED',
+  WORKFLOW_ENDED: 'WORKFLOW_ENDED'
+};
+
 var ROLE_MAPPINGS = {
   DEFAULT: {
     probationDays: 90,
@@ -60,7 +67,7 @@ var ROLE_MAPPINGS = {
 
 function onChangeHandler(e) {
   var sheet = e && e.source && e.source.getActiveSheet ? e.source.getActiveSheet() : null;
-  if (!sheet || sheet.getName() !== ONBOARDING_SHEET_NAME) {
+  if (!sheet || sheet.getName() !== Config.getOnboardingSheetName()) {
     return;
   }
 
@@ -71,6 +78,11 @@ function onChangeHandler(e) {
 
   validateOnboardingSchema_(sheet);
 
+  var workflowContext = buildWorkflowContext_(e);
+  var sheetClient = new SheetClient();
+  var auditLogger = new AuditLogger(sheetClient);
+  emitLifecycleEvent_(auditLogger, workflowContext, WORKFLOW_EVENT_TYPES.WORKFLOW_CALLED, '');
+
   for (var rowIndex = 2; rowIndex <= lastRow; rowIndex += 1) {
     var headerMap = getHeaderMap_(sheet);
     hydrateOnboardingDefaults_(sheet, rowIndex, headerMap);
@@ -78,7 +90,11 @@ function onChangeHandler(e) {
     if (statusValue !== STATUS.PENDING) {
       continue;
     }
-    processOnboardingRow_(sheet, rowIndex);
+
+    var onboardingId = String(sheet.getRange(rowIndex, headerMap.onboarding_id).getValue() || '').trim();
+    var rowWorkflowContext = cloneWorkflowContext_(workflowContext);
+    rowWorkflowContext.onboardingId = onboardingId;
+    processOnboardingRow_(sheet, rowIndex, rowWorkflowContext);
   }
 }
 
@@ -101,10 +117,12 @@ function hydrateOnboardingDefaults_(sheet, rowIndex, headerMap) {
   }
 }
 
-function processOnboardingRow_(sheet, rowIndex) {
+function processOnboardingRow_(sheet, rowIndex, workflowContext) {
   var sheetClient = new SheetClient();
   var auditLogger = new AuditLogger(sheetClient);
   var slackClient = new SlackClient(auditLogger);
+  var runContext = workflowContext || buildWorkflowContext_();
+  emitLifecycleEvent_(auditLogger, runContext, WORKFLOW_EVENT_TYPES.WORKFLOW_STARTED, runContext.onboardingId || '');
   var headerMap = getHeaderMap_(sheet);
   validateOnboardingSchema_(sheet, headerMap);
 
@@ -120,7 +138,7 @@ function processOnboardingRow_(sheet, rowIndex) {
     ]);
     setValueIfColumnExists_(sheet, rowIndex, headerMap, 'row_hash', rowHash);
 
-    var duplicateRow = sheetClient.checkDuplicate(ONBOARDING_SHEET_NAME, 'row_hash', rowHash, rowIndex);
+    var duplicateRow = sheetClient.checkDuplicate(Config.getOnboardingSheetName(), 'row_hash', rowHash, rowIndex);
     if (duplicateRow > -1) {
       setStatus_(sheet, rowIndex, headerMap, STATUS.BLOCKED);
       setBlockedReason_(sheet, rowIndex, headerMap, 'Duplicate onboarding row found. Matched row index ' + duplicateRow + '.');
@@ -201,7 +219,9 @@ function processOnboardingRow_(sheet, rowIndex) {
     }
 
     var onboardingId = rowData.onboarding_id || generateId('ONB');
-    setValueIfColumnExists_(sheet, rowIndex, headerMap, 'onboarding_id', onboardingId);
+    if (!rowData.onboarding_id) {
+      setValueIfColumnExists_(sheet, rowIndex, headerMap, 'onboarding_id', onboardingId);
+    }
     generateChecklistTasks_(sheetClient, auditLogger, onboardingId, rowData, startDate, new Date());
     setValueIfColumnExists_(sheet, rowIndex, headerMap, 'dm_sent_at', new Date());
     setValueIfColumnExists_(sheet, rowIndex, headerMap, 'processed_at', new Date());
@@ -214,6 +234,7 @@ function processOnboardingRow_(sheet, rowIndex) {
       action: 'UPDATE',
       details: 'Onboarding processed successfully for onboarding_id=' + rowData.onboarding_id + '.'
     });
+    runContext.onboardingId = onboardingId;
   } catch (err) {
     setStatus_(sheet, rowIndex, headerMap, STATUS.BLOCKED);
     setBlockedReason_(sheet, rowIndex, headerMap, String(err && err.message ? err.message : err));
@@ -225,7 +246,73 @@ function processOnboardingRow_(sheet, rowIndex) {
       action: 'UPDATE',
       details: 'Onboarding processing failed.'
     }, err);
+  } finally {
+    emitLifecycleEvent_(auditLogger, runContext, WORKFLOW_EVENT_TYPES.WORKFLOW_ENDED, runContext.onboardingId || '');
   }
+}
+
+
+function buildWorkflowContext_(e) {
+  var metadata = extractWorkflowMetadata_(e);
+  return {
+    workflowName: WORKFLOW_NAME,
+    workflowRunKey: computeHash([metadata.requester, metadata.ts, metadata.workflowId]),
+    actor: metadata.requester,
+    sourceTrigger: metadata.sourceTrigger,
+    onboardingId: ''
+  };
+}
+
+function cloneWorkflowContext_(workflowContext) {
+  return {
+    workflowName: workflowContext.workflowName,
+    workflowRunKey: workflowContext.workflowRunKey,
+    actor: workflowContext.actor,
+    sourceTrigger: workflowContext.sourceTrigger,
+    onboardingId: workflowContext.onboardingId || ''
+  };
+}
+
+function emitLifecycleEvent_(auditLogger, workflowContext, eventType, onboardingId) {
+  var eventPayload = {
+    workflow_name: workflowContext.workflowName,
+    workflow_run_key: workflowContext.workflowRunKey,
+    event_type: eventType,
+    actor: workflowContext.actor,
+    source_trigger: workflowContext.sourceTrigger,
+    onboarding_id: onboardingId || ''
+  };
+
+  if (auditLogger && typeof auditLogger.logWorkflowLifecycle === 'function') {
+    auditLogger.logWorkflowLifecycle(eventPayload);
+    return;
+  }
+
+  if (auditLogger && auditLogger.sheetClient && typeof auditLogger.sheetClient.appendWorkflowLifecycleEvent === 'function') {
+    auditLogger.sheetClient.appendWorkflowLifecycleEvent(eventPayload);
+  }
+}
+
+function extractWorkflowMetadata_(e) {
+  var payload = (e && (e.slackPayload || e.payload || e.metadata)) || {};
+  var requester = String(
+    payload.requester ||
+    payload.user_id ||
+    payload.userId ||
+    payload.actor ||
+    payload.email ||
+    'system'
+  );
+  var ts = String(payload.ts || payload.trigger_ts || payload.event_ts || payload.message_ts || '0');
+  var workflowId = String(payload.workflow_id || payload.workflowId || payload.callback_id || 'onChangeHandler');
+  var sourceTrigger = String((e && (e.triggerUid || e.triggerUid || e.changeType)) || payload.source_trigger || 'on_change');
+
+  return {
+    requester: requester,
+    ts: ts,
+    workflowId: workflowId,
+    sourceTrigger: sourceTrigger
+  };
 }
 
 function getRoleMapping_(roleTitle) {
@@ -285,6 +372,9 @@ function validateOnboardingSchema_(sheet, headerMap) {
   if (missing.length > 0) {
     throw new Error('Onboarding sheet schema invalid. Missing required header(s): ' + missing.join(', '));
   }
+
+  var schemaClient = new SheetClient();
+  schemaClient.validateWorkbookSchemas();
 }
 
 function toRowObject_(rowValues, headerMap) {
@@ -642,6 +732,8 @@ if (typeof module !== 'undefined') {
     tryCompleteOnboarding_: tryCompleteOnboarding_,
     templateMatchesOnboarding_: templateMatchesOnboarding_,
     resolveTaskOwnerDestination_: resolveTaskOwnerDestination_,
-    notifyOnboardingAssignment_: notifyOnboardingAssignment_
+    notifyOnboardingAssignment_: notifyOnboardingAssignment_,
+    WORKFLOW_EVENT_TYPES: WORKFLOW_EVENT_TYPES,
+    buildWorkflowContext_: buildWorkflowContext_
   };
 }

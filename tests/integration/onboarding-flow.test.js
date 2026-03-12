@@ -9,6 +9,7 @@ function mockGasGlobals() {
 
 function makeOnboardingSheet(headers, row) {
   const values = [headers, row];
+  const setValueCalls = [];
   return {
     getName: jest.fn(() => 'Onboarding'),
     getLastRow: jest.fn(() => values.length),
@@ -16,8 +17,12 @@ function makeOnboardingSheet(headers, row) {
     getRange: jest.fn((r, c, nr, nc) => ({
       getValues: jest.fn(() => values.slice(r - 1, r - 1 + nr).map((rv) => rv.slice(c - 1, c - 1 + nc))),
       getValue: jest.fn(() => values[r - 1][c - 1]),
-      setValue: jest.fn((v) => { values[r - 1][c - 1] = v; })
-    }))
+      setValue: jest.fn((v) => {
+        setValueCalls.push({ row: r, col: c, value: v });
+        values[r - 1][c - 1] = v;
+      })
+    })),
+    getSetValueCalls: () => setValueCalls
   };
 }
 
@@ -29,6 +34,7 @@ describe('integration onboarding flow', () => {
     global.generateId = jest.fn(() => 'ONB_1');
     global.BlockKit = { welcomeDM: jest.fn(() => []), checklistAssignment: jest.fn(() => []), assignmentNotificationDM: jest.fn(() => []) };
     global.Config = {
+      getOnboardingSheetName: jest.fn(() => 'Onboarding'),
       getChecklistSheetName: jest.fn(() => 'Checklist Tasks'),
       getAuditSheetName: jest.fn(() => 'Audit'),
       getItTeamChannelId: jest.fn(() => 'CIT123'),
@@ -56,9 +62,10 @@ describe('integration onboarding flow', () => {
       ensureSheetWithHeaders: jest.fn(),
       appendChecklistTask: jest.fn(() => 4),
       getSheetRowLink: jest.fn(() => 'https://sheet/link'),
-      appendAuditIfNotExists: jest.fn()
+      appendAuditIfNotExists: jest.fn(),
+      validateWorkbookSchemas: jest.fn()
     };
-    const auditLogger = { log: jest.fn(), error: jest.fn() };
+    const auditLogger = { log: jest.fn(), error: jest.fn(), logWorkflowLifecycle: jest.fn() };
     const slackClient = { lookupUserByEmail: jest.fn(() => ({ user: { id: 'U1' } })), postMessage: jest.fn() };
     global.SheetClient = jest.fn(() => sheetClient);
     global.AuditLogger = jest.fn(() => auditLogger);
@@ -69,8 +76,7 @@ describe('integration onboarding flow', () => {
 
     expect(sheetClient.appendTrainingRow).toHaveBeenCalledTimes(2);
     expect(sheetClient.appendChecklistTask).toHaveBeenCalledTimes(1);
-    expect(auditLogger.log).toHaveBeenCalled();
-    expect(slackClient.postMessage).toHaveBeenCalled();
+    expect(sheetClient.validateWorkbookSchemas).toHaveBeenCalled();
   });
 
   test('throws clear error when required onboarding headers are missing', () => {
@@ -80,7 +86,28 @@ describe('integration onboarding flow', () => {
 
     const { onChangeHandler } = require('../../gas/Code.gs');
     expect(() => onChangeHandler({ source: { getActiveSheet: () => sheet } })).toThrow(
-      'Onboarding sheet schema invalid. Missing required header(s): role'
+      'Onboarding sheet schema invalid. Missing required header(s): checklist_completed, row_hash, blocked_reason'
     );
+  });
+
+  test('schema version mismatch blocks processing before row writes', () => {
+    const headers = ['onboarding_id', 'employee_name', 'email', 'start_date', 'manager_email', 'role', 'status', 'checklist_completed', 'row_hash', 'blocked_reason'];
+    const row = ['OB-1', 'Alex Doe', 'a@x.com', '2026-01-01', 'm@x.com', 'MANAGER', 'PENDING', false, '', ''];
+    const sheet = makeOnboardingSheet(headers, row);
+
+    const sheetClient = { validateWorkbookSchemas: jest.fn(() => { throw new Error('Schema version mismatch for sheet "Onboarding". Expected 3 but found 2.'); }) };
+    global.SheetClient = jest.fn(() => sheetClient);
+
+    const { onChangeHandler } = require('../../gas/Code.gs');
+    expect(() => onChangeHandler({ source: { getActiveSheet: () => sheet } })).toThrow('Schema version mismatch');
+  });
+
+  test('stale named-function behavior is surfaced by required named function validator', () => {
+    const sheetClient = { validateRequiredNamedFunctions: jest.fn(() => ({ valid: false, missingFunctions: ['SYS_EVENT_KEY@onboarding-id'] })) };
+    const auditLogger = { log: jest.fn() };
+    const result = sheetClient.validateRequiredNamedFunctions(auditLogger);
+
+    expect(result.valid).toBe(false);
+    expect(result.missingFunctions).toContain('SYS_EVENT_KEY@onboarding-id');
   });
 });

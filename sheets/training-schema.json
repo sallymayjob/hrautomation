@@ -8,42 +8,48 @@
       "key": "employee_id",
       "header": "Employee ID",
       "type": "string",
-      "required": true
+      "required": true,
+      "population": "script"
     },
     {
       "index": 2,
       "key": "module_code",
       "header": "Module Code",
       "type": "string",
-      "required": true
+      "required": true,
+      "population": "script"
     },
     {
       "index": 3,
       "key": "module_name",
       "header": "Module Name",
       "type": "string",
-      "required": true
+      "required": true,
+      "population": "script"
     },
     {
       "index": 4,
       "key": "assigned_date",
       "header": "Assigned Date",
       "type": "date",
-      "required": true
+      "required": true,
+      "population": "script"
     },
     {
       "index": 5,
       "key": "due_date",
       "header": "Due Date",
       "type": "date",
-      "required": true
+      "required": true,
+      "population": "script"
     },
     {
       "index": 6,
       "key": "completion_date",
       "header": "Completion Date",
       "type": "date",
-      "required": false
+      "required": false,
+      "population": "workflow"
     },
     {
       "index": 7,
@@ -56,7 +62,22 @@
         "In Progress",
         "Completed",
         "Overdue"
-      ]
+      ],
+      "population": "script"
     }
+  ],
+  "schemaConfigTab": "_sys_config",
+  "schemaVersionMetadataKey": "Training.schema_version",
+  "requiredHeaders": [
+    "employee_id",
+    "module_code",
+    "module_name",
+    "assigned_date",
+    "due_date",
+    "completion_date",
+    "training_status",
+    "last_updated_at",
+    "completion_hash",
+    "celebration_posted"
   ]
 }

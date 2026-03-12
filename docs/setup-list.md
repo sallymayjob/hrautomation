@@ -60,3 +60,11 @@ Add these as selectable values for the `Region` question:
 ## Notes
 - Keep spelling/capitalization consistent so onboarding records are clean and easy to report on.
 - You can extend the lists later as needed, but keep updates documented in this file for future admins.
+
+
+## Data mapping guardrails
+- Workflow mappings should populate **raw inputs only** (name, email, role, brand, region, dates, notes).
+- Do not map ID/derived columns from Slack steps.
+- Keep `onboarding_id`, audit IDs, completion flags, and event keys formula-driven in Google Sheets named functions (`SYS_MAKE_ID`, `SYS_IS_COMPLETE`, `SYS_EVENT_KEY`).
+- Apps Script should treat non-empty formula-derived IDs as immutable.
+

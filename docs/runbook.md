@@ -14,7 +14,7 @@ Perform these checks at the start of every support shift.
 3. Confirm the Workspace bot account is active and can post DMs.
 
 ### 1.2 Sheet Integrity
-1. Open the production sheet and validate required tabs are present (Roster, Queue, Audit Log, Config; names may vary by deployment).
+1. Open the production onboarding, training, and audit spreadsheets and validate required tabs are present. Confirm Script Properties map each tab correctly (`ONBOARDING_SPREADSHEET_ID`/`ONBOARDING_SHEET_NAME`, `TRAINING_SPREADSHEET_ID`/`TRAINING_SHEET_NAME`, `AUDIT_SPREADSHEET_ID`/`AUDIT_SHEET_NAME`).
 2. Spot-check the newest 10 rows in the processing tab:
    - Status transitions are valid (e.g., PENDING -> IN_PROGRESS -> COMPLETE, with BLOCKED when gates fail).
    - Timestamps are populated and in expected timezone.
@@ -66,7 +66,7 @@ Perform this when ownership or access scope changes.
 4. Log change in Audit Log tab with actor, timestamp, and reason.
 
 ### 3.2 Resource Changes
-1. For new sheet/resource IDs, update configuration constants/properties.
+1. For new sheet/resource IDs, update Script Properties for spreadsheet IDs and tab names (`ONBOARDING_SPREADSHEET_ID`, `TRAINING_SPREADSHEET_ID`, `AUDIT_SPREADSHEET_ID`, `ONBOARDING_SHEET_NAME`, `TRAINING_SHEET_NAME`, `AUDIT_SHEET_NAME`, and `CHECKLIST_SHEET_NAME`).
 2. Validate connector access with a non-production dry-run row.
 3. Re-run a controlled manual trigger and verify delivery.
 4. Update runbook links/bookmarks used by on-call staff.
@@ -164,3 +164,28 @@ Use this procedure once per week (or on-demand after significant data correction
 3. If blocked list is unexpectedly empty:
    - Verify onboarding `status` values are correctly set to `BLOCKED` where appropriate.
    - Confirm unresolved checklist tasks are not incorrectly marked `DONE`/`COMPLETE`.
+
+
+---
+
+## 8) Schema Upgrade Path (Ordered Migration)
+
+When rolling out schema-affecting releases, apply changes in this exact order to avoid writes being blocked by schema/version guards:
+
+1. **Schema update (sheets first)**
+   - Update headers on `Onboarding`, `Training`, and `Audit` tabs to match repository schema files.
+   - Ensure `_sys_config` exists in each workbook with these rows:
+     - `Onboarding.schema_version = 3`
+     - `Training.schema_version = 1`
+     - `Audit.schema_version = 1`
+2. **Named functions update**
+   - In each workbook, confirm required named functions are present and current:
+     - `SYS_MAKE_ID`
+     - `SYS_IS_COMPLETE`
+     - `SYS_EVENT_KEY`
+   - Run the named-function verification routine and resolve any `#NAME?` findings before continuing.
+3. **Script deploy**
+   - Deploy Apps Script code only after sheet schema + named functions are ready.
+   - Run a controlled test execution and verify no `SCHEMA_WRITE_BLOCKED` structured errors are appended to Audit.
+
+Rollback note: if deployment fails validation, revert script deployment, restore prior sheet headers/metadata, and re-apply migration in order.

@@ -8,21 +8,25 @@
       "key": "audit_id",
       "header": "Audit ID",
       "type": "string",
-      "required": true
+      "required": true,
+      "population": "formula",
+      "source": "SYS_MAKE_ID(prefix, dt, seq, trigger)"
     },
     {
       "index": 2,
       "key": "event_timestamp",
       "header": "Event Timestamp",
       "type": "datetime",
-      "required": true
+      "required": true,
+      "population": "script"
     },
     {
       "index": 3,
       "key": "actor_email",
       "header": "Actor Email",
       "type": "string",
-      "required": true
+      "required": true,
+      "population": "script"
     },
     {
       "index": 4,
@@ -34,14 +38,16 @@
         "Employee",
         "Training",
         "Onboarding"
-      ]
+      ],
+      "population": "script"
     },
     {
       "index": 5,
       "key": "entity_id",
       "header": "Entity ID",
       "type": "string",
-      "required": true
+      "required": true,
+      "population": "script"
     },
     {
       "index": 6,
@@ -54,14 +60,28 @@
         "UPDATE",
         "DELETE",
         "STATUS_CHANGE"
-      ]
+      ],
+      "population": "script"
     },
     {
       "index": 7,
       "key": "details",
       "header": "Details",
       "type": "string",
-      "required": false
+      "required": false,
+      "population": "script"
     }
+  ],
+  "schemaConfigTab": "_sys_config",
+  "schemaVersionMetadataKey": "Audit.schema_version",
+  "requiredHeaders": [
+    "audit_id",
+    "event_timestamp",
+    "actor_email",
+    "entity_type",
+    "entity_id",
+    "action",
+    "details",
+    "event_hash"
   ]
 }

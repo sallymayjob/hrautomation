@@ -245,7 +245,7 @@ function checkBirthdaysAndAnniversaries() {
   var sheetClient = new SheetClient();
   var auditLogger = new AuditLogger(sheetClient);
   var slackClient = new SlackClient(auditLogger);
-  var onboardingSheet = SpreadsheetApp.openById(Config.getSpreadsheetId()).getSheetByName(Config.getOnboardingSheetName());
+  var onboardingSheet = SpreadsheetApp.openById(Config.getOnboardingSpreadsheetId()).getSheetByName(Config.getOnboardingSheetName());
   if (!onboardingSheet || onboardingSheet.getLastRow() < 2) {
     return;
   }

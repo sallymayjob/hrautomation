@@ -90,6 +90,27 @@ AuditLogger.prototype.retry = function (event, attempt, maxAttempts) {
   });
 };
 
+
+
+AuditLogger.prototype.logWorkflowLifecycle = function (event) {
+  return this.sheetClient.appendWorkflowLifecycleEvent({
+    event_id: event.event_id || generateId('WFL'),
+    workflow_name: event.workflow_name || 'onboarding_workflow',
+    workflow_run_key: event.workflow_run_key,
+    event_type: event.event_type,
+    event_ts: event.event_ts || new Date(),
+    actor: event.actor || Session.getActiveUser().getEmail() || 'system',
+    source_trigger: event.source_trigger || 'unknown',
+    onboarding_id: event.onboarding_id || ''
+  });
+};
+
+function verifyRequiredNamedFunctions(sheetClient) {
+  var client = sheetClient || new SheetClient();
+  var auditLogger = new AuditLogger(client);
+  return client.validateRequiredNamedFunctions(auditLogger);
+}
+
 function notifyHrAlerts(message) {
   try {
     MailApp.sendEmail({
@@ -107,5 +128,6 @@ if (typeof module !== 'undefined') module.exports = {
   computeHash: computeHash,
   getDaysUntilDue: getDaysUntilDue,
   AuditLogger: AuditLogger,
-  notifyHrAlerts: notifyHrAlerts
+  notifyHrAlerts: notifyHrAlerts,
+  verifyRequiredNamedFunctions: verifyRequiredNamedFunctions
 };

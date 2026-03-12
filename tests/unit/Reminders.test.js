@@ -16,7 +16,7 @@ describe('Reminders', () => {
       ONBOARDING: { EMAIL: 3, FULL_NAME: 2, START_DATE: 4, EMPLOYEE_ID: 1 },
       AUDIT: { EVENT_HASH: 8 }
     };
-    global.Config = { getAuditSheetName: jest.fn(() => 'Audit'), getSpreadsheetId: jest.fn(() => 'id'), getOnboardingSheetName: jest.fn(() => 'Onboarding') };
+    global.Config = { getAuditSheetName: jest.fn(() => 'Audit'), getOnboardingSpreadsheetId: jest.fn(() => 'onboarding-id'), getOnboardingSheetName: jest.fn(() => 'Onboarding') };
     global.computeHash = jest.fn(() => 'event-hash');
     global.generateId = jest.fn(() => 'AUD_1');
     global.getDaysUntilDue = jest.fn(() => 3);
