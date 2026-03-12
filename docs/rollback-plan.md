@@ -81,3 +81,28 @@ Objective: restore connector authorization failures (WFB = workflow/backend conn
    - Rollback version/config used.
    - Current customer impact status.
 5. Create follow-up action items for root-cause fix before re-release.
+
+## 7) Dashboard Schema Mismatch Rollback (Tabs/Headers)
+
+Objective: recover dashboard integrity when tab names or header schemas drift from spec.
+
+1. Freeze dashboard-writing automation:
+   - Pause scheduled jobs and manual routines that refresh dashboard tabs.
+2. Identify mismatch scope:
+   - Compare workbook tabs/headers with:
+     - `docs/dashboards/onboarding-dashboard.md`,
+     - `docs/dashboards/training-dashboard.md`,
+     - `docs/dashboards/audit-dashboard.md`.
+3. Protect historical data before repair:
+   - Duplicate impacted dashboard tabs with timestamp suffix (example: `Onboarding_Pivot_backup_2026-01-14_1030`).
+4. Restore schema safely:
+   - Recreate missing required tabs.
+   - Restore missing header cells in row 1.
+   - Do **not** rewrite or delete historical data rows to force schema alignment.
+5. Resolve hard conflicts:
+   - If row-1 header values conflict with required schema, create a new compliant tab, point charts to the new tab, and retain legacy tab as read-only evidence.
+6. Re-validate data source boundaries:
+   - Ensure dashboard formulas only reference local workbook tabs unless explicit `IMPORTRANGE` is configured and documented.
+7. Resume service with controlled verification:
+   - Run one manual dashboard refresh.
+   - Verify KPI cards, pivots, and chart references resolve without `#REF!` or `#N/A` schema errors.
