@@ -115,3 +115,58 @@ If the downstream Google Apps Script occasionally receives duplicate executions 
 - Store processed keys in `PropertiesService` (or cache + sheet lookup) with a short lock (`LockService`) during write operations.
 
 This ensures duplicate triggers do not produce duplicate onboarding records.
+
+## Related workflows
+
+- See `workflows/training-workflow-map.md` for Slack Workflow Builder maps for adding courses, adding modules, and enrolling learners using Google Sheets-backed course dropdowns.
+- This runbook also includes onboarding-to-checklist auto-sync and read-only checklist status lookup design (sections 9 and 10 below).
+
+
+## 9) Onboarding → Checklist auto-sync workflow map
+
+Use this map so checklist rows are created/updated automatically whenever a new hire is submitted from Slack intake.
+
+### Trigger and intent
+- Trigger source: successful **New Hire Intake** submission.
+- Intent: if a new onboarding row is created, create all checklist rows for that onboarding ID; if the hire record is edited later, update checklist rows that are still open.
+
+### Data contract
+- Join key: `onboarding_id` (generated in-sheet/script, not entered manually in Slack).
+- Source tab: `Onboarding`.
+- Destination tab: `Checklist`.
+- Required stable fields copied into checklist rows: `EmployeeID`, `manager_email`, `department`, `start_date`.
+
+### Sync steps (recommended)
+1. **Detect new/updated onboarding row** after intake append.
+2. **Lookup existing checklist rows** where `onboarding_id` matches.
+3. If no rows found:
+   - Generate checklist tasks from `templates/checklist-tasks-template.json`.
+   - Append one row per task into `Checklist`.
+4. If rows exist:
+   - Update only non-complete checklist rows with changed assignment metadata (for example manager or due-date offsets).
+   - Do not overwrite `DONE/COMPLETE` rows.
+5. Recompute aggregate onboarding flags in-sheet (`checklist_completed`, blocked state).
+6. Add an `Audit_Log` record using idempotency key (`onboarding_id + event_ts + action`).
+
+### Completion behavior
+- Onboarding status should move out of pending only when all required checklist tasks are complete and no blocker is present.
+- Keep final status transitions formula/script-driven, not manual in Slack.
+
+## 10) Read-only checklist status in Slack (optional workflow app command)
+
+Slack can expose checklist progress, but updates still happen in Google Sheets.
+
+### Trigger options
+- Slash command: `/checklist-status <employee name or employee id>`
+- Shortcut: `Get onboarding checklist status`
+
+### Response behavior
+- Return summary fields from Sheets:
+  - onboarding status
+  - checklist tasks total / done / pending
+  - blocked reason (if any)
+  - owner/manager routing fields
+- Post as ephemeral by default; optional `--share` can post to channel.
+
+> Guardrail: status queries are read-only in Slack. All task completion changes must be made in Google Sheets.
+
