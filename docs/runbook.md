@@ -15,7 +15,7 @@ Use this ownership split when deciding where to execute or remediate actions:
 
 - **Onboarding spreadsheet** owns: new hire intake, account provisioning start, and Day-1 readiness.
 - **Training spreadsheet** owns: course assignment, completion tracking, overdue reminders, and manager escalation.
-- **Audit spreadsheet** owns: policy/compliance verification, evidence snapshots, and unresolved exception reporting.
+- **Audit spreadsheet** owns: policy/compliance verification, evidence snapshots, and unresolved exception reporting (canonical ledger workbook, separate from onboarding and training).
 
 ### Cross-sheet handoff contract
 
@@ -89,7 +89,7 @@ Perform this when ownership or access scope changes.
    - Google Sheet.
    - Workspace bot administration console.
 3. Remove least-privilege violating access immediately for departed users.
-4. Log change in Audit Log tab with actor, timestamp, and reason.
+4. Log change in the Audit spreadsheet (`Audit` tab) with actor, timestamp, and reason.
 
 ### 3.2 Resource Changes
 1. For new sheet/resource IDs, update Script Properties for spreadsheet IDs and tab names (`ONBOARDING_SPREADSHEET_ID`, `TRAINING_SPREADSHEET_ID`, `AUDIT_SPREADSHEET_ID`, `CHECKLIST_SPREADSHEET_ID`, `ONBOARDING_SHEET_NAME`, `TRAINING_SHEET_NAME`, `AUDIT_SHEET_NAME`, and `CHECKLIST_SHEET_NAME`).
@@ -115,7 +115,7 @@ Use this flow for rows marked BLOCKED.
 4. For checklist gate issues:
    - Resolve each missing required task listed in `blocked_reason` by phase (Documentation, Pre-onboarding, Day-1 readiness).
    - Example blockers: missing contract signature, missing Google account test verification.
-5. Record remediation result in Audit Log (row ID, root cause, operator, action, final status).
+5. Record remediation result in the Audit spreadsheet (`Audit` tab) (row ID, root cause, operator, action, final status).
 
 **Do not** delete BLOCKED rows; retain for auditability.
 
@@ -166,7 +166,7 @@ Perform on scheduled security cadence or immediately after credential hygiene ev
    - auth check endpoint (if available), then
    - one controlled DM to test account.
 5. If successful, revoke old token.
-6. Document rotation in Audit Log with timestamp, operator, and evidence of successful post-rotation test.
+6. Document rotation in the Audit spreadsheet (`Audit` tab) with timestamp, operator, and evidence of successful post-rotation test.
 
 **Security requirements**
 - Never share token over chat/email.

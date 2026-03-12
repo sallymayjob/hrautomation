@@ -36,7 +36,7 @@ You're done with this part.
 1. A Slack workspace (your RWR Group team chat account).
 2. A Google account with access to Sheets and Drive.
 3. A Slack app named "RWR HR Automation" created by the tech lead.
-4. Three empty Google Sheets named Onboarding, Training Log, and Audit Log (kept as separate spreadsheets).
+4. Three empty Google Sheets named Onboarding, Training Log, and Audit Log (kept as separate spreadsheets, with Audit Log as the canonical compliance ledger).
 5. This file folder prepared by the tech lead.
 
 You're done with this part.
@@ -51,7 +51,7 @@ Slack command responses and Slack message interactions are **read-only** for onb
 ## 5. Where to go if something is not working
 - If a new hire did not receive a welcome message, tell the tech lead. They can fix it in under five minutes.
 - If a reminder went to the wrong person, tell the tech lead immediately.
-- If you are unsure the system is running, check Audit Log. If today's rows exist, it is working.
+- If you are unsure the system is running, check the separate Audit Log spreadsheet (canonical ledger). If today's rows exist, it is working.
 
 You're done with this part.
 
