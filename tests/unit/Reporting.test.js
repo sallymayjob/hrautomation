@@ -14,7 +14,7 @@ describe('Reporting', () => {
 
     global.COL = {
       ONBOARDING: { ONBOARDING_ID: 1, EMPLOYEE_NAME: 2, STATUS: 3, BLOCKED_REASON: 4 },
-      CHECKLIST: { ONBOARDING_ID: 2, CATEGORY: 3, TASK_NAME: 5, OWNER_TEAM: 6, STATUS: 8, DUE_DATE: 9 },
+      CHECKLIST: { ONBOARDING_ID: 2, PHASE: 3, TASK_NAME: 4, OWNER_TEAM: 5, STATUS: 7, DUE_DATE: 8 },
       TRAINING: { TRAINING_STATUS: 7, DUE_DATE: 5 }
     };
 
@@ -31,9 +31,9 @@ describe('Reporting', () => {
     ];
 
     const checklistRows = [
-      ['DOC-1', 'OB-1', 'Documentation', '', 'Send handbook', 'People Ops', '', 'DONE', 0],
-      ['IT-1', 'OB-1', 'Workspace', '', 'Create laptop profile', 'IT', '', 'PENDING', -2],
-      ['FIN-1', 'OB-2', 'Finance', '', 'Set payroll', 'Finance', '', 'PENDING', -4]
+      ['DOC-1', 'OB-1', 'Documentation', 'Send handbook', 'People Ops', '', 'DONE', 0],
+      ['IT-1', 'OB-1', 'Workspace', 'Create laptop profile', 'IT', '', 'PENDING', -2],
+      ['FIN-1', 'OB-2', 'Finance', 'Set payroll', 'Finance', '', 'PENDING', -4]
     ];
 
     const result = buildOnboardingMetrics_(onboardingRows, checklistRows);
@@ -54,7 +54,7 @@ describe('Reporting', () => {
     const sheetClient = {
       getTrainingRows: jest.fn(() => [['', '', '', '', 2, '', 'COMPLETED']]),
       getOnboardingRows: jest.fn(() => [['OB-1', 'Alex', 'IN_PROGRESS', '']]),
-      getChecklistRows: jest.fn(() => [['DOC-1', 'OB-1', 'Documentation', '', 'Task', 'People Ops', '', 'DONE', 1]]),
+      getChecklistRows: jest.fn(() => [['DOC-1', 'OB-1', 'Documentation', 'Task', 'People Ops', '', 'DONE', 1]]),
       ensureSheetWithHeaders
     };
 

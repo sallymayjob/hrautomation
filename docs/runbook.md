@@ -14,7 +14,7 @@ Perform these checks at the start of every support shift.
 3. Confirm the Workspace bot account is active and can post DMs.
 
 ### 1.2 Sheet Integrity
-1. Open the production onboarding, training, and audit spreadsheets and validate required tabs are present. Confirm Script Properties map each tab correctly (`ONBOARDING_SPREADSHEET_ID`/`ONBOARDING_SHEET_NAME`, `TRAINING_SPREADSHEET_ID`/`TRAINING_SHEET_NAME`, `AUDIT_SPREADSHEET_ID`/`AUDIT_SHEET_NAME`).
+1. Open the production onboarding, training, and audit spreadsheets and validate required tabs are present. Confirm Script Properties map each tab correctly (`ONBOARDING_SPREADSHEET_ID`/`ONBOARDING_SHEET_NAME`, `TRAINING_SPREADSHEET_ID`/`TRAINING_SHEET_NAME`, `AUDIT_SPREADSHEET_ID`/`AUDIT_SHEET_NAME`, `CHECKLIST_SPREADSHEET_ID`/`CHECKLIST_SHEET_NAME`).
 2. Spot-check the newest 10 rows in the processing tab:
    - Status transitions are valid (e.g., PENDING -> IN_PROGRESS -> COMPLETE, with BLOCKED when gates fail).
    - Timestamps are populated and in expected timezone.
@@ -66,7 +66,7 @@ Perform this when ownership or access scope changes.
 4. Log change in Audit Log tab with actor, timestamp, and reason.
 
 ### 3.2 Resource Changes
-1. For new sheet/resource IDs, update Script Properties for spreadsheet IDs and tab names (`ONBOARDING_SPREADSHEET_ID`, `TRAINING_SPREADSHEET_ID`, `AUDIT_SPREADSHEET_ID`, `ONBOARDING_SHEET_NAME`, `TRAINING_SHEET_NAME`, `AUDIT_SHEET_NAME`, and `CHECKLIST_SHEET_NAME`).
+1. For new sheet/resource IDs, update Script Properties for spreadsheet IDs and tab names (`ONBOARDING_SPREADSHEET_ID`, `TRAINING_SPREADSHEET_ID`, `AUDIT_SPREADSHEET_ID`, `CHECKLIST_SPREADSHEET_ID`, `ONBOARDING_SHEET_NAME`, `TRAINING_SHEET_NAME`, `AUDIT_SHEET_NAME`, and `CHECKLIST_SHEET_NAME`).
 2. Validate connector access with a non-production dry-run row.
 3. Re-run a controlled manual trigger and verify delivery.
 4. Update runbook links/bookmarks used by on-call staff.
@@ -94,6 +94,21 @@ Use this flow for rows marked BLOCKED.
 **Do not** delete BLOCKED rows; retain for auditability.
 
 ---
+
+
+## 4.1) Manual Checklist Status Update Procedure
+
+Use this for operations-led status corrections when onboarding is BLOCKED.
+
+1. Open the standalone checklist workbook (not onboarding workbook) using the configured `CHECKLIST_SPREADSHEET_ID`.
+2. Locate the row by `task_id` + `onboarding_id`.
+3. Update only manual columns unless template ownership changed by design:
+   - `status` (allowed: `PENDING`, `IN_PROGRESS`, `BLOCKED`, `COMPLETE`, `DONE`)
+   - `updated_at` (current timestamp)
+   - `updated_by` (operator email/handle)
+   - `notes` (ticket/reference + rationale)
+4. Do **not** edit generator-controlled columns (`phase`, `task_name`, `owner_team`, `owner_slack_channel`, `due_date`) during remediation.
+5. Re-attempt onboarding completion after required checklist statuses are complete.
 
 ## 5) Re-send Welcome DM Workflow
 
