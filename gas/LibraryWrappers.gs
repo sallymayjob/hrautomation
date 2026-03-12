@@ -47,6 +47,48 @@ function runAuditDeepWeekly() {
   });
 }
 
+function runTrainingAssignments() {
+  return runLibraryWorkflow_({
+    workflowName: 'Training Assignments',
+    spreadsheetId: Config.getTrainingSpreadsheetId(),
+    sheetName: Config.getTrainingSheetName(),
+    libraryMethodName: 'processTrainingAssignments',
+    statusColumnName: 'training_status',
+    batchLimit: 200,
+    maxRuntimeMs: 5 * 60 * 1000,
+    dateWindowMinutes: 24 * 60,
+    logSheetName: 'Logs'
+  });
+}
+
+function runTrainingReminders() {
+  return runLibraryWorkflow_({
+    workflowName: 'Training Reminders',
+    spreadsheetId: Config.getTrainingSpreadsheetId(),
+    sheetName: Config.getTrainingSheetName(),
+    libraryMethodName: 'runTrainingReminders',
+    statusColumnName: 'training_status',
+    batchLimit: 200,
+    maxRuntimeMs: 5 * 60 * 1000,
+    dateWindowMinutes: 24 * 60,
+    logSheetName: 'Logs'
+  });
+}
+
+function runTrainingSync() {
+  return runLibraryWorkflow_({
+    workflowName: 'Training Sync',
+    spreadsheetId: Config.getTrainingSpreadsheetId(),
+    sheetName: Config.getTrainingSheetName(),
+    libraryMethodName: 'syncTrainingCompletion',
+    statusColumnName: 'training_status',
+    batchLimit: 500,
+    maxRuntimeMs: 7 * 60 * 1000,
+    dateWindowMinutes: 4 * 60,
+    logSheetName: 'Logs'
+  });
+}
+
 function runLibraryWorkflow_(options) {
   var opts = options || {};
   assertLibraryAvailable_();
@@ -88,6 +130,7 @@ function runLibraryWorkflow_(options) {
       result: result,
       errors: []
     });
+    appendRunSummaryToLogsTab_(spreadsheet, opts, runId, rowPayload.rows.length, result, 'COMPLETED');
     logWorkflowEvent_(opts.workflowName, runId, 'COMPLETED', 'success=' + Number(result.successCount || 0) + ', errors=' + Number(result.errorCount || 0));
     sendWorkflowSummaryEmail_(opts.workflowName, rowPayload.rows.length, result, runId);
 
@@ -100,6 +143,7 @@ function runLibraryWorkflow_(options) {
         result: null,
         errors: [{ code: 'WORKFLOW_FAILED', rowIndex: 0, message: String(err && err.message ? err.message : err), technicalDetails: '' }]
       });
+      appendRunSummaryToLogsTab_(failedSpreadsheet, opts, runId, 0, null, 'FAILED');
     }
     logWorkflowEvent_(opts.workflowName, runId, 'FAILED', String(err && err.message ? err.message : err));
     throw err;
@@ -108,6 +152,34 @@ function runLibraryWorkflow_(options) {
       lock.releaseLock();
     }
   }
+}
+
+function appendRunSummaryToLogsTab_(spreadsheet, workflowOptions, runId, rowCount, result, phase) {
+  var opts = workflowOptions || {};
+  var sheetName = String(opts.logSheetName || 'Logs');
+  var sheet = spreadsheet.getSheetByName(sheetName);
+  if (!sheet && spreadsheet && typeof spreadsheet.insertSheet === 'function') {
+    sheet = spreadsheet.insertSheet(sheetName);
+  }
+  if (!sheet || typeof sheet.appendRow !== 'function') {
+    return;
+  }
+  if (sheet.getLastRow && sheet.getLastRow() === 0) {
+    sheet.appendRow(['timestamp', 'workflow', 'function', 'run_id', 'trace_id', 'rows_read', 'success_count', 'error_count', 'status']);
+  }
+
+  var normalizedResult = result || {};
+  sheet.appendRow([
+    new Date(),
+    String(opts.workflowName || 'Unknown'),
+    String(opts.libraryMethodName || 'unknown'),
+    String(runId || ''),
+    String(normalizedResult.traceId || runId || ''),
+    Number(rowCount || 0),
+    Number(normalizedResult.successCount || 0),
+    Number(normalizedResult.errorCount || 0),
+    String(phase || 'COMPLETED')
+  ]);
 }
 
 function readSheetRows_(sheet, batchLimit) {
@@ -351,7 +423,14 @@ function buildHeaderMap_(headers) {
 }
 
 function assertLibraryAvailable_() {
-  if (typeof HRLib === 'undefined' || !HRLib || typeof HRLib.processOnboardingBatch !== 'function' || typeof HRLib.runAuditChecks !== 'function' || typeof HRLib.writeExecutionLog !== 'function') {
+  if (typeof HRLib === 'undefined' ||
+    !HRLib ||
+    typeof HRLib.processOnboardingBatch !== 'function' ||
+    typeof HRLib.runAuditChecks !== 'function' ||
+    typeof HRLib.processTrainingAssignments !== 'function' ||
+    typeof HRLib.runTrainingReminders !== 'function' ||
+    typeof HRLib.syncTrainingCompletion !== 'function' ||
+    typeof HRLib.writeExecutionLog !== 'function') {
     throw new Error('HRLib library is not available. Add the shared HR library with identifier "HRLib" and pinned version.');
   }
 }
@@ -360,6 +439,9 @@ if (typeof module !== 'undefined') module.exports = {
   runOnboarding: runOnboarding,
   runAudit: runAudit,
   runAuditDeepWeekly: runAuditDeepWeekly,
+  runTrainingAssignments: runTrainingAssignments,
+  runTrainingReminders: runTrainingReminders,
+  runTrainingSync: runTrainingSync,
   runLibraryWorkflow_: runLibraryWorkflow_,
   readSheetRows_: readSheetRows_,
   mapRowToObject_: mapRowToObject_,
@@ -367,6 +449,7 @@ if (typeof module !== 'undefined') module.exports = {
   writeRowStatuses_: writeRowStatuses_,
   buildIdempotencyKey_: buildIdempotencyKey_,
   writeWorkflowExecutionLog_: writeWorkflowExecutionLog_,
+  appendRunSummaryToLogsTab_: appendRunSummaryToLogsTab_,
   indexErrorsByRow_: indexErrorsByRow_,
   buildHeaderMap_: buildHeaderMap_,
   assertLibraryAvailable_: assertLibraryAvailable_
