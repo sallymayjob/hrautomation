@@ -57,4 +57,5 @@ You're done with this part.
 
 ## Architecture and dataflow
 - See `docs/architecture-dataflow.md` for sheet connections, ownership boundaries, write rules, and failure behavior.
+- See `docs/library-entry-schema.md` for canonical library entry headers, data types, config-tab version marker, and schema guard behavior.
 

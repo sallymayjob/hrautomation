@@ -82,6 +82,30 @@ var REQUIRED_NAMED_FUNCTIONS = {
 };
 
 var SCHEMA_CONFIG_TAB = '_sys_config';
+var LIBRARY_SCHEMA_VERSION_KEY = 'version';
+var LIBRARY_SCHEMA_VERSION = 'schema_v1';
+var LIBRARY_ENTRY_HEADERS = [
+  'EmployeeID',
+  'FullName',
+  'WorkEmail',
+  'StartDate',
+  'Department',
+  'ManagerEmail',
+  'OnboardingStatus',
+  'AuditStatus',
+  'LastUpdated'
+];
+var LIBRARY_ENTRY_TYPES = {
+  EmployeeID: 'string',
+  FullName: 'string',
+  WorkEmail: 'string(email)',
+  StartDate: 'date',
+  Department: 'string',
+  ManagerEmail: 'string(email)',
+  OnboardingStatus: 'string(enum)',
+  AuditStatus: 'string(enum)',
+  LastUpdated: 'datetime'
+};
 
 var SHEET_SCHEMA_SPECS = {
   onboarding: {
@@ -271,6 +295,15 @@ SheetClient.prototype.getConfigSheet_ = function (spreadsheet) {
   return configSheet;
 };
 
+SheetClient.prototype.ensureLibrarySchemaVersion_ = function (configSheet) {
+  var rowIndex = this.findRowIndexByValue_(configSheet, 1, LIBRARY_SCHEMA_VERSION_KEY);
+  if (rowIndex < 0) {
+    configSheet.appendRow([LIBRARY_SCHEMA_VERSION_KEY, LIBRARY_SCHEMA_VERSION]);
+    return;
+  }
+  configSheet.getRange(rowIndex, 2).setValue(LIBRARY_SCHEMA_VERSION);
+};
+
 SheetClient.prototype.ensureSchemaVersionMetadata = function () {
   var schemaKeys = Object.keys(SHEET_SCHEMA_SPECS);
   for (var i = 0; i < schemaKeys.length; i += 1) {
@@ -278,6 +311,7 @@ SheetClient.prototype.ensureSchemaVersionMetadata = function () {
     var spec = SHEET_SCHEMA_SPECS[schemaKey];
     var spreadsheet = this.openSpreadsheetById_(spec.spreadsheetIdGetter());
     var configSheet = this.getConfigSheet_(spreadsheet);
+    this.ensureLibrarySchemaVersion_(configSheet);
     var key = spec.sheetNameGetter() + '.schema_version';
     var rowIndex = this.findRowIndexByValue_(configSheet, 1, key);
     var expectedVersion = String(spec.expectedVersion);
@@ -287,6 +321,40 @@ SheetClient.prototype.ensureSchemaVersionMetadata = function () {
     }
     configSheet.getRange(rowIndex, 2).setValue(expectedVersion);
   }
+};
+
+SheetClient.prototype.validateSchema = function (headers) {
+  var provided = headers || [];
+  var errors = [];
+
+  if (provided.length !== LIBRARY_ENTRY_HEADERS.length) {
+    errors.push('Expected ' + LIBRARY_ENTRY_HEADERS.length + ' columns but found ' + provided.length + '.');
+  }
+
+  var maxColumns = Math.max(provided.length, LIBRARY_ENTRY_HEADERS.length);
+  for (var i = 0; i < maxColumns; i += 1) {
+    var expected = LIBRARY_ENTRY_HEADERS[i];
+    var actual = provided[i];
+    if (String(actual || '') !== String(expected || '')) {
+      errors.push('Column ' + (i + 1) + ' must be "' + expected + '" but found "' + String(actual || '') + '".');
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new Error(
+      'Library schema drift detected. Required header order is: ' +
+      LIBRARY_ENTRY_HEADERS.join(', ') +
+      '.\nExpected data types: ' + JSON.stringify(LIBRARY_ENTRY_TYPES) +
+      '.\n' + errors.join(' ')
+    );
+  }
+
+  return true;
+};
+
+SheetClient.prototype.validateLibrarySheetSchema_ = function (sheet) {
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  this.validateSchema(headers);
 };
 
 SheetClient.prototype.getSchemaVersionFromConfig_ = function (spreadsheet, sheetName) {
