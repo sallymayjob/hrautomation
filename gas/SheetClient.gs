@@ -858,8 +858,10 @@ SheetClient.prototype.updateChecklistReminderMetadata = function (taskId, onboar
   if (rowIndex < 0) {
     return false;
   }
-  var note = 'Reminder #' + Number(reminderCount || 0) + ' sent at ' + (lastReminderAt || new Date());
-  sheet.getRange(rowIndex, COL.CHECKLIST.NOTES).setValue(note);
+
+  var timestamp = lastReminderAt || new Date();
+  sheet.getRange(rowIndex, COL.CHECKLIST.UPDATED_AT).setValue(timestamp);
+  sheet.getRange(rowIndex, COL.CHECKLIST.UPDATED_BY).setValue('system:reminder#' + Number(reminderCount || 0));
   return true;
 };
 
