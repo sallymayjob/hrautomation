@@ -18,6 +18,8 @@ describe('OnboardingStatusTracker', () => {
 
     expect(records).toHaveLength(1);
     expect(records[0]).toEqual(expect.objectContaining({
+      taskId: 'TSK-001',
+      onboardingId: 'ONB-001',
       userId: 'USR-001',
       employeeName: 'Ava Thompson'
     }));
@@ -38,7 +40,7 @@ describe('OnboardingStatusTracker', () => {
       if (index === 1) return 'Test User';
       return 'Completed';
     });
-    row[2] = 'DONE';
+    row[4] = 'DONE';
 
     expect(() => parseOnboardingStatusRows_([ONBOARDING_STATUS_HEADERS, row]))
       .toThrow('Allowed values: Pending, In Progress, Completed');

@@ -2,7 +2,7 @@
  * @fileoverview Parser and validator for onboarding status tracker CSV rows.
  */
 
-var ONBOARDING_STATUS_BASE_HEADERS = ['User_ID', 'Employee_Name'];
+var ONBOARDING_STATUS_BASE_HEADERS = ['Task_ID', 'Onboarding_ID', 'User_ID', 'Employee_Name'];
 var ONBOARDING_STATUS_STEP_HEADERS = [
   'Have you emailed the Letter of Offer (L.O.O) to new employee',
   'Have you prepared and emailed the Employment contract to the new employee',
@@ -74,8 +74,16 @@ function parseOnboardingStatusRows_(rows) {
       continue;
     }
 
-    var userId = row[0];
-    var employeeName = row[1];
+    var taskId = row[0];
+    var onboardingId = row[1];
+    var userId = row[2];
+    var employeeName = row[3];
+    if (!taskId) {
+      throw new Error('Onboarding tracker row ' + (i + 1) + ' is missing required Task_ID.');
+    }
+    if (!onboardingId) {
+      throw new Error('Onboarding tracker row ' + (i + 1) + ' is missing required Onboarding_ID.');
+    }
     if (!userId) {
       throw new Error('Onboarding tracker row ' + (i + 1) + ' is missing required User_ID.');
     }
@@ -94,6 +102,8 @@ function parseOnboardingStatusRows_(rows) {
     }
 
     records.push({
+      taskId: taskId,
+      onboardingId: onboardingId,
       userId: userId,
       employeeName: employeeName,
       steps: stepStatuses

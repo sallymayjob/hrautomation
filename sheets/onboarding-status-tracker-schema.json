@@ -2,6 +2,8 @@
   "schemaName": "onboarding_status_tracker",
   "version": 1,
   "baseHeaders": [
+    "Task_ID",
+    "Onboarding_ID",
     "User_ID",
     "Employee_Name"
   ],
