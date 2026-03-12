@@ -75,13 +75,27 @@
     },
     {
       "index": 11,
+      "key": "buddy_email",
+      "header": "buddy_email",
+      "type": "string",
+      "required": true
+    },
+    {
+      "index": 12,
+      "key": "buddy_slack_id",
+      "header": "buddy_slack_id",
+      "type": "string",
+      "required": false
+    },
+    {
+      "index": 13,
       "key": "dob",
       "header": "dob",
       "type": "date",
       "required": false
     },
     {
-      "index": 12,
+      "index": 14,
       "key": "status",
       "header": "status",
       "type": "enum",
@@ -94,28 +108,28 @@
       ]
     },
     {
-      "index": 13,
+      "index": 15,
       "key": "dm_sent_at",
       "header": "dm_sent_at",
       "type": "datetime",
       "required": false
     },
     {
-      "index": 14,
+      "index": 16,
       "key": "checklist_completed",
       "header": "checklist_completed",
       "type": "boolean",
       "required": false
     },
     {
-      "index": 15,
+      "index": 17,
       "key": "row_hash",
       "header": "row_hash",
       "type": "string",
       "required": false
     },
     {
-      "index": 16,
+      "index": 18,
       "key": "blocked_reason",
       "header": "blocked_reason",
       "type": "string",
@@ -129,6 +143,7 @@
     "role",
     "start_date",
     "manager_email",
+    "buddy_email",
     "status"
   ]
 }

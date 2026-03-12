@@ -46,8 +46,8 @@ describe('integration onboarding flow', () => {
   });
 
   test('pending onboarding row is processed and status updated', () => {
-    const headers = ['onboarding_id', 'employee_name', 'email', 'start_date', 'manager_email', 'role', 'status', 'row_hash'];
-    const row = ['OB-1', 'Alex Doe', 'a@x.com', '2026-01-01', 'm@x.com', 'MANAGER', 'PENDING', ''];
+    const headers = ['onboarding_id', 'employee_name', 'email', 'start_date', 'manager_email', 'buddy_email', 'role', 'status', 'row_hash'];
+    const row = ['OB-1', 'Alex Doe', 'a@x.com', '2026-01-01', 'm@x.com', 'b@x.com', 'MANAGER', 'PENDING', ''];
     const sheet = makeOnboardingSheet(headers, row);
 
     const sheetClient = {
@@ -74,8 +74,8 @@ describe('integration onboarding flow', () => {
   });
 
   test('throws clear error when required onboarding headers are missing', () => {
-    const headers = ['onboarding_id', 'employee_name', 'email', 'start_date', 'manager_email', 'status'];
-    const row = ['OB-1', 'Alex Doe', 'a@x.com', '2026-01-01', 'm@x.com', 'PENDING'];
+    const headers = ['onboarding_id', 'employee_name', 'email', 'start_date', 'manager_email', 'buddy_email', 'status'];
+    const row = ['OB-1', 'Alex Doe', 'a@x.com', '2026-01-01', 'm@x.com', 'b@x.com', 'PENDING'];
     const sheet = makeOnboardingSheet(headers, row);
 
     const { onChangeHandler } = require('../../gas/Code.gs');

@@ -133,16 +133,24 @@ function processOnboardingRow_(sheet, rowIndex) {
       return;
     }
 
-    var managerSlackId = '';
-    if (rowData.manager_email) {
-      var managerLookup = slackClient.lookupUserByEmail(rowData.manager_email);
-      managerSlackId = managerLookup && managerLookup.user && managerLookup.user.id ? managerLookup.user.id : '';
-      setValueIfColumnExists_(sheet, rowIndex, headerMap, 'manager_slack_id', managerSlackId);
+    var managerEmail = String(rowData.manager_email || '').trim();
+    if (!managerEmail) {
+      throw new Error('Manager email is required for onboarding so the trainer can be assigned.');
     }
 
+    var buddyEmail = String(rowData.buddy_email || '').trim();
+    if (!buddyEmail) {
+      throw new Error('Buddy email is required for onboarding so a peer can be assigned.');
+    }
+
+    var managerSlackId = '';
+    var managerLookup = slackClient.lookupUserByEmail(managerEmail);
+    managerSlackId = managerLookup && managerLookup.user && managerLookup.user.id ? managerLookup.user.id : '';
+    setValueIfColumnExists_(sheet, rowIndex, headerMap, 'manager_slack_id', managerSlackId);
+
     var buddySlackId = String(rowData.buddy_slack_id || '').trim();
-    if (!buddySlackId && rowData.buddy_email) {
-      var buddyLookup = slackClient.lookupUserByEmail(rowData.buddy_email);
+    if (!buddySlackId) {
+      var buddyLookup = slackClient.lookupUserByEmail(buddyEmail);
       buddySlackId = buddyLookup && buddyLookup.user && buddyLookup.user.id ? buddyLookup.user.id : '';
       setValueIfColumnExists_(sheet, rowIndex, headerMap, 'buddy_slack_id', buddySlackId);
     }
@@ -158,7 +166,7 @@ function processOnboardingRow_(sheet, rowIndex) {
     slackClient.postMessage(employeeSlackId, BlockKit.welcomeDM({
       firstName: getFirstName_(rowData.employee_name),
       startDate: formatDateKey_(startDate),
-      managerName: rowData.manager_email || 'TBD'
+      managerName: managerEmail || 'TBD'
     }));
 
     notifyOnboardingAssignment_(sheetClient, auditLogger, slackClient, {
@@ -166,7 +174,7 @@ function processOnboardingRow_(sheet, rowIndex) {
       employeeName: rowData.employee_name,
       managerSlackId: managerSlackId,
       buddySlackId: buddySlackId,
-      buddyLabel: rowData.buddy_email || buddySlackId || 'Not assigned yet',
+      buddyLabel: buddyEmail || buddySlackId || 'Not assigned yet',
       teamLabel: [rowData.brand, rowData.region, rowData.role].filter(function (value) {
         return String(value || '').trim() !== '';
       }).join(' / ') || 'General onboarding'
@@ -183,7 +191,7 @@ function processOnboardingRow_(sheet, rowIndex) {
         dueDate,
         '',
         'ASSIGNED',
-        rowData.manager_email || '',
+        managerEmail || '',
         0,
         '',
         new Date(),
@@ -267,7 +275,7 @@ function getHeaderMap_(sheet) {
 
 function validateOnboardingSchema_(sheet, headerMap) {
   var map = headerMap || getHeaderMap_(sheet);
-  var requiredKeys = ['onboarding_id', 'employee_name', 'email', 'role', 'start_date', 'manager_email', 'status'];
+  var requiredKeys = ['onboarding_id', 'employee_name', 'email', 'role', 'start_date', 'manager_email', 'buddy_email', 'status'];
   var missing = [];
   for (var i = 0; i < requiredKeys.length; i += 1) {
     if (!map[requiredKeys[i]]) {

@@ -8,8 +8,8 @@ You're done with this part.
 ## 2. How does it work?
 1. A new person joins the `#new-hires` Slack channel (a shared team chat room).
 2. HR approvals receive a direct message notification with a `Continue Workflow` button.
-3. HR clicks the button, then a form (a question page) appears asking for the new hire details.
-4. The form saves their details into a spreadsheet (an online table).
+3. HR clicks the button, then a form (a question page) appears asking for the new hire details, including required Buddy (peer) and Manager (trainer).
+4. The form saves their details into the Onboarding spreadsheet and the automation assigns an `onboarding_id` automatically.
 5. The system reads the spreadsheet and sends a welcome message with training links.
 6. Every morning, the system checks upcoming or overdue training.
 7. The system sends reminder messages to the right people.
@@ -24,7 +24,8 @@ You're done with this part.
 | Person | What they do | How often |
 |---|---|---|
 | New hire | Receives messages and clicks training links | During onboarding period |
-| Manager | Fills in the new hire form when someone joins | Each new starter |
+| Manager (trainer) | Listed on each onboarding as the trainer and receives assignment notifications | Each new starter |
+| Buddy (peer) | Listed on each onboarding as the peer buddy and receives assignment notifications | Each new starter |
 | Admin team | Sets up computer, email, and Slack before day one | Each new starter |
 | HR manager | Checks progress in the spreadsheet and updates changed training links | Weekly |
 | Tech lead | Fixes issues when something breaks after setup | Rarely |
@@ -35,7 +36,7 @@ You're done with this part.
 1. A Slack workspace (your RWR Group team chat account).
 2. A Google account with access to Sheets and Drive.
 3. A Slack app named "RWR HR Automation" created by the tech lead.
-4. Three empty Google Sheets named Onboarding, Training Log, and Audit Log.
+4. Three empty Google Sheets named Onboarding, Training Log, and Audit Log (kept as separate spreadsheets).
 5. This file folder prepared by the tech lead.
 
 You're done with this part.

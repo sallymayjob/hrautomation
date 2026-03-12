@@ -1,6 +1,6 @@
 # Setup List for Slack Intake Form
 
-Use this list when configuring the **New Employee Name**, **Manager Email**, **Role**, **Brand**, and **Region** questions in Slack Workflow Builder.
+Use this list when configuring the **New Employee Name**, **Role**, **Brand**, **Region**, **Buddy Email**, and **Manager Email** questions in Slack Workflow Builder.
 
 ## Required step before the form
 Slack requires a message step with a `Continue Workflow` button before an interactive form when the trigger is `When a person joins a channel`.
@@ -15,12 +15,21 @@ Use this configuration for the first form question so onboarding can capture Sla
 - Required: Yes
 - Hint (optional): `Tag the new starter(s) so Slack can pass their user ID(s).`
 
+
+## Buddy Email question setup
+Use this configuration so every onboarding has a peer buddy assignment:
+
+- Label: `Buddy Email`
+- Type: `Slack person` (single Slack user)
+- Required: Yes
+- Mapping note: In Google Sheets mapping, use the selected user's **email token** for `buddy_email`.
+
 ## Manager Email question setup
-Use this configuration so manager details come from a Slack user selection (not free text):
+Use this configuration so manager details come from a Slack user selection (not free text) and can act as the onboarding trainer:
 
 - Label: `Manager Email`
 - Type: `Slack person` (single Slack user)
-- Required: No
+- Required: Yes
 - Mapping note: In Google Sheets mapping, use the selected user's **email token** for `manager_email`.
 
 ## Role options
