@@ -14,11 +14,16 @@ describe('LibraryWrappers', () => {
       getOnboardingSheetName: jest.fn(() => 'Onboarding'),
       getAuditSpreadsheetId: jest.fn(() => 'audit-spreadsheet-id'),
       getAuditSheetName: jest.fn(() => 'Audit'),
+      getTrainingSpreadsheetId: jest.fn(() => 'training-spreadsheet-id'),
+      getTrainingSheetName: jest.fn(() => 'Training'),
       getHrAlertEmail: jest.fn(() => 'alerts@example.com')
     };
     global.HRLib = {
       processOnboardingBatch: jest.fn(() => ({ successCount: 1, errorCount: 0, errors: [], traceId: 'TRACE1' })),
       runAuditChecks: jest.fn(() => ({ successCount: 1, errorCount: 0, errors: [], traceId: 'TRACE2' })),
+      processTrainingAssignments: jest.fn(() => ({ successCount: 1, errorCount: 0, errors: [], traceId: 'TRACE3' })),
+      runTrainingReminders: jest.fn(() => ({ successCount: 1, errorCount: 0, errors: [], traceId: 'TRACE4' })),
+      syncTrainingCompletion: jest.fn(() => ({ successCount: 1, errorCount: 0, errors: [], traceId: 'TRACE5' })),
       writeExecutionLog: jest.fn(() => ({ successCount: 1, errorCount: 0, errors: [], traceId: 'TRACE_LOG' }))
     };
     global.MailApp = { sendEmail: jest.fn() };
@@ -77,6 +82,30 @@ describe('LibraryWrappers', () => {
     );
     expect(global.HRLib.writeExecutionLog).toHaveBeenCalled();
     expect(result.traceId).toBe('TRACE2');
+  });
+
+
+  test('training wrappers call shared training methods and append logs summary', () => {
+    const sourceSheet = createSheet([
+      ['employee_id', 'module_code', 'training_status', 'due_date'],
+      ['E-1', 'SEC-101', 'PENDING', '2026-01-03']
+    ]);
+    const logsSheet = { appendRow: jest.fn() };
+    const spreadsheet = {
+      getSheetByName: jest.fn((name) => (name === 'Training' ? sourceSheet : (name === 'Logs' ? logsSheet : null))),
+      insertSheet: jest.fn(() => logsSheet)
+    };
+    global.SpreadsheetApp = { openById: jest.fn(() => spreadsheet) };
+
+    const { runTrainingAssignments, runTrainingReminders, runTrainingSync } = require('../../gas/LibraryWrappers.gs');
+    runTrainingAssignments();
+    runTrainingReminders();
+    runTrainingSync();
+
+    expect(global.HRLib.processTrainingAssignments).toHaveBeenCalled();
+    expect(global.HRLib.runTrainingReminders).toHaveBeenCalled();
+    expect(global.HRLib.syncTrainingCompletion).toHaveBeenCalled();
+    expect(logsSheet.appendRow).toHaveBeenCalled();
   });
 
   test('runLibraryWorkflow_ uses lock guard and releases lock', () => {

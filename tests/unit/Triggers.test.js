@@ -3,7 +3,7 @@ describe('Triggers', () => {
     jest.resetModules();
     global.runOnboarding = jest.fn(() => ({ ok: true }));
     global.ScriptApp = {
-      WeekDay: { SUNDAY: 'SUNDAY' },
+      WeekDay: { SUNDAY: 'SUNDAY', MONDAY: 'MONDAY', TUESDAY: 'TUESDAY', WEDNESDAY: 'WEDNESDAY', THURSDAY: 'THURSDAY', FRIDAY: 'FRIDAY' },
       getProjectTriggers: jest.fn(() => []),
       deleteTrigger: jest.fn(),
       newTrigger: jest.fn(() => {
@@ -13,6 +13,7 @@ describe('Triggers', () => {
           atHour: jest.fn(() => chain),
           everyMinutes: jest.fn(() => chain),
           onWeekDay: jest.fn(() => chain),
+          everyHours: jest.fn(() => chain),
           create: jest.fn(() => ({}))
         };
         return chain;
@@ -35,6 +36,17 @@ describe('Triggers', () => {
 
     expect(global.ScriptApp.newTrigger).toHaveBeenCalledWith('runAudit');
     expect(global.ScriptApp.newTrigger).toHaveBeenCalledWith('runAuditDeepWeekly');
+  });
+
+
+  test('setupTrainingTriggers creates assignments/reminders/sync triggers', () => {
+    const { setupTrainingTriggers } = require('../../gas/Triggers.gs');
+
+    setupTrainingTriggers();
+
+    expect(global.ScriptApp.newTrigger).toHaveBeenCalledWith('runTrainingAssignments');
+    expect(global.ScriptApp.newTrigger).toHaveBeenCalledWith('runTrainingReminders');
+    expect(global.ScriptApp.newTrigger).toHaveBeenCalledWith('runTrainingSync');
   });
 
   test('runOnboardingBusinessHours skips outside business windows', () => {
