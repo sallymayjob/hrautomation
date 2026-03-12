@@ -1,11 +1,14 @@
-/* global ScriptApp, runDailyReminders, checkBirthdaysAndAnniversaries */
+/* global ScriptApp, runDailyReminders, checkBirthdaysAndAnniversaries, runOnboardingBusinessHours, runOnboarding, runAudit, runAuditDeepWeekly */
 /**
  * @fileoverview Trigger setup and teardown helpers.
  */
 
 var TRIGGER_HANDLERS = {
   DAILY_REMINDERS: 'runDailyReminders',
-  BIRTHDAY_CHECK: 'checkBirthdaysAndAnniversaries'
+  BIRTHDAY_CHECK: 'checkBirthdaysAndAnniversaries',
+  ONBOARDING: 'runOnboardingBusinessHours',
+  AUDIT_DAILY: 'runAudit',
+  AUDIT_WEEKLY_DEEP: 'runAuditDeepWeekly'
 };
 
 function setupDailyTrigger() {
@@ -20,10 +23,23 @@ function teardownAllTriggers() {
   var triggers = ScriptApp.getProjectTriggers();
   for (var i = 0; i < triggers.length; i += 1) {
     var handler = triggers[i].getHandlerFunction();
-    if (handler === TRIGGER_HANDLERS.DAILY_REMINDERS || handler === TRIGGER_HANDLERS.BIRTHDAY_CHECK) {
+    if (handler === TRIGGER_HANDLERS.DAILY_REMINDERS ||
+      handler === TRIGGER_HANDLERS.BIRTHDAY_CHECK ||
+      handler === TRIGGER_HANDLERS.ONBOARDING ||
+      handler === TRIGGER_HANDLERS.AUDIT_DAILY ||
+      handler === TRIGGER_HANDLERS.AUDIT_WEEKLY_DEEP) {
       ScriptApp.deleteTrigger(triggers[i]);
     }
   }
+}
+
+function setupOnboardingBusinessHoursTrigger() {
+  ensureOnboardingTrigger_();
+}
+
+function setupAuditTriggers() {
+  ensureTimeTrigger_(TRIGGER_HANDLERS.AUDIT_DAILY, 7);
+  ensureWeeklyTrigger_(TRIGGER_HANDLERS.AUDIT_WEEKLY_DEEP, ScriptApp.WeekDay.SUNDAY, 6);
 }
 
 function ensureTimeTrigger_(handlerName, hour) {
@@ -41,10 +57,54 @@ function ensureTimeTrigger_(handlerName, hour) {
     .create();
 }
 
+function ensureOnboardingTrigger_() {
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i += 1) {
+    if (triggers[i].getHandlerFunction() === TRIGGER_HANDLERS.ONBOARDING) {
+      return;
+    }
+  }
+
+  ScriptApp.newTrigger(TRIGGER_HANDLERS.ONBOARDING)
+    .timeBased()
+    .everyMinutes(15)
+    .create();
+}
+
+function ensureWeeklyTrigger_(handlerName, weekDay, hour) {
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i += 1) {
+    if (triggers[i].getHandlerFunction() === handlerName) {
+      return;
+    }
+  }
+
+  ScriptApp.newTrigger(handlerName)
+    .timeBased()
+    .onWeekDay(weekDay)
+    .atHour(hour)
+    .create();
+}
+
+function runOnboardingBusinessHours() {
+  var now = new Date();
+  var day = now.getDay();
+  var hour = now.getHours();
+  var isBusinessDay = day >= 1 && day <= 5;
+  var isBusinessHour = hour >= 8 && hour < 18;
+  if (!isBusinessDay || !isBusinessHour) {
+    return { skipped: true, reason: 'outside_business_hours' };
+  }
+  return runOnboarding();
+}
+
 if (typeof module !== 'undefined') {
   module.exports = {
     setupDailyTrigger: setupDailyTrigger,
     setupBirthdayTrigger: setupBirthdayTrigger,
-    teardownAllTriggers: teardownAllTriggers
+    teardownAllTriggers: teardownAllTriggers,
+    setupOnboardingBusinessHoursTrigger: setupOnboardingBusinessHoursTrigger,
+    setupAuditTriggers: setupAuditTriggers,
+    runOnboardingBusinessHours: runOnboardingBusinessHours
   };
 }
