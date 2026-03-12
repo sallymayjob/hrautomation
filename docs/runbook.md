@@ -9,6 +9,25 @@ Slack command output and Slack message interactions are **read-only** for onboar
 - Perform all onboarding/checklist status changes in Google Sheets.
 - If someone requests Slack status buttons, decline and route to Sheets update procedure.
 
+## 0) Workflow Map Ownership and Handoff States
+
+Use this ownership split when deciding where to execute or remediate actions:
+
+- **Onboarding spreadsheet** owns: new hire intake, account provisioning start, and Day-1 readiness.
+- **Training spreadsheet** owns: course assignment, completion tracking, overdue reminders, and manager escalation.
+- **Audit spreadsheet** owns: policy/compliance verification, evidence snapshots, and unresolved exception reporting.
+
+### Cross-sheet handoff contract
+
+All sheet-to-sheet handoffs must join on shared key `EmployeeID`.
+
+1. `ONBOARDING_COMPLETE` in the Onboarding sheet triggers **Training intake** for the same `EmployeeID`.
+2. `TRAINING_COMPLETE` in the Training sheet triggers **Audit eligibility** for the same `EmployeeID`.
+
+Operational rule: perform the action in the owner sheet above; only advance to the next sheet when the handoff status is set and `EmployeeID` is present.
+
+---
+
 ## 1) Daily Checks
 
 Perform these checks at the start of every support shift.
