@@ -40,6 +40,14 @@ var Config = (function () {
     return String(getRaw_(key));
   }
 
+  function getOptionalString_(key) {
+    var value = PropertiesService.getScriptProperties().getProperty(key);
+    if (value === null || value === '') {
+      return '';
+    }
+    return String(value);
+  }
+
   function getNumber_(key) {
     var value = Number(getRaw_(key));
     if (isNaN(value)) {
@@ -60,7 +68,11 @@ var Config = (function () {
     },
 
     getAuditSpreadsheetId: function () {
-      return getString_(KEYS.AUDIT_SPREADSHEET_ID);
+      var auditSpreadsheetId = getOptionalString_(KEYS.AUDIT_SPREADSHEET_ID);
+      if (auditSpreadsheetId) {
+        return auditSpreadsheetId;
+      }
+      return getString_(KEYS.TRAINING_SPREADSHEET_ID);
     },
 
     getChecklistSpreadsheetId: function () {

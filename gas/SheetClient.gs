@@ -211,11 +211,15 @@ var DASHBOARD_SCHEMAS = {
 
 function SheetClient() {}
 
+SheetClient.prototype.getAuditSpreadsheetId_ = function () {
+  return Config.getAuditSpreadsheetId() || Config.getTrainingSpreadsheetId();
+};
+
 SheetClient.prototype.validateRequiredNamedFunctions = function (auditLogger) {
   var sheetIds = [
     Config.getOnboardingSpreadsheetId(),
     Config.getTrainingSpreadsheetId(),
-    Config.getAuditSpreadsheetId()
+    this.getAuditSpreadsheetId_()
   ];
   var missing = [];
 
@@ -487,7 +491,7 @@ SheetClient.prototype.getTrainingSheet_ = function () {
 };
 
 SheetClient.prototype.getAuditSheet_ = function () {
-  return this.getSheetFromSpreadsheet_(Config.getAuditSpreadsheetId(), Config.getAuditSheetName(), 'AUDIT_SHEET_NAME');
+  return this.getSheetFromSpreadsheet_(this.getAuditSpreadsheetId_(), Config.getAuditSheetName(), 'AUDIT_SHEET_NAME');
 };
 
 SheetClient.prototype.getChecklistSheet_ = function () {
@@ -517,7 +521,7 @@ SheetClient.prototype.resolveSpreadsheetIdBySheetName_ = function (sheetName) {
     return Config.getTrainingSpreadsheetId();
   }
   if (sheetName === Config.getAuditSheetName()) {
-    return Config.getAuditSpreadsheetId();
+    return this.getAuditSpreadsheetId_();
   }
   if (sheetName === Config.getChecklistSheetName()) {
     return Config.getChecklistSpreadsheetId();

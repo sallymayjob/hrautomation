@@ -87,6 +87,26 @@ describe('LibraryWrappers', () => {
   });
 
 
+
+  test('runAudit uses training spreadsheet id when audit spreadsheet id resolves to training fallback', () => {
+    global.Config.getAuditSpreadsheetId.mockReturnValue('training-spreadsheet-id');
+    const sourceSheet = createSheet([
+      ['Entity ID', 'Action', 'Event Timestamp'],
+      ['ONB-1', 'UPDATE', '2026-01-01T00:00:00Z']
+    ]);
+    const logSheet = { appendRow: jest.fn() };
+    const spreadsheet = {
+      getSheetByName: jest.fn((name) => (name === 'Audit' ? sourceSheet : logSheet)),
+      insertSheet: jest.fn(() => logSheet)
+    };
+    global.SpreadsheetApp = { openById: jest.fn(() => spreadsheet) };
+
+    const { runAudit } = require('../../gas/LibraryWrappers.gs');
+    runAudit();
+
+    expect(global.SpreadsheetApp.openById).toHaveBeenCalledWith('training-spreadsheet-id');
+  });
+
   test('training wrappers call shared training methods and append logs summary', () => {
     const sourceSheet = createSheet([
       ['employee_id', 'module_code', 'training_status', 'due_date'],

@@ -5,9 +5,9 @@ You can set this up with copy/paste + clicks only.
 
 ---
 
-## 0) System layout (important): 3 separate spreadsheets
+## 0) System layout (important): 2 or 3 spreadsheets
 
-Use **three different Google Sheets files**:
+Use either **two** files (audit merged into training) or **three** files (separate audit workbook):
 
 1. **Onboarding Spreadsheet** (contains onboarding + checklist + onboarding dashboard)
    - Raw tabs: `Onboarding`, `Checklist`
@@ -19,13 +19,13 @@ Use **three different Google Sheets files**:
    - Dashboard tabs: `Training_KPI`, `Training_Module`, `Training_Course`, `Training_Operations`
    - Purpose: LMS analytics + operational monitoring (progress, gaps, submissions, queue load, and automation telemetry summarized in `Audit_Log`).
 
-3. **Audit Spreadsheet** (contains canonical runtime audit ledger + audit dashboard)
+3. **Audit Spreadsheet** *(optional separate workbook)*
    - Raw tab: `Audit`
    - Dashboard tabs: `Audit_Dashboard`, `Audit_KPI`, `Audit_Pivot`
    - Purpose: immutable policy/compliance and exception ledger used as the system audit source of truth.
 
-> **Important:** The project's canonical runtime audit ledger is the dedicated `Audit` tab in the separate audit workbook (schema in `sheets/audit-schema.json`, fixture in `sheets/audit-log.csv`).
-> `Audit_Log` in the training workbook is dashboard/operations telemetry only (`sheets/training-tabs/training-operations-log.csv`) and is **not** the compliance ledger of record.
+> **Important:** Runtime audit uses `AUDIT_SPREADSHEET_ID` when configured; otherwise it uses `TRAINING_SPREADSHEET_ID`. Keep the canonical `Audit` tab in whichever workbook is configured as runtime audit storage.
+> `Audit_Log` in the training workbook remains dashboard/operations telemetry (`sheets/training-tabs/training-operations-log.csv`) and is **not** a replacement for the canonical `Audit` tab ledger.
 
 ---
 
