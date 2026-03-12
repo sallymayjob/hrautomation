@@ -211,3 +211,16 @@ When rolling out schema-affecting releases, apply changes in this exact order to
    - Run a controlled test execution and verify no `SCHEMA_WRITE_BLOCKED` structured errors are appended to Audit.
 
 Rollback note: if deployment fails validation, revert script deployment, restore prior sheet headers/metadata, and re-apply migration in order.
+
+## 9) Shared Library Version Rollout Policy
+
+Follow `docs/library-rollout-policy.md` for all shared Apps Script library releases.
+
+Mandatory rules:
+
+1. Publish an immutable library version with a changelog before workbook upgrades.
+2. Keep Onboarding and Audit pinned to the same stable version.
+3. Upgrade Onboarding first; upgrade Audit only after Onboarding validation passes.
+4. Keep rollback notes with the previous known-good version and restore steps.
+5. Capture who approved the bump and where version references were updated.
+

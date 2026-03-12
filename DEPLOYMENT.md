@@ -492,3 +492,19 @@ You're done with this part.
 You're done with this part.
 
 *RWR Group · Confidential · RWR-HAF v1.1*
+
+## Shared library rollout policy (Onboarding + Audit)
+
+Use this policy whenever you release a new shared Apps Script library version.
+
+1. Publish a new immutable library version and changelog first.
+2. Keep both production workbooks pinned to the same stable library version.
+3. Upgrade Onboarding first and validate before touching Audit.
+4. Upgrade Audit only after Onboarding validation passes.
+5. Keep rollback notes with previous known-good version number and restore steps.
+6. Record approvers for each bump:
+   - Engineering owner
+   - HR operations owner
+7. Update version references in both Apps Script projects (Onboarding and Audit), then log the new + previous versions in the release ticket.
+
+Reference: `docs/library-rollout-policy.md`.

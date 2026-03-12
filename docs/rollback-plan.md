@@ -18,7 +18,10 @@ Objective: restore reliable scheduled execution.
    - Correct deployment/environment binding.
 4. Execute one controlled manual run.
 5. Confirm expected behavior in logs and sheet status transitions.
-6. If still unstable, roll back script version to last known-good deployment and re-test.
+6. If still unstable, roll back script/library version to the last known-good deployment and re-test.
+7. Record both version numbers in incident notes:
+   - Previous known-good version.
+   - Failed candidate version.
 
 ## 2) Bot Token Emergency Rotation
 
@@ -106,3 +109,12 @@ Objective: recover dashboard integrity when tab names or header schemas drift fr
 7. Resume service with controlled verification:
    - Run one manual dashboard refresh.
    - Verify KPI cards, pivots, and chart references resolve without `#REF!` or `#N/A` schema errors.
+
+## 8) Library Version Rollback Reference
+
+For shared library release incidents, follow `docs/library-rollout-policy.md` and include these fields in the rollback log:
+
+1. Previous known-good library version number used by production.
+2. Candidate version that was rolled back.
+3. Confirmation that Onboarding and Audit were both reset to the same known-good version.
+4. Name of approver authorizing rollback and re-rollout.
