@@ -51,19 +51,18 @@ function writeExecutionLog(runContext, results) {
   var normalizedResults = results || {};
   var traceId = getTraceId_(context.traceId || normalizedResults.traceId);
   var errors = [];
-  var logEntry = {
-    traceId: traceId,
-    workflow: String(context.workflow || context.workflowName || 'shared_hr_library'),
-    actor: String(context.actor || 'system'),
-    timestamp: new Date(),
-    successCount: Number(normalizedResults.successCount || 0),
-    errorCount: Number(normalizedResults.errorCount || 0),
-    errors: Array.isArray(normalizedResults.errors) ? normalizedResults.errors : []
-  };
+  var spreadsheet = context.spreadsheet;
+  var logEntries = Array.isArray(context.entries) && context.entries.length > 0
+    ? context.entries
+    : [buildDefaultLogEntry_(context, normalizedResults, traceId)];
 
   try {
-    if (context.logger && typeof context.logger.log === 'function') {
-      context.logger.log(logEntry);
+    if (spreadsheet && typeof spreadsheet.getSheetByName === 'function' && typeof spreadsheet.insertSheet === 'function') {
+      writeRowsToLogSheets_(spreadsheet, logEntries, traceId);
+    } else if (context.logger && typeof context.logger.log === 'function') {
+      for (var i = 0; i < logEntries.length; i += 1) {
+        context.logger.log(logEntries[i]);
+      }
     } else {
       errors.push(buildOperatorError_('LOGGING_CHANNEL_UNAVAILABLE', 0,
         'We could not save the execution log because no logging channel is configured. Please contact your HR systems admin.'));
@@ -74,6 +73,54 @@ function writeExecutionLog(runContext, results) {
   }
 
   return buildResult_(traceId, errors.length === 0 ? 1 : 0, errors);
+}
+
+function buildDefaultLogEntry_(context, normalizedResults, traceId) {
+  return {
+    timestamp: new Date(),
+    spreadsheetType: String(context.spreadsheetType || context.workflowName || context.workflow || 'shared_hr_library'),
+    function: String(context.functionName || context.libraryMethodName || 'writeExecutionLog'),
+    traceId: traceId,
+    recordKey: String(context.recordKey || context.runId || ''),
+    result: Number(normalizedResults.errorCount || 0) > 0 ? 'FAILURE' : 'SUCCESS',
+    errorMessage: Number(normalizedResults.errorCount || 0) > 0 ? 'One or more records failed validation.' : ''
+  };
+}
+
+function writeRowsToLogSheets_(spreadsheet, logEntries, traceId) {
+  var automationLogSheet = getOrCreateLogSheet_(spreadsheet, 'Automation Logs');
+  var exceptionsSheet = getOrCreateLogSheet_(spreadsheet, 'Exceptions');
+
+  for (var i = 0; i < logEntries.length; i += 1) {
+    var entry = logEntries[i] || {};
+    var normalizedRow = normalizeLogEntry_(entry, traceId);
+    automationLogSheet.appendRow(normalizedRow);
+
+    if (String(normalizedRow[5]).toUpperCase() !== 'SUCCESS') {
+      exceptionsSheet.appendRow(normalizedRow);
+    }
+  }
+}
+
+function getOrCreateLogSheet_(spreadsheet, sheetName) {
+  var sheet = spreadsheet.getSheetByName(sheetName);
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(sheetName);
+    sheet.appendRow(['timestamp', 'spreadsheetType', 'function', 'traceId', 'recordKey', 'result', 'errorMessage']);
+  }
+  return sheet;
+}
+
+function normalizeLogEntry_(entry, traceId) {
+  return [
+    entry.timestamp instanceof Date ? entry.timestamp : new Date(),
+    String(entry.spreadsheetType || 'unknown'),
+    String(entry.function || entry.functionName || 'unknown'),
+    String(entry.traceId || traceId || ''),
+    String(entry.recordKey || ''),
+    String(entry.result || 'UNKNOWN'),
+    String(entry.errorMessage || '')
+  ];
 }
 
 function notifyExceptions(exceptions, recipients) {
