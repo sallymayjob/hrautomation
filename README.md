@@ -58,4 +58,5 @@ You're done with this part.
 ## Architecture and dataflow
 - See `docs/architecture-dataflow.md` for sheet connections, ownership boundaries, write rules, and failure behavior.
 - See `docs/library-entry-schema.md` for canonical library entry headers, data types, config-tab version marker, and schema guard behavior.
+- See `docs/id-map-formulas.md` for Google Sheets formulas that auto-generate onboarding/training IDs and build a live cross-sheet ID map.
 
