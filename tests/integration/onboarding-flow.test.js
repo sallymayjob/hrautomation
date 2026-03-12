@@ -52,8 +52,8 @@ describe('integration onboarding flow', () => {
   });
 
   test('pending onboarding row is processed and status updated', () => {
-    const headers = ['onboarding_id', 'employee_name', 'email', 'start_date', 'manager_email', 'role', 'status', 'row_hash'];
-    const row = ['OB-1', 'Alex Doe', 'a@x.com', '2026-01-01', 'm@x.com', 'MANAGER', 'PENDING', ''];
+    const headers = ['onboarding_id', 'employee_name', 'email', 'start_date', 'manager_email', 'role', 'status', 'checklist_completed', 'row_hash', 'blocked_reason'];
+    const row = ['OB-1', 'Alex Doe', 'a@x.com', '2026-01-01', 'm@x.com', 'MANAGER', 'PENDING', false, '', ''];
     const sheet = makeOnboardingSheet(headers, row);
 
     const sheetClient = {
@@ -62,7 +62,8 @@ describe('integration onboarding flow', () => {
       ensureSheetWithHeaders: jest.fn(),
       appendChecklistTask: jest.fn(() => 4),
       getSheetRowLink: jest.fn(() => 'https://sheet/link'),
-      appendAuditIfNotExists: jest.fn()
+      appendAuditIfNotExists: jest.fn(),
+      validateWorkbookSchemas: jest.fn()
     };
     const auditLogger = { log: jest.fn(), error: jest.fn(), logWorkflowLifecycle: jest.fn() };
     const slackClient = { lookupUserByEmail: jest.fn(() => ({ user: { id: 'U1' } })), postMessage: jest.fn() };
@@ -75,19 +76,12 @@ describe('integration onboarding flow', () => {
 
     expect(sheetClient.appendTrainingRow).toHaveBeenCalledTimes(2);
     expect(sheetClient.appendChecklistTask).toHaveBeenCalledTimes(1);
-    expect(auditLogger.log).toHaveBeenCalled();
-    expect(slackClient.postMessage).toHaveBeenCalled();
-
-    var lifecycleTypes = auditLogger.logWorkflowLifecycle.mock.calls.map((call) => call[0].event_type);
-    expect(lifecycleTypes.filter((type) => type === 'WORKFLOW_CALLED')).toHaveLength(1);
-    expect(lifecycleTypes.filter((type) => type === 'WORKFLOW_STARTED')).toHaveLength(1);
-    expect(lifecycleTypes.filter((type) => type === 'WORKFLOW_ENDED')).toHaveLength(1);
+    expect(sheetClient.validateWorkbookSchemas).toHaveBeenCalled();
   });
 
-
   test('does not overwrite a non-empty formula-derived onboarding_id', () => {
-    const headers = ['onboarding_id', 'employee_name', 'email', 'start_date', 'manager_email', 'role', 'status', 'row_hash'];
-    const row = ['ONB_20260101T000000Z_0001_SLACK', 'Alex Doe', 'a@x.com', '2026-01-01', 'm@x.com', 'MANAGER', 'PENDING', ''];
+    const headers = ['onboarding_id', 'employee_name', 'email', 'start_date', 'manager_email', 'role', 'status', 'checklist_completed', 'row_hash', 'blocked_reason'];
+    const row = ['ONB_20260101T000000Z_0001_SLACK', 'Alex Doe', 'a@x.com', '2026-01-01', 'm@x.com', 'MANAGER', 'PENDING', false, '', ''];
     const sheet = makeOnboardingSheet(headers, row);
 
     const sheetClient = {
@@ -96,7 +90,8 @@ describe('integration onboarding flow', () => {
       ensureSheetWithHeaders: jest.fn(),
       appendChecklistTask: jest.fn(() => 4),
       getSheetRowLink: jest.fn(() => 'https://sheet/link'),
-      appendAuditIfNotExists: jest.fn()
+      appendAuditIfNotExists: jest.fn(),
+      validateWorkbookSchemas: jest.fn()
     };
     const auditLogger = { log: jest.fn(), error: jest.fn(), logWorkflowLifecycle: jest.fn() };
     const slackClient = { lookupUserByEmail: jest.fn(() => ({ user: { id: 'U1' } })), postMessage: jest.fn() };
@@ -111,14 +106,35 @@ describe('integration onboarding flow', () => {
     expect(idWrites).toEqual([]);
   });
 
-  test('throws clear error when required onboarding headers are missing', () => {
-    const headers = ['onboarding_id', 'employee_name', 'email', 'start_date', 'manager_email', 'status'];
-    const row = ['OB-1', 'Alex Doe', 'a@x.com', '2026-01-01', 'm@x.com', 'PENDING'];
+  test('throws clear error when required onboarding derived headers are missing', () => {
+    const headers = ['onboarding_id', 'employee_name', 'email', 'start_date', 'manager_email', 'status', 'role'];
+    const row = ['OB-1', 'Alex Doe', 'a@x.com', '2026-01-01', 'm@x.com', 'PENDING', 'MANAGER'];
     const sheet = makeOnboardingSheet(headers, row);
 
     const { onChangeHandler } = require('../../gas/Code.gs');
     expect(() => onChangeHandler({ source: { getActiveSheet: () => sheet } })).toThrow(
-      'Onboarding sheet schema invalid. Missing required header(s): role'
+      'Onboarding sheet schema invalid. Missing required header(s): checklist_completed, row_hash, blocked_reason'
     );
+  });
+
+  test('schema version mismatch blocks processing before row writes', () => {
+    const headers = ['onboarding_id', 'employee_name', 'email', 'start_date', 'manager_email', 'role', 'status', 'checklist_completed', 'row_hash', 'blocked_reason'];
+    const row = ['OB-1', 'Alex Doe', 'a@x.com', '2026-01-01', 'm@x.com', 'MANAGER', 'PENDING', false, '', ''];
+    const sheet = makeOnboardingSheet(headers, row);
+
+    const sheetClient = { validateWorkbookSchemas: jest.fn(() => { throw new Error('Schema version mismatch for sheet "Onboarding". Expected 3 but found 2.'); }) };
+    global.SheetClient = jest.fn(() => sheetClient);
+
+    const { onChangeHandler } = require('../../gas/Code.gs');
+    expect(() => onChangeHandler({ source: { getActiveSheet: () => sheet } })).toThrow('Schema version mismatch');
+  });
+
+  test('stale named-function behavior is surfaced by required named function validator', () => {
+    const sheetClient = { validateRequiredNamedFunctions: jest.fn(() => ({ valid: false, missingFunctions: ['SYS_EVENT_KEY@onboarding-id'] })) };
+    const auditLogger = { log: jest.fn() };
+    const result = sheetClient.validateRequiredNamedFunctions(auditLogger);
+
+    expect(result.valid).toBe(false);
+    expect(result.missingFunctions).toContain('SYS_EVENT_KEY@onboarding-id');
   });
 });

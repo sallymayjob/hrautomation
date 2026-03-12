@@ -65,5 +65,19 @@
       ],
       "population": "script"
     }
+  ],
+  "schemaConfigTab": "_sys_config",
+  "schemaVersionMetadataKey": "Training.schema_version",
+  "requiredHeaders": [
+    "employee_id",
+    "module_code",
+    "module_name",
+    "assigned_date",
+    "due_date",
+    "completion_date",
+    "training_status",
+    "last_updated_at",
+    "completion_hash",
+    "celebration_posted"
   ]
 }

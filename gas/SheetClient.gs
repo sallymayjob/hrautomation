@@ -86,6 +86,41 @@ var REQUIRED_NAMED_FUNCTIONS = {
   }
 };
 
+var SCHEMA_CONFIG_TAB = '_sys_config';
+
+var SHEET_SCHEMA_SPECS = {
+  onboarding: {
+    expectedVersion: 3,
+    requiredHeaders: ['onboarding_id', 'employee_name', 'email', 'role', 'start_date', 'manager_email', 'status', 'checklist_completed', 'row_hash', 'blocked_reason'],
+    spreadsheetIdGetter: function () {
+      return Config.getOnboardingSpreadsheetId();
+    },
+    sheetNameGetter: function () {
+      return Config.getOnboardingSheetName();
+    }
+  },
+  training: {
+    expectedVersion: 1,
+    requiredHeaders: ['employee_id', 'module_code', 'module_name', 'assigned_date', 'due_date', 'completion_date', 'training_status', 'last_updated_at', 'completion_hash', 'celebration_posted'],
+    spreadsheetIdGetter: function () {
+      return Config.getTrainingSpreadsheetId();
+    },
+    sheetNameGetter: function () {
+      return Config.getTrainingSheetName();
+    }
+  },
+  audit: {
+    expectedVersion: 1,
+    requiredHeaders: ['audit_id', 'event_timestamp', 'actor_email', 'entity_type', 'entity_id', 'action', 'details', 'event_hash'],
+    spreadsheetIdGetter: function () {
+      return Config.getAuditSpreadsheetId();
+    },
+    sheetNameGetter: function () {
+      return Config.getAuditSheetName();
+    }
+  }
+};
+
 var DASHBOARD_SCHEMAS = {
   onboarding: {
     spreadsheetIdGetter: function () {
@@ -217,6 +252,126 @@ SheetClient.prototype.getSheetFromSpreadsheet_ = function (spreadsheetId, sheetN
     throw new Error('Sheet not found: ' + sheetName + ' (configured by ' + propertyLabel + ')');
   }
   return sheet;
+};
+
+
+SheetClient.prototype.getConfigSheet_ = function (spreadsheet) {
+  var configSheet = spreadsheet.getSheetByName(SCHEMA_CONFIG_TAB);
+  if (!configSheet) {
+    configSheet = spreadsheet.insertSheet(SCHEMA_CONFIG_TAB);
+    configSheet.getRange(1, 1, 1, 2).setValues([['key', 'value']]);
+  } else if (configSheet.getLastRow() < 1) {
+    configSheet.getRange(1, 1, 1, 2).setValues([['key', 'value']]);
+  }
+  return configSheet;
+};
+
+SheetClient.prototype.ensureSchemaVersionMetadata = function () {
+  var schemaKeys = Object.keys(SHEET_SCHEMA_SPECS);
+  for (var i = 0; i < schemaKeys.length; i += 1) {
+    var schemaKey = schemaKeys[i];
+    var spec = SHEET_SCHEMA_SPECS[schemaKey];
+    var spreadsheet = this.openSpreadsheetById_(spec.spreadsheetIdGetter());
+    var configSheet = this.getConfigSheet_(spreadsheet);
+    var key = spec.sheetNameGetter() + '.schema_version';
+    var rowIndex = this.findRowIndexByValue_(configSheet, 1, key);
+    var expectedVersion = String(spec.expectedVersion);
+    if (rowIndex < 0) {
+      configSheet.appendRow([key, expectedVersion]);
+      continue;
+    }
+    configSheet.getRange(rowIndex, 2).setValue(expectedVersion);
+  }
+};
+
+SheetClient.prototype.getSchemaVersionFromConfig_ = function (spreadsheet, sheetName) {
+  var configSheet = spreadsheet.getSheetByName(SCHEMA_CONFIG_TAB);
+  if (!configSheet || configSheet.getLastRow() < 2) {
+    return '';
+  }
+  var key = sheetName + '.schema_version';
+  var rows = configSheet.getRange(2, 1, configSheet.getLastRow() - 1, 2).getValues();
+  for (var i = 0; i < rows.length; i += 1) {
+    if (String(rows[i][0] || '').trim() === key) {
+      return String(rows[i][1] || '').trim();
+    }
+  }
+  return '';
+};
+
+SheetClient.prototype.validateSheetSchema_ = function (sheet, expectedVersion, requiredHeaders) {
+  var headerMap = this.getHeaderMap_(sheet);
+  var missing = [];
+  for (var i = 0; i < requiredHeaders.length; i += 1) {
+    var key = this.normalizeKey_(requiredHeaders[i]);
+    if (!headerMap[key]) {
+      missing.push(key);
+    }
+  }
+  if (missing.length > 0) {
+    throw new Error('Schema mismatch on sheet "' + sheet.getName() + '". Missing required header(s): ' + missing.join(', '));
+  }
+
+  var spreadsheet = sheet.getParent();
+  var currentVersion = this.getSchemaVersionFromConfig_(spreadsheet, sheet.getName());
+  if (!currentVersion) {
+    throw new Error('Schema version metadata missing for sheet "' + sheet.getName() + '". Expected version ' + expectedVersion + '.');
+  }
+  if (String(currentVersion) !== String(expectedVersion)) {
+    throw new Error('Schema version mismatch for sheet "' + sheet.getName() + '". Expected ' + expectedVersion + ' but found ' + currentVersion + '.');
+  }
+  return true;
+};
+
+SheetClient.prototype.validateSchemaForSheetName_ = function (sheetName) {
+  var schemaKeys = Object.keys(SHEET_SCHEMA_SPECS);
+  for (var i = 0; i < schemaKeys.length; i += 1) {
+    var schemaKey = schemaKeys[i];
+    var spec = SHEET_SCHEMA_SPECS[schemaKey];
+    if (spec.sheetNameGetter() === sheetName) {
+      var sheet = this.getSheetFromSpreadsheet_(spec.spreadsheetIdGetter(), sheetName, schemaKey.toUpperCase() + '_SHEET_NAME');
+      this.validateSheetSchema_(sheet, spec.expectedVersion, spec.requiredHeaders);
+      return;
+    }
+  }
+};
+
+SheetClient.prototype.validateWorkbookSchemas = function () {
+  var schemaKeys = Object.keys(SHEET_SCHEMA_SPECS);
+  for (var i = 0; i < schemaKeys.length; i += 1) {
+    var spec = SHEET_SCHEMA_SPECS[schemaKeys[i]];
+    var sheet = this.getSheetFromSpreadsheet_(spec.spreadsheetIdGetter(), spec.sheetNameGetter(), schemaKeys[i].toUpperCase() + '_SHEET_NAME');
+    this.validateSheetSchema_(sheet, spec.expectedVersion, spec.requiredHeaders);
+  }
+  return true;
+};
+
+SheetClient.prototype.safeWrite_ = function (sheetName, writeOperation, context) {
+  try {
+    this.validateSchemaForSheetName_(sheetName);
+    return writeOperation();
+  } catch (err) {
+    var details = JSON.stringify({
+      type: 'SCHEMA_WRITE_BLOCKED',
+      sheet: sheetName,
+      context: context || {},
+      error: String(err && err.message ? err.message : err)
+    });
+    try {
+      var auditSheet = this.getAuditSheet_();
+      this.appendRow_(auditSheet, [
+        Utilities.getUuid(),
+        new Date(),
+        'system',
+        'System',
+        sheetName,
+        'UPDATE',
+        details,
+        computeHash(['SCHEMA_WRITE_BLOCKED', sheetName, details])
+      ]);
+    } catch (auditErr) {}
+    throw err;
+  }
 };
 
 SheetClient.prototype.getOnboardingSheet_ = function () {
@@ -448,54 +603,63 @@ SheetClient.prototype.findOnboardingByEmployeeId = function (employeeId) {
 };
 
 SheetClient.prototype.appendOnboardingRow = function (rowValues) {
-  var sheet = this.getOnboardingSheet_();
-  var idColumn = this.getColumnIndexByHeaderKey_(sheet, 'onboarding_id', true);
-  var existing = this.findRowIndexByValue_(sheet, idColumn, rowValues[idColumn - 1]);
-  if (existing > -1) {
-    this.writeRow_(sheet, existing, rowValues);
-    return existing;
-  }
-  return this.appendRow_(sheet, rowValues);
+  var self = this;
+  return this.safeWrite_(Config.getOnboardingSheetName(), function () {
+    var sheet = self.getOnboardingSheet_();
+    var idColumn = self.getColumnIndexByHeaderKey_(sheet, 'onboarding_id', true);
+    var existing = self.findRowIndexByValue_(sheet, idColumn, rowValues[idColumn - 1]);
+    if (existing > -1) {
+      self.writeRow_(sheet, existing, rowValues);
+      return existing;
+    }
+    return self.appendRow_(sheet, rowValues);
+  }, { operation: 'appendOnboardingRow' });
 };
 
 SheetClient.prototype.upsertOnboardingRow = function (employeeId, rowValues) {
-  var sheet = this.getOnboardingSheet_();
-  var idColumn = this.getColumnIndexByHeaderKey_(sheet, 'onboarding_id', true);
-  var rowIndex = this.findRowIndexByValue_(sheet, idColumn, employeeId);
-  if (rowIndex < 0) {
-    return this.appendRow_(sheet, rowValues);
-  }
-  this.writeRow_(sheet, rowIndex, rowValues);
-  return rowIndex;
+  var self = this;
+  return this.safeWrite_(Config.getOnboardingSheetName(), function () {
+    var sheet = self.getOnboardingSheet_();
+    var idColumn = self.getColumnIndexByHeaderKey_(sheet, 'onboarding_id', true);
+    var rowIndex = self.findRowIndexByValue_(sheet, idColumn, employeeId);
+    if (rowIndex < 0) {
+      return self.appendRow_(sheet, rowValues);
+    }
+    self.writeRow_(sheet, rowIndex, rowValues);
+    return rowIndex;
+  }, { operation: 'upsertOnboardingRow', employeeId: employeeId });
 };
 
 SheetClient.prototype.updateOnboardingStatus = function (employeeId, status) {
-  var sheet = this.getOnboardingSheet_();
-  var idColumn = this.getColumnIndexByHeaderKey_(sheet, 'onboarding_id', true);
-  var statusColumn = this.getColumnIndexByHeaderKey_(sheet, 'status', true);
-  var blockedReasonColumn = this.getColumnIndexByHeaderKey_(sheet, 'blocked_reason', false);
-  var rowIndex = this.findRowIndexByValue_(sheet, idColumn, employeeId);
-  if (rowIndex < 0) {
-    return false;
-  }
-
-  var nextStatus = String(status || '').trim().toUpperCase();
-  if (nextStatus === 'COMPLETE') {
-    var gateResult = this.evaluateOnboardingCompletionGate(employeeId);
-    if (!gateResult.canComplete) {
-      sheet.getRange(rowIndex, statusColumn).setValue('BLOCKED');
-      if (blockedReasonColumn > 0) {
-        sheet.getRange(rowIndex, blockedReasonColumn).setValue(gateResult.blockedReason);
-      }
+  var self = this;
+  return this.safeWrite_(Config.getOnboardingSheetName(), function () {
+    var sheet = self.getOnboardingSheet_();
+    var idColumn = self.getColumnIndexByHeaderKey_(sheet, 'onboarding_id', true);
+    var statusColumn = self.getColumnIndexByHeaderKey_(sheet, 'status', true);
+    var blockedReasonColumn = self.getColumnIndexByHeaderKey_(sheet, 'blocked_reason', false);
+    var rowIndex = self.findRowIndexByValue_(sheet, idColumn, employeeId);
+    if (rowIndex < 0) {
       return false;
     }
-  }
 
-  sheet.getRange(rowIndex, statusColumn).setValue(status);
-  if (blockedReasonColumn > 0 && nextStatus !== 'BLOCKED') {
-    sheet.getRange(rowIndex, blockedReasonColumn).setValue('');
-  }
-  return true;
+    var nextStatus = String(status || '').trim().toUpperCase();
+    if (nextStatus === 'COMPLETE') {
+      var gateResult = self.evaluateOnboardingCompletionGate(employeeId);
+      if (!gateResult.canComplete) {
+        sheet.getRange(rowIndex, statusColumn).setValue('BLOCKED');
+        if (blockedReasonColumn > 0) {
+          sheet.getRange(rowIndex, blockedReasonColumn).setValue(gateResult.blockedReason);
+        }
+        return false;
+      }
+    }
+
+    sheet.getRange(rowIndex, statusColumn).setValue(status);
+    if (blockedReasonColumn > 0 && nextStatus !== 'BLOCKED') {
+      sheet.getRange(rowIndex, blockedReasonColumn).setValue('');
+    }
+    return true;
+  }, { operation: 'updateOnboardingStatus', employeeId: employeeId });
 };
 
 SheetClient.prototype.evaluateOnboardingCompletionGate = function (employeeId) {
@@ -563,39 +727,48 @@ SheetClient.prototype.findTrainingByEmployeeAndModule = function (employeeId, mo
 };
 
 SheetClient.prototype.appendTrainingRow = function (rowValues) {
-  var sheet = this.getTrainingSheet_();
-  var existing = this.findRowIndexByValues_(
-    sheet,
-    COL.TRAINING.EMPLOYEE_ID,
-    rowValues[COL.TRAINING.EMPLOYEE_ID - 1],
-    COL.TRAINING.MODULE_CODE,
-    rowValues[COL.TRAINING.MODULE_CODE - 1]
-  );
-  if (existing > -1) {
-    this.writeRow_(sheet, existing, rowValues);
-    return existing;
-  }
-  return this.appendRow_(sheet, rowValues);
+  var self = this;
+  return this.safeWrite_(Config.getTrainingSheetName(), function () {
+    var sheet = self.getTrainingSheet_();
+    var existing = self.findRowIndexByValues_(
+      sheet,
+      COL.TRAINING.EMPLOYEE_ID,
+      rowValues[COL.TRAINING.EMPLOYEE_ID - 1],
+      COL.TRAINING.MODULE_CODE,
+      rowValues[COL.TRAINING.MODULE_CODE - 1]
+    );
+    if (existing > -1) {
+      self.writeRow_(sheet, existing, rowValues);
+      return existing;
+    }
+    return self.appendRow_(sheet, rowValues);
+  }, { operation: 'appendTrainingRow' });
 };
 
 SheetClient.prototype.upsertTrainingRow = function (employeeId, moduleCode, rowValues) {
-  var sheet = this.getTrainingSheet_();
-  var rowIndex = this.findRowIndexByValues_(sheet, COL.TRAINING.EMPLOYEE_ID, employeeId, COL.TRAINING.MODULE_CODE, moduleCode);
-  if (rowIndex < 0) {
-    return this.appendRow_(sheet, rowValues);
-  }
-  this.writeRow_(sheet, rowIndex, rowValues);
-  return rowIndex;
+  var self = this;
+  return this.safeWrite_(Config.getTrainingSheetName(), function () {
+    var sheet = self.getTrainingSheet_();
+    var rowIndex = self.findRowIndexByValues_(sheet, COL.TRAINING.EMPLOYEE_ID, employeeId, COL.TRAINING.MODULE_CODE, moduleCode);
+    if (rowIndex < 0) {
+      return self.appendRow_(sheet, rowValues);
+    }
+    self.writeRow_(sheet, rowIndex, rowValues);
+    return rowIndex;
+  }, { operation: 'upsertTrainingRow', employeeId: employeeId, moduleCode: moduleCode });
 };
 
 SheetClient.prototype.updateTrainingStatus = function (employeeId, moduleCode, status) {
-  var sheet = this.getTrainingSheet_();
-  var rowIndex = this.findRowIndexByValues_(sheet, COL.TRAINING.EMPLOYEE_ID, employeeId, COL.TRAINING.MODULE_CODE, moduleCode);
-  if (rowIndex < 0) {
-    return false;
-  }
-  sheet.getRange(rowIndex, COL.TRAINING.TRAINING_STATUS).setValue(status);
-  return true;
+  var self = this;
+  return this.safeWrite_(Config.getTrainingSheetName(), function () {
+    var sheet = self.getTrainingSheet_();
+    var rowIndex = self.findRowIndexByValues_(sheet, COL.TRAINING.EMPLOYEE_ID, employeeId, COL.TRAINING.MODULE_CODE, moduleCode);
+    if (rowIndex < 0) {
+      return false;
+    }
+    sheet.getRange(rowIndex, COL.TRAINING.TRAINING_STATUS).setValue(status);
+    return true;
+  }, { operation: 'updateTrainingStatus', employeeId: employeeId, moduleCode: moduleCode });
 };
 
 
@@ -695,16 +868,19 @@ SheetClient.prototype.getAuditRows = function () {
 };
 
 SheetClient.prototype.appendAuditRow = function (rowValues) {
-  var sheet = this.getAuditSheet_();
-  var auditId = rowValues[COL.AUDIT.AUDIT_ID - 1];
-  if (auditId) {
-    var existing = this.findRowIndexByValue_(sheet, COL.AUDIT.AUDIT_ID, auditId);
-    if (existing > -1) {
-      this.writeRow_(sheet, existing, rowValues);
-      return existing;
+  var self = this;
+  return this.safeWrite_(Config.getAuditSheetName(), function () {
+    var sheet = self.getAuditSheet_();
+    var auditId = rowValues[COL.AUDIT.AUDIT_ID - 1];
+    if (auditId) {
+      var existing = self.findRowIndexByValue_(sheet, COL.AUDIT.AUDIT_ID, auditId);
+      if (existing > -1) {
+        self.writeRow_(sheet, existing, rowValues);
+        return existing;
+      }
     }
-  }
-  return this.appendRow_(sheet, rowValues);
+    return self.appendRow_(sheet, rowValues);
+  }, { operation: 'appendAuditRow' });
 };
 
 SheetClient.prototype.appendAuditIfNotExists = function (eventHash, rowValues) {

@@ -71,5 +71,17 @@
       "required": false,
       "population": "script"
     }
+  ],
+  "schemaConfigTab": "_sys_config",
+  "schemaVersionMetadataKey": "Audit.schema_version",
+  "requiredHeaders": [
+    "audit_id",
+    "event_timestamp",
+    "actor_email",
+    "entity_type",
+    "entity_id",
+    "action",
+    "details",
+    "event_hash"
   ]
 }
