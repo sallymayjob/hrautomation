@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420">
+  <rect width="1200" height="420" fill="#f1f3f4"/>
+  <rect x="40" y="30" width="1120" height="360" fill="#fff" stroke="#dadce0"/>
+  <text x="70" y="60" font-family="Arial" font-size="24" fill="#202124">Apps Script (example): select function, then click Run</text>
+  <line x1="40" y1="95" x2="1160" y2="95" stroke="#dadce0"/>
+  <text x="70" y="125" font-family="Arial" font-size="18" fill="#202124">Select function:</text>
+  <rect x="210" y="105" width="200" height="30" rx="4" fill="#fff" stroke="#dadce0"/>
+  <text x="220" y="125" font-family="Arial" font-size="16" fill="#202124">runOnboarding / runAudit</text>
+  <rect x="450" y="101" width="120" height="38" rx="19" fill="#1a73e8"/>
+  <rect x="446" y="97" width="128" height="46" rx="23" fill="none" stroke="#fff59d" stroke-width="4"/>
+  <text x="490" y="125" font-family="Arial" font-size="18" fill="#fff">▶ Run</text>
+  <rect x="70" y="160" width="1060" height="200" fill="#202124"/>
+</svg>
