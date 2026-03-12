@@ -1,0 +1,3 @@
+LessonID,Slack Thread Text,Mapped Focus,Mapped Action,Mapped Channel,Template Source Message,Submit Code,Topic
+M01-W00-L03,"Hi {preferred_name}, welcome to [Company]!",Comms,DM Message,new-hires,"Please complete this pre-onboarding form",/submit M01-W00-L03 complete,RWR Specialist Brands
+M01-W00-L01,"Welcome to the team! Hi @NewHire!",Comms,Channel,#general,"Welcome thread with first-day checklist",/submit M01-W00-L01 complete,Orientation Week

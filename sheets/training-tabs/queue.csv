@@ -1,0 +1,3 @@
+QueueID,Learner,LessonID,QueueStatus,AssignedTo,CreatedAt,DueAt,Notes
+Q-001,U1D5H8R2T9Z,M01-W01-L01,Pending,qa.reviewer@company.com,2026-03-10T06:00:00Z,2026-03-11T06:00:00Z,Needs QA review
+Q-002,U5N3C7K1L8Q,M01-W02-L03,In Progress,qa.reviewer@company.com,2026-03-12T09:00:00Z,2026-03-13T09:00:00Z,Complex scenario

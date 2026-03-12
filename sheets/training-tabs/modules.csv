@@ -1,0 +1,4 @@
+ModuleID,Module Number,Module Name,Module Description,CourseID,Course Title,Status,Difficulty Tier,Audience,Total Lessons,Week Range,Lesson Types,Focus Areas,Lesson IDs,Sample Topics
+M01,1,Foundations of Recruitment,Core onboarding foundations for new recruiters,COURSE_12M,COURSE_12M,Active,Beginner,Recruitment Consultants,30,W00-W04,Daily Micro (5-min),Brand positioning,"M01-W00-L01|M01-W00-L02|M01-W00-L03",Orientation and specialist brand story
+M02,2,Candidate Engagement,Building candidate trust and communication skills,COURSE_12M,COURSE_12M,Active,Beginner,Recruitment Consultants,24,W01-W04,Daily Micro (5-min),Candidate outreach,"M02-W01-L01|M02-W01-L02",Interview prep and outreach
+M03,3,Client Management,Handling brief intake and client updates,COURSE_12M,COURSE_12M,Active,Intermediate,Recruitment Consultants,32,W01-W04,Daily Micro (5-min),Client communication,"M03-W01-L01|M03-W01-L02",Client expectation setting

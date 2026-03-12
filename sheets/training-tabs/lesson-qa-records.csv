@@ -1,0 +1,4 @@
+Lesson,QA Score,QA Verdict,QA Detail,QA Run Date,Revision Count,SOP-5 Validated,Spot Check,Priority,Status
+M01-W00-L01,95.3,STRONG_PASS,SOP-5 score above 95 with no critical issues,2026-02-18,0,Yes,Yes,P3,Ready
+M01-W01-L01,86,HARD_FAIL,Missing key validation points and weak objective alignment,2026-02-20,1,No,No,P0,Need Human Review
+M01-W02-L01,91,STRONG_PASS,Good structure and strong insight quality,2026-03-04,0,Yes,No,P3,Ready
