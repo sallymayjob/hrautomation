@@ -184,4 +184,47 @@ describe('SheetClient', () => {
     expect(gate.blockedReason).toContain('Documentation');
     expect(gate.blockedReason).toContain('Pre-onboarding');
   });
+
+  test('validateSchema accepts canonical library headers and rejects drift with readable errors', () => {
+    const onboarding = makeSheet(['EmployeeID', 'FullName', 'WorkEmail', 'StartDate', 'Department', 'ManagerEmail', 'OnboardingStatus', 'AuditStatus', 'LastUpdated'], [], 'Onboarding');
+    const config = makeSheet(['key', 'value'], [['Onboarding.schema_version', '3']], '_sys_config');
+    const spreadsheet = makeSpreadsheet({ Onboarding: onboarding, _sys_config: config });
+    SpreadsheetApp.openById.mockReturnValue(spreadsheet);
+
+    const { SheetClient } = require('../../gas/SheetClient.gs');
+    const client = new SheetClient();
+
+    expect(client.validateSchema(['EmployeeID', 'FullName', 'WorkEmail', 'StartDate', 'Department', 'ManagerEmail', 'OnboardingStatus', 'AuditStatus', 'LastUpdated'])).toBe(true);
+    expect(() => client.validateSchema(['EmployeeID', 'FullName', 'Email'])).toThrow('Library schema drift detected');
+    expect(() => client.validateSchema(['EmployeeID', 'FullName', 'Email'])).toThrow('Expected data types');
+  });
+
+  test('ensureSchemaVersionMetadata writes canonical version marker to _sys_config', () => {
+    const onboarding = makeSheet(['onboarding_id'], [], 'Onboarding');
+    const training = makeSheet(['employee_id'], [], 'Training');
+    const audit = makeSheet(['audit_id'], [], 'Audit');
+    const checklist = makeSheet(['task_id'], [], 'Checklist Tasks');
+
+    const configOnboarding = makeSheet(['key', 'value'], [['Onboarding.schema_version', '3']], '_sys_config');
+    const configTraining = makeSheet(['key', 'value'], [['Training.schema_version', '1']], '_sys_config');
+    const configAudit = makeSheet(['key', 'value'], [['Audit.schema_version', '1']], '_sys_config');
+    const configChecklist = makeSheet(['key', 'value'], [['Checklist Tasks.schema_version', '1']], '_sys_config');
+
+    const onboardingSpreadsheet = makeSpreadsheet({ Onboarding: onboarding, _sys_config: configOnboarding });
+    const trainingSpreadsheet = makeSpreadsheet({ Training: training, _sys_config: configTraining });
+    const auditSpreadsheet = makeSpreadsheet({ Audit: audit, _sys_config: configAudit });
+    const checklistSpreadsheet = makeSpreadsheet({ 'Checklist Tasks': checklist, _sys_config: configChecklist });
+
+    SpreadsheetApp.openById.mockImplementation((id) => ({ 'onboarding-id': onboardingSpreadsheet, 'training-id': trainingSpreadsheet, 'audit-id': auditSpreadsheet, 'checklist-id': checklistSpreadsheet }[id]));
+
+    const { SheetClient } = require('../../gas/SheetClient.gs');
+    const client = new SheetClient();
+    client.ensureSchemaVersionMetadata();
+
+    expect(configOnboarding.appendRow).toHaveBeenCalledWith(['version', 'schema_v1']);
+    expect(configTraining.appendRow).toHaveBeenCalledWith(['version', 'schema_v1']);
+    expect(configAudit.appendRow).toHaveBeenCalledWith(['version', 'schema_v1']);
+    expect(configChecklist.appendRow).toHaveBeenCalledWith(['version', 'schema_v1']);
+  });
+
 });
