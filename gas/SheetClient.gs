@@ -102,16 +102,61 @@ SheetClient.prototype.getColumnIndexByHeaderKey_ = function (sheet, headerKey, r
   return columnIndex;
 };
 
-SheetClient.prototype.openSpreadsheet_ = function () {
-  return SpreadsheetApp.openById(Config.getSpreadsheetId());
+SheetClient.prototype.openSpreadsheetById_ = function (spreadsheetId) {
+  return SpreadsheetApp.openById(spreadsheetId);
 };
 
-SheetClient.prototype.getSheet_ = function (name) {
-  var sheet = this.openSpreadsheet_().getSheetByName(name);
+SheetClient.prototype.getSheetFromSpreadsheet_ = function (spreadsheetId, sheetName, propertyLabel) {
+  var spreadsheet = this.openSpreadsheetById_(spreadsheetId);
+  var sheet = spreadsheet.getSheetByName(sheetName);
   if (!sheet) {
-    throw new Error('Sheet not found: ' + name);
+    throw new Error('Sheet not found: ' + sheetName + ' (configured by ' + propertyLabel + ')');
   }
   return sheet;
+};
+
+SheetClient.prototype.getOnboardingSheet_ = function () {
+  return this.getSheetFromSpreadsheet_(Config.getOnboardingSpreadsheetId(), Config.getOnboardingSheetName(), 'ONBOARDING_SHEET_NAME');
+};
+
+SheetClient.prototype.getTrainingSheet_ = function () {
+  return this.getSheetFromSpreadsheet_(Config.getTrainingSpreadsheetId(), Config.getTrainingSheetName(), 'TRAINING_SHEET_NAME');
+};
+
+SheetClient.prototype.getAuditSheet_ = function () {
+  return this.getSheetFromSpreadsheet_(Config.getAuditSpreadsheetId(), Config.getAuditSheetName(), 'AUDIT_SHEET_NAME');
+};
+
+SheetClient.prototype.getChecklistSheet_ = function () {
+  return this.getSheetFromSpreadsheet_(Config.getOnboardingSpreadsheetId(), Config.getChecklistSheetName(), 'CHECKLIST_SHEET_NAME');
+};
+
+SheetClient.prototype.resolveSheetByName_ = function (sheetName) {
+  if (sheetName === Config.getOnboardingSheetName()) {
+    return this.getOnboardingSheet_();
+  }
+  if (sheetName === Config.getTrainingSheetName()) {
+    return this.getTrainingSheet_();
+  }
+  if (sheetName === Config.getAuditSheetName()) {
+    return this.getAuditSheet_();
+  }
+  if (sheetName === Config.getChecklistSheetName()) {
+    return this.getChecklistSheet_();
+  }
+
+  return this.getSheetFromSpreadsheet_(Config.getOnboardingSpreadsheetId(), sheetName, 'ONBOARDING_SPREADSHEET_ID');
+};
+
+
+SheetClient.prototype.resolveSpreadsheetIdBySheetName_ = function (sheetName) {
+  if (sheetName === Config.getTrainingSheetName()) {
+    return Config.getTrainingSpreadsheetId();
+  }
+  if (sheetName === Config.getAuditSheetName()) {
+    return Config.getAuditSpreadsheetId();
+  }
+  return Config.getOnboardingSpreadsheetId();
 };
 
 SheetClient.prototype.getDataRows_ = function (sheet) {
@@ -153,7 +198,7 @@ SheetClient.prototype.appendRow_ = function (sheet, rowValues) {
 };
 
 SheetClient.prototype.ensureSheetWithHeaders = function (sheetName, headers) {
-  var spreadsheet = this.openSpreadsheet_();
+  var spreadsheet = this.openSpreadsheetById_(Config.getOnboardingSpreadsheetId());
   var sheet = spreadsheet.getSheetByName(sheetName);
   if (!sheet) {
     sheet = spreadsheet.insertSheet(sheetName);
@@ -180,7 +225,7 @@ SheetClient.prototype.ensureSheetWithHeaders = function (sheetName, headers) {
 };
 
 SheetClient.prototype.checkDuplicate = function (sheetName, columnKeyOrIndex, value, excludeRowIndex) {
-  var sheet = this.getSheet_(sheetName);
+  var sheet = this.resolveSheetByName_(sheetName);
   var columnIndex = columnKeyOrIndex;
 
   if (typeof columnKeyOrIndex === 'string') {
@@ -205,12 +250,12 @@ SheetClient.prototype.checkDuplicate = function (sheetName, columnKeyOrIndex, va
 };
 
 SheetClient.prototype.getOnboardingRows = function () {
-  var sheet = this.getSheet_(Config.getOnboardingSheetName());
+  var sheet = this.getOnboardingSheet_();
   return this.getDataRows_(sheet);
 };
 
 SheetClient.prototype.findOnboardingByEmployeeId = function (employeeId) {
-  var sheet = this.getSheet_(Config.getOnboardingSheetName());
+  var sheet = this.getOnboardingSheet_();
   var idColumn = this.getColumnIndexByHeaderKey_(sheet, 'onboarding_id', true);
   var rowIndex = this.findRowIndexByValue_(sheet, idColumn, employeeId);
   if (rowIndex < 0) {
@@ -220,7 +265,7 @@ SheetClient.prototype.findOnboardingByEmployeeId = function (employeeId) {
 };
 
 SheetClient.prototype.appendOnboardingRow = function (rowValues) {
-  var sheet = this.getSheet_(Config.getOnboardingSheetName());
+  var sheet = this.getOnboardingSheet_();
   var idColumn = this.getColumnIndexByHeaderKey_(sheet, 'onboarding_id', true);
   var existing = this.findRowIndexByValue_(sheet, idColumn, rowValues[idColumn - 1]);
   if (existing > -1) {
@@ -231,7 +276,7 @@ SheetClient.prototype.appendOnboardingRow = function (rowValues) {
 };
 
 SheetClient.prototype.upsertOnboardingRow = function (employeeId, rowValues) {
-  var sheet = this.getSheet_(Config.getOnboardingSheetName());
+  var sheet = this.getOnboardingSheet_();
   var idColumn = this.getColumnIndexByHeaderKey_(sheet, 'onboarding_id', true);
   var rowIndex = this.findRowIndexByValue_(sheet, idColumn, employeeId);
   if (rowIndex < 0) {
@@ -242,7 +287,7 @@ SheetClient.prototype.upsertOnboardingRow = function (employeeId, rowValues) {
 };
 
 SheetClient.prototype.updateOnboardingStatus = function (employeeId, status) {
-  var sheet = this.getSheet_(Config.getOnboardingSheetName());
+  var sheet = this.getOnboardingSheet_();
   var idColumn = this.getColumnIndexByHeaderKey_(sheet, 'onboarding_id', true);
   var statusColumn = this.getColumnIndexByHeaderKey_(sheet, 'status', true);
   var blockedReasonColumn = this.getColumnIndexByHeaderKey_(sheet, 'blocked_reason', false);
@@ -271,7 +316,7 @@ SheetClient.prototype.updateOnboardingStatus = function (employeeId, status) {
 };
 
 SheetClient.prototype.evaluateOnboardingCompletionGate = function (employeeId) {
-  var checklist = this.getSheet_(Config.getChecklistSheetName());
+  var checklist = this.getChecklistSheet_();
   var rows = this.getDataRows_(checklist);
   var blockedByPhase = {};
 
@@ -315,12 +360,12 @@ SheetClient.prototype.evaluateOnboardingCompletionGate = function (employeeId) {
 };
 
 SheetClient.prototype.getTrainingRows = function () {
-  var sheet = this.getSheet_(Config.getTrainingSheetName());
+  var sheet = this.getTrainingSheet_();
   return this.getDataRows_(sheet);
 };
 
 SheetClient.prototype.findTrainingByEmployeeAndModule = function (employeeId, moduleCode) {
-  var sheet = this.getSheet_(Config.getTrainingSheetName());
+  var sheet = this.getTrainingSheet_();
   var rowIndex = this.findRowIndexByValues_(
     sheet,
     COL.TRAINING.EMPLOYEE_ID,
@@ -335,7 +380,7 @@ SheetClient.prototype.findTrainingByEmployeeAndModule = function (employeeId, mo
 };
 
 SheetClient.prototype.appendTrainingRow = function (rowValues) {
-  var sheet = this.getSheet_(Config.getTrainingSheetName());
+  var sheet = this.getTrainingSheet_();
   var existing = this.findRowIndexByValues_(
     sheet,
     COL.TRAINING.EMPLOYEE_ID,
@@ -351,7 +396,7 @@ SheetClient.prototype.appendTrainingRow = function (rowValues) {
 };
 
 SheetClient.prototype.upsertTrainingRow = function (employeeId, moduleCode, rowValues) {
-  var sheet = this.getSheet_(Config.getTrainingSheetName());
+  var sheet = this.getTrainingSheet_();
   var rowIndex = this.findRowIndexByValues_(sheet, COL.TRAINING.EMPLOYEE_ID, employeeId, COL.TRAINING.MODULE_CODE, moduleCode);
   if (rowIndex < 0) {
     return this.appendRow_(sheet, rowValues);
@@ -361,7 +406,7 @@ SheetClient.prototype.upsertTrainingRow = function (employeeId, moduleCode, rowV
 };
 
 SheetClient.prototype.updateTrainingStatus = function (employeeId, moduleCode, status) {
-  var sheet = this.getSheet_(Config.getTrainingSheetName());
+  var sheet = this.getTrainingSheet_();
   var rowIndex = this.findRowIndexByValues_(sheet, COL.TRAINING.EMPLOYEE_ID, employeeId, COL.TRAINING.MODULE_CODE, moduleCode);
   if (rowIndex < 0) {
     return false;
@@ -372,7 +417,7 @@ SheetClient.prototype.updateTrainingStatus = function (employeeId, moduleCode, s
 
 
 SheetClient.prototype.updateTrainingReminderMetadata = function (employeeId, moduleCode, reminderCount, lastReminderAt) {
-  var sheet = this.getSheet_(Config.getTrainingSheetName());
+  var sheet = this.getTrainingSheet_();
   var rowIndex = this.findRowIndexByValues_(sheet, COL.TRAINING.EMPLOYEE_ID, employeeId, COL.TRAINING.MODULE_CODE, moduleCode);
   if (rowIndex < 0) {
     return false;
@@ -383,7 +428,7 @@ SheetClient.prototype.updateTrainingReminderMetadata = function (employeeId, mod
 };
 
 SheetClient.prototype.markCelebrationPosted = function (employeeId, moduleCode, posted) {
-  var sheet = this.getSheet_(Config.getTrainingSheetName());
+  var sheet = this.getTrainingSheet_();
   var rowIndex = this.findRowIndexByValues_(sheet, COL.TRAINING.EMPLOYEE_ID, employeeId, COL.TRAINING.MODULE_CODE, moduleCode);
   if (rowIndex < 0) {
     return false;
@@ -393,12 +438,12 @@ SheetClient.prototype.markCelebrationPosted = function (employeeId, moduleCode, 
 };
 
 SheetClient.prototype.getChecklistRows = function () {
-  var sheet = this.getSheet_(Config.getChecklistSheetName());
+  var sheet = this.getChecklistSheet_();
   return this.getDataRows_(sheet);
 };
 
 SheetClient.prototype.findChecklistTask = function (taskId, onboardingId) {
-  var sheet = this.getSheet_(Config.getChecklistSheetName());
+  var sheet = this.getChecklistSheet_();
   var rowIndex = this.findRowIndexByValues_(sheet, COL.CHECKLIST.TASK_ID, taskId, COL.CHECKLIST.ONBOARDING_ID, onboardingId);
   if (rowIndex < 0) {
     return null;
@@ -407,7 +452,7 @@ SheetClient.prototype.findChecklistTask = function (taskId, onboardingId) {
 };
 
 SheetClient.prototype.appendChecklistTask = function (rowValues) {
-  var sheet = this.getSheet_(Config.getChecklistSheetName());
+  var sheet = this.getChecklistSheet_();
   var existing = this.findRowIndexByValues_(
     sheet,
     COL.CHECKLIST.TASK_ID,
@@ -423,7 +468,7 @@ SheetClient.prototype.appendChecklistTask = function (rowValues) {
 };
 
 SheetClient.prototype.updateChecklistTask = function (taskId, onboardingId, updates) {
-  var sheet = this.getSheet_(Config.getChecklistSheetName());
+  var sheet = this.getChecklistSheet_();
   var rowIndex = this.findRowIndexByValues_(sheet, COL.CHECKLIST.TASK_ID, taskId, COL.CHECKLIST.ONBOARDING_ID, onboardingId);
   if (rowIndex < 0) {
     return false;
@@ -445,7 +490,7 @@ SheetClient.prototype.updateChecklistTask = function (taskId, onboardingId, upda
 
 
 SheetClient.prototype.updateChecklistReminderMetadata = function (taskId, onboardingId, reminderCount, lastReminderAt) {
-  var sheet = this.getSheet_(Config.getChecklistSheetName());
+  var sheet = this.getChecklistSheet_();
   var rowIndex = this.findRowIndexByValues_(sheet, COL.CHECKLIST.TASK_ID, taskId, COL.CHECKLIST.ONBOARDING_ID, onboardingId);
   if (rowIndex < 0) {
     return false;
@@ -456,18 +501,18 @@ SheetClient.prototype.updateChecklistReminderMetadata = function (taskId, onboar
 };
 
 SheetClient.prototype.getSheetRowLink = function (sheetName, rowIndex) {
-  var sheet = this.getSheet_(sheetName);
-  var spreadsheetId = Config.getSpreadsheetId();
+  var sheet = this.resolveSheetByName_(sheetName);
+  var spreadsheetId = this.resolveSpreadsheetIdBySheetName_(sheetName);
   return 'https://docs.google.com/spreadsheets/d/' + spreadsheetId + '/edit#gid=' + sheet.getSheetId() + '&range=A' + rowIndex;
 };
 
 SheetClient.prototype.getAuditRows = function () {
-  var sheet = this.getSheet_(Config.getAuditSheetName());
+  var sheet = this.getAuditSheet_();
   return this.getDataRows_(sheet);
 };
 
 SheetClient.prototype.appendAuditRow = function (rowValues) {
-  var sheet = this.getSheet_(Config.getAuditSheetName());
+  var sheet = this.getAuditSheet_();
   var auditId = rowValues[COL.AUDIT.AUDIT_ID - 1];
   if (auditId) {
     var existing = this.findRowIndexByValue_(sheet, COL.AUDIT.AUDIT_ID, auditId);
@@ -480,7 +525,7 @@ SheetClient.prototype.appendAuditRow = function (rowValues) {
 };
 
 SheetClient.prototype.appendAuditIfNotExists = function (eventHash, rowValues) {
-  var sheet = this.getSheet_(Config.getAuditSheetName());
+  var sheet = this.getAuditSheet_();
   var rowIndex = this.findRowIndexByValue_(sheet, COL.AUDIT.EVENT_HASH, eventHash);
   if (rowIndex > -1) {
     return rowIndex;

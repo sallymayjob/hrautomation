@@ -29,6 +29,7 @@ describe('integration onboarding flow', () => {
     global.generateId = jest.fn(() => 'ONB_1');
     global.BlockKit = { welcomeDM: jest.fn(() => []), checklistAssignment: jest.fn(() => []), assignmentNotificationDM: jest.fn(() => []) };
     global.Config = {
+      getOnboardingSheetName: jest.fn(() => 'Onboarding'),
       getChecklistSheetName: jest.fn(() => 'Checklist Tasks'),
       getAuditSheetName: jest.fn(() => 'Audit'),
       getItTeamChannelId: jest.fn(() => 'CIT123'),

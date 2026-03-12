@@ -27,7 +27,9 @@ describe('SheetClient', () => {
     jest.resetModules();
     mockGasGlobals();
     global.Config = {
-      getSpreadsheetId: jest.fn(() => 'sheet-id'),
+      getOnboardingSpreadsheetId: jest.fn(() => 'onboarding-id'),
+      getTrainingSpreadsheetId: jest.fn(() => 'training-id'),
+      getAuditSpreadsheetId: jest.fn(() => 'audit-id'),
       getOnboardingSheetName: jest.fn(() => 'Onboarding'),
       getTrainingSheetName: jest.fn(() => 'Training'),
       getAuditSheetName: jest.fn(() => 'Audit'),

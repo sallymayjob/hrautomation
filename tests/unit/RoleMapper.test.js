@@ -26,6 +26,7 @@ describe('RoleMapper behavior via onboarding processing', () => {
     global.computeHash = jest.fn(() => 'hash');
     global.generateId = jest.fn(() => 'ONB_1');
     global.Config = {
+      getOnboardingSheetName: jest.fn(() => 'Onboarding'),
       getChecklistSheetName: jest.fn(() => 'Checklist Tasks'),
       getAuditSheetName: jest.fn(() => 'Audit'),
       getItTeamChannelId: jest.fn(() => 'CIT123'),

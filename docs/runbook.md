@@ -14,7 +14,7 @@ Perform these checks at the start of every support shift.
 3. Confirm the Workspace bot account is active and can post DMs.
 
 ### 1.2 Sheet Integrity
-1. Open the production sheet and validate required tabs are present (Roster, Queue, Audit Log, Config; names may vary by deployment).
+1. Open the production onboarding, training, and audit spreadsheets and validate required tabs are present. Confirm Script Properties map each tab correctly (`ONBOARDING_SPREADSHEET_ID`/`ONBOARDING_SHEET_NAME`, `TRAINING_SPREADSHEET_ID`/`TRAINING_SHEET_NAME`, `AUDIT_SPREADSHEET_ID`/`AUDIT_SHEET_NAME`).
 2. Spot-check the newest 10 rows in the processing tab:
    - Status transitions are valid (e.g., PENDING -> IN_PROGRESS -> COMPLETE, with BLOCKED when gates fail).
    - Timestamps are populated and in expected timezone.
@@ -66,7 +66,7 @@ Perform this when ownership or access scope changes.
 4. Log change in Audit Log tab with actor, timestamp, and reason.
 
 ### 3.2 Resource Changes
-1. For new sheet/resource IDs, update configuration constants/properties.
+1. For new sheet/resource IDs, update Script Properties for spreadsheet IDs and tab names (`ONBOARDING_SPREADSHEET_ID`, `TRAINING_SPREADSHEET_ID`, `AUDIT_SPREADSHEET_ID`, `ONBOARDING_SHEET_NAME`, `TRAINING_SHEET_NAME`, `AUDIT_SHEET_NAME`, and `CHECKLIST_SHEET_NAME`).
 2. Validate connector access with a non-production dry-run row.
 3. Re-run a controlled manual trigger and verify delivery.
 4. Update runbook links/bookmarks used by on-call staff.
