@@ -14,7 +14,14 @@
         "command": "/checklist-status",
         "description": "Read-only onboarding checklist status lookup",
         "url": "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec",
-        "usage_hint": "<employee name or id> [--share]",
+        "usage_hint": "<@userid or employee name> [--share]",
+        "should_escape": false
+      },
+      {
+        "command": "/checklist-progress",
+        "description": "Read-only checklist progress lookup by Slack @user or employee name",
+        "url": "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec",
+        "usage_hint": "<@userid or employee name> [--share]",
         "should_escape": false
       },
       {

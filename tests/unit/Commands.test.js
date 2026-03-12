@@ -16,7 +16,9 @@ describe('Commands', () => {
     global.Config = {
       getItTeamChannelId: jest.fn(() => 'CITTEAM'),
       getFinanceTeamChannelId: jest.fn(() => 'CFINTEAM'),
-      getHrTeamChannelId: jest.fn(() => 'CHRTEAM')
+      getHrTeamChannelId: jest.fn(() => 'CHRTEAM'),
+      getAdminTeamChannelId: jest.fn(() => 'CADMTEAM'),
+      getDefaultAssignmentsChannelId: jest.fn(() => 'CDEFAULT')
     };
   });
 
@@ -167,6 +169,41 @@ describe('Commands', () => {
         expect.objectContaining({ type: 'section' })
       ])
     );
+  });
+
+
+  test('resolveOnboardingCandidates_ supports Slack user mention lookup', () => {
+    const { resolveOnboardingCandidates_ } = require('../../gas/Commands.gs');
+    const sheetClient = {
+      getOnboardingRows: jest.fn(() => [
+        ['ONB-90', 'Casey Admin', 'UCASEY90', 'casey@example.com', 'Manager', '', '2026-03-10', '', 'manager@example.com', '', 'buddy@example.com', '', '', 'IN_PROGRESS']
+      ])
+    };
+
+    const result = resolveOnboardingCandidates_('<@UCASEY90>', sheetClient);
+
+    expect(result.matchType).toBe('exact');
+    expect(result.candidates).toHaveLength(1);
+    expect(result.candidates[0].employeeName).toBe('Casey Admin');
+  });
+
+  test('routeSlackCommand_ handles /checklist-status as alias of onboarding status', () => {
+    const { routeSlackCommand_ } = require('../../gas/Commands.gs');
+    global.SheetClient = jest.fn(() => ({
+      getOnboardingRows: jest.fn(() => [
+        ['ONB-42', 'Lachlan Fraser', 'ULACHLAN', 'lachlan@example.com', 'Resourcer', '', '2026-03-04', '', 'emma.brown@rwrgroup.com.au', '', 'buddy@rwrgroup.com.au', '', '', 'IN_PROGRESS']
+      ]),
+      getChecklistRows: jest.fn(() => [
+        ['DOC-1', 'ONB-42', 'Documentation', 'Collect signed contract', 'Manager', '', 'PENDING', new Date('2026-03-06')]
+      ])
+    }));
+    global.AuditLogger = jest.fn(() => ({ log: jest.fn() }));
+    global.SlackClient = jest.fn(() => ({ postMessage: jest.fn() }));
+
+    const response = routeSlackCommand_({ command: '/checklist-status', text: 'Lachlan Fraser', user_name: 'admin-user' });
+
+    expect(response.response_type).toBe('ephemeral');
+    expect(response.text).toContain('Checklist progress');
   });
 
 });
