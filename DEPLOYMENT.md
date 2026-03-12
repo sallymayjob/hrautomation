@@ -1,5 +1,12 @@
 # RWR-HAF Deployment Guide
 
+
+## Slack read-only guardrail (important)
+Slack slash commands and interactive message responses in this project are **read-only** verification tools.
+- Use Slack to check onboarding status and task progress.
+- Edit onboarding/checklist/training statuses directly in Google Sheets.
+- Do not configure or rely on Slack buttons to write status changes.
+
 This guide helps you set up RWR-HAF without coding.
 Follow each step in order.
 
@@ -241,7 +248,7 @@ This phase connects a read-only Slack command to your Apps Script web app.
 13. Click **Save**.
 14. Reinstall or update the app in your workspace if Slack prompts you.
 
-What just happened? Slack can now send `/onboarding-status` queries to Apps Script, and the script returns onboarding summaries without editing records.
+What just happened? Slack can now send `/onboarding-status` queries to Apps Script, and the script returns onboarding summaries without editing records. Status updates remain Sheets-only (read-only in Slack).
 
 You're done with Phase 3.6. The slash command path is live for status checks.
 

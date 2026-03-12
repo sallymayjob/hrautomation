@@ -2,6 +2,13 @@
 
 This runbook defines daily operations and incident handling for the HR automation workflow (triggered reminders, welcome DMs, and sheet-backed state). Use this document during normal production support.
 
+
+## Slack read-only verification guardrail
+Slack command output and Slack message interactions are **read-only** for onboarding/checklist verification.
+- Investigate and verify from Slack, but do not perform status edits there.
+- Perform all onboarding/checklist status changes in Google Sheets.
+- If someone requests Slack status buttons, decline and route to Sheets update procedure.
+
 ## 1) Daily Checks
 
 Perform these checks at the start of every support shift.

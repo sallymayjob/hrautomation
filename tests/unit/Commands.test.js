@@ -72,4 +72,55 @@ describe('Commands', () => {
     expect(response.text).toContain('Collect signed contract');
     expect(auditLogger.log).toHaveBeenCalledWith(expect.objectContaining({ action: 'READ' }));
   });
+
+  test('handleOnboardingStatusCommand_ performs read-only sheet access', () => {
+    const { handleOnboardingStatusCommand_ } = require('../../gas/Commands.gs');
+    const sheetClient = {
+      getOnboardingRows: jest.fn(() => [
+        ['ONB-77', 'Jamie Lee', '', 'jamie@example.com', 'Engineer', '', '2026-03-01', '', 'manager@example.com', '', 'buddy@example.com', '', '', 'IN_PROGRESS']
+      ]),
+      getChecklistRows: jest.fn(() => [
+        ['DOC-7', 'ONB-77', 'Documentation', 'Collect signed contract', 'People', '', 'PENDING', '2026-03-07']
+      ]),
+      appendOnboardingRow: jest.fn(),
+      appendChecklistTask: jest.fn(),
+      appendTrainingRow: jest.fn(),
+      updateOnboardingStatus: jest.fn(),
+      updateChecklistTask: jest.fn(),
+      updateTrainingStatus: jest.fn(),
+      upsertTrainingRow: jest.fn()
+    };
+    const auditLogger = { log: jest.fn() };
+
+    const response = handleOnboardingStatusCommand_({ text: 'Jamie Lee', user_name: 'hr-user' }, sheetClient, auditLogger);
+
+    expect(response.response_type).toBe('ephemeral');
+    expect(sheetClient.getOnboardingRows).toHaveBeenCalledTimes(1);
+    expect(sheetClient.getChecklistRows).toHaveBeenCalledTimes(1);
+    expect(sheetClient.appendOnboardingRow).not.toHaveBeenCalled();
+    expect(sheetClient.appendChecklistTask).not.toHaveBeenCalled();
+    expect(sheetClient.appendTrainingRow).not.toHaveBeenCalled();
+    expect(sheetClient.updateOnboardingStatus).not.toHaveBeenCalled();
+    expect(sheetClient.updateChecklistTask).not.toHaveBeenCalled();
+    expect(sheetClient.updateTrainingStatus).not.toHaveBeenCalled();
+    expect(sheetClient.upsertTrainingRow).not.toHaveBeenCalled();
+    expect(auditLogger.log).toHaveBeenCalledWith(expect.objectContaining({ action: 'READ' }));
+  });
+
+  test('doPost rejects Slack interactive payloads as read-only', () => {
+    const { doPost } = require('../../gas/Commands.gs');
+
+    doPost({
+      parameter: {
+        payload: JSON.stringify({ type: 'block_actions', user: { id: 'U123' } })
+      }
+    });
+
+    expect(global.ContentService.createTextOutput).toHaveBeenCalledTimes(1);
+    const payload = JSON.parse(global.ContentService.createTextOutput.mock.calls[0][0]);
+    expect(payload.response_type).toBe('ephemeral');
+    expect(payload.text).toContain('read-only');
+    expect(payload.text).toContain('Google Sheets');
+  });
+
 });

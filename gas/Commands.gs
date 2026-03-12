@@ -8,9 +8,38 @@ var MAX_DISAMBIGUATION_RESULTS = 5;
 var MAX_DUE_ITEMS = 3;
 
 function doPost(e) {
-  var payload = (e && e.parameter) || {};
-  var response = routeSlackCommand_(payload);
+  var envelope = (e && e.parameter) || {};
+  var payload = parseSlackPayloadEnvelope_(envelope);
+  var response = payload && payload.directResponse
+    ? payload.directResponse
+    : (payload && payload.type
+      ? handleSlackInteractivePayload_(payload)
+      : routeSlackCommand_(payload));
   return toSlackTextOutput_(response);
+}
+
+function parseSlackPayloadEnvelope_(envelope) {
+  if (!envelope || !envelope.payload) {
+    return envelope || {};
+  }
+
+  try {
+    return JSON.parse(envelope.payload);
+  } catch (err) {
+    return {
+      directResponse: {
+        response_type: 'ephemeral',
+        text: 'Unable to parse Slack payload. Slack commands are read-only; edit statuses directly in Google Sheets.'
+      }
+    };
+  }
+}
+
+function handleSlackInteractivePayload_(payload) {
+  return {
+    response_type: 'ephemeral',
+    text: 'Slack interactions are read-only in this workflow. To edit onboarding or checklist statuses, use Google Sheets.'
+  };
 }
 
 function routeSlackCommand_(payload) {
@@ -203,7 +232,9 @@ function formatOnboardingStatusSummary_(candidate, snapshot) {
     '• Manager: ' + candidate.manager,
     '• Buddy: ' + candidate.buddy,
     '• Phase completion: ' + phaseSummary,
-    '• Key due items:\n' + dueSummary
+    '• Key due items:\n' + dueSummary,
+    '',
+    '_Slack is read-only for onboarding status. Edit records in Google Sheets._'
   ].join('\n');
 }
 
@@ -298,6 +329,8 @@ if (typeof module !== 'undefined') {
     formatDisambiguationMessage_: formatDisambiguationMessage_,
     scoreFuzzyNameMatch_: scoreFuzzyNameMatch_,
     normalizeForMatch_: normalizeForMatch_,
-    logOnboardingStatusRead_: logOnboardingStatusRead_
+    logOnboardingStatusRead_: logOnboardingStatusRead_,
+    parseSlackPayloadEnvelope_: parseSlackPayloadEnvelope_,
+    handleSlackInteractivePayload_: handleSlackInteractivePayload_
   };
 }
