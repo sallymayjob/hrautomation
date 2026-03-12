@@ -22,7 +22,13 @@ describe('LibraryWrappers', () => {
     };
     global.MailApp = { sendEmail: jest.fn() };
     global.Session = { getActiveUser: jest.fn(() => ({ getEmail: () => 'operator@example.com' })) };
-    global.console = { error: jest.fn() };
+    global.console = { error: jest.fn(), log: jest.fn() };
+    global.LockService = {
+      getScriptLock: jest.fn(() => ({
+        tryLock: jest.fn(() => true),
+        releaseLock: jest.fn()
+      }))
+    };
   });
 
   test('runOnboarding reads sheet rows, calls HRLib, writes status, and emails summary', () => {
@@ -41,7 +47,7 @@ describe('LibraryWrappers', () => {
     const result = runOnboarding();
 
     expect(global.HRLib.processOnboardingBatch).toHaveBeenCalledWith(
-      [{ onboarding_id: 'ONB-1', employee_name: 'Ava', status: 'PENDING' }],
+      [expect.objectContaining({ onboarding_id: 'ONB-1', employee_name: 'Ava', status: 'PENDING' })],
       expect.objectContaining({ sourceWorkflow: 'Onboarding' })
     );
     expect(sourceSheet.getRange).toHaveBeenCalledWith(2, 3);
@@ -65,10 +71,38 @@ describe('LibraryWrappers', () => {
     const result = runAudit();
 
     expect(global.HRLib.runAuditChecks).toHaveBeenCalledWith(
-      [{ entity_id: 'ONB-1', action: 'UPDATE', event_timestamp: '2026-01-01T00:00:00Z' }],
+      [expect.objectContaining({ entity_id: 'ONB-1', action: 'UPDATE', event_timestamp: '2026-01-01T00:00:00Z' })],
       expect.objectContaining({ sourceWorkflow: 'Audit' })
     );
     expect(logSheet.appendRow).toHaveBeenCalled();
     expect(result.traceId).toBe('TRACE2');
   });
+
+  test('runLibraryWorkflow_ uses lock guard and releases lock', () => {
+    const sourceSheet = createSheet([
+      ['employee_id', 'status'],
+      ['E-1', 'PENDING']
+    ]);
+    const logSheet = { appendRow: jest.fn() };
+    const spreadsheet = {
+      getSheetByName: jest.fn((name) => (name === 'Onboarding' ? sourceSheet : logSheet)),
+      insertSheet: jest.fn(() => logSheet)
+    };
+    const lock = { tryLock: jest.fn(() => true), releaseLock: jest.fn() };
+    global.LockService.getScriptLock.mockReturnValue(lock);
+    global.SpreadsheetApp = { openById: jest.fn(() => spreadsheet) };
+
+    const { runLibraryWorkflow_ } = require('../../gas/LibraryWrappers.gs');
+    runLibraryWorkflow_({
+      workflowName: 'Onboarding',
+      spreadsheetId: 'onboarding-spreadsheet-id',
+      sheetName: 'Onboarding',
+      libraryMethodName: 'processOnboardingBatch',
+      dateWindowMinutes: 15
+    });
+
+    expect(lock.tryLock).toHaveBeenCalled();
+    expect(lock.releaseLock).toHaveBeenCalled();
+  });
+
 });
