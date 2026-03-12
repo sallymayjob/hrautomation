@@ -1,8 +1,8 @@
 # Audit Dashboard Spec
 
 ## Spreadsheet Ownership
-- **Owning spreadsheet**: `AUDIT_SPREADSHEET_ID`.
-- **Data source policy**: This dashboard reads local tabs in the audit workbook only (`Audit` and dashboard tabs in this workbook).
+- **Owning spreadsheet**: `AUDIT_SPREADSHEET_ID` (separate audit workbook).
+- **Data source policy**: This dashboard reads local tabs in the audit workbook only (`Audit` and dashboard tabs in this workbook); this workbook is the canonical audit ledger of record.
 - **Cross-workbook rule**: Do not assume tabs from onboarding or training workbooks exist here. Use explicit `IMPORTRANGE("<spreadsheet_id>", "<tab>!<range>")` only when a cross-workbook feed is intentionally configured.
 
 ## Required Tabs

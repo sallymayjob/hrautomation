@@ -5,9 +5,9 @@ You can set this up with copy/paste + clicks only.
 
 ---
 
-## 0) System layout (important): 2 separate spreadsheets
+## 0) System layout (important): 3 separate spreadsheets
 
-Use **two different Google Sheets files**:
+Use **three different Google Sheets files**:
 
 1. **Onboarding Spreadsheet** (contains onboarding + checklist + onboarding dashboard)
    - Raw tabs: `Onboarding`, `Checklist`
@@ -17,10 +17,15 @@ Use **two different Google Sheets files**:
 2. **Training Spreadsheet** (contains LMS tabs + training dashboard)
    - Raw tabs: `Learners`, `Lesson Submissions`, `Queue`, `Lesson QA Records`, `Courses`, `Lesson Metrics`, `Modules`, `Lessons`, `Slack Threads`, `Audit_Log`
    - Dashboard tabs: `Training_KPI`, `Training_Module`, `Training_Course`, `Training_Operations`
-   - Purpose: LMS analytics + operational monitoring (progress, gaps, submissions, queue load, and automation issues summarized in `Audit_Log`).
+   - Purpose: LMS analytics + operational monitoring (progress, gaps, submissions, queue load, and automation telemetry summarized in `Audit_Log`).
 
-> **Important:** The project's runtime audit ledger is the dedicated `Audit` sheet (schema in `sheets/audit-schema.json`, fixture in `sheets/audit-log.csv`).
-> `Audit_Log` in the training workbook is a dashboard operations fixture only (non-runtime).
+3. **Audit Spreadsheet** (contains canonical runtime audit ledger + audit dashboard)
+   - Raw tab: `Audit`
+   - Dashboard tabs: `Audit_Dashboard`, `Audit_KPI`, `Audit_Pivot`
+   - Purpose: immutable policy/compliance and exception ledger used as the system audit source of truth.
+
+> **Important:** The project's canonical runtime audit ledger is the dedicated `Audit` tab in the separate audit workbook (schema in `sheets/audit-schema.json`, fixture in `sheets/audit-log.csv`).
+> `Audit_Log` in the training workbook is dashboard/operations telemetry only (`sheets/training-tabs/training-operations-log.csv`) and is **not** the compliance ledger of record.
 
 ---
 
@@ -148,11 +153,12 @@ critical_error_count,1,"Rows in Audit_Log where event_type is ERROR"
 
 ## 4) ELI15 setup flow (do this in order)
 
-1. Create 2 Google spreadsheets:
+1. Create 3 Google spreadsheets:
    - `HR Onboarding Dashboard`
    - `HR Training Dashboard`
+   - `HR Audit Dashboard`
 2. Import raw CSVs into the correct spreadsheet (Section 1).
-3. In each spreadsheet, create dashboard tabs listed in Sections 2 and 3.
+3. In each spreadsheet, create dashboard tabs listed in Sections 2 and 3, and in the audit spreadsheet create `Audit_Dashboard`, `Audit_KPI`, and `Audit_Pivot`.
 4. Paste the matching CSV templates into each dashboard tab (`A1`).
 5. Freeze header row and apply simple colors:
    - Green = complete/success
@@ -165,7 +171,7 @@ critical_error_count,1,"Rows in Audit_Log where event_type is ERROR"
 ## 5) Simple recap
 - **Onboarding spreadsheet** = onboarding + checklist + onboarding dashboard.
 - **Training spreadsheet** = learners/LMS tabs + training dashboard + operations view.
-- **Runtime audit ledger**: keep the dedicated `Audit` sheet (append-only system record).
-- **Dashboard operations log**: use Training `Audit_Log` only for analytics/visualization fixtures.
+- **Audit spreadsheet** = canonical `Audit` ledger (append-only system record) + audit dashboards.
+- **Dashboard operations log**: use Training `Audit_Log` only for analytics/visualization telemetry fixtures.
 
-Two spreadsheets, cleaner reporting, easier maintenance.
+Three spreadsheets, clear ownership boundaries, and cleaner reporting.
