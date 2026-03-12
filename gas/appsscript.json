@@ -1,5 +1,15 @@
 {
   "timeZone": "Pacific/Auckland",
   "runtimeVersion": "V8",
-  "exceptionLogging": "STACKDRIVER"
+  "exceptionLogging": "STACKDRIVER",
+  "dependencies": {
+    "libraries": [
+      {
+        "userSymbol": "HRLib",
+        "libraryId": "1HRLIB_SHARED_PROJECT_ID",
+        "version": "1",
+        "developmentMode": false
+      }
+    ]
+  }
 }
