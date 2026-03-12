@@ -164,3 +164,28 @@ Use this procedure once per week (or on-demand after significant data correction
 3. If blocked list is unexpectedly empty:
    - Verify onboarding `status` values are correctly set to `BLOCKED` where appropriate.
    - Confirm unresolved checklist tasks are not incorrectly marked `DONE`/`COMPLETE`.
+
+
+---
+
+## 8) Schema Upgrade Path (Ordered Migration)
+
+When rolling out schema-affecting releases, apply changes in this exact order to avoid writes being blocked by schema/version guards:
+
+1. **Schema update (sheets first)**
+   - Update headers on `Onboarding`, `Training`, and `Audit` tabs to match repository schema files.
+   - Ensure `_sys_config` exists in each workbook with these rows:
+     - `Onboarding.schema_version = 3`
+     - `Training.schema_version = 1`
+     - `Audit.schema_version = 1`
+2. **Named functions update**
+   - In each workbook, confirm required named functions are present and current:
+     - `SYS_MAKE_ID`
+     - `SYS_IS_COMPLETE`
+     - `SYS_EVENT_KEY`
+   - Run the named-function verification routine and resolve any `#NAME?` findings before continuing.
+3. **Script deploy**
+   - Deploy Apps Script code only after sheet schema + named functions are ready.
+   - Run a controlled test execution and verify no `SCHEMA_WRITE_BLOCKED` structured errors are appended to Audit.
+
+Rollback note: if deployment fails validation, revert script deployment, restore prior sheet headers/metadata, and re-apply migration in order.

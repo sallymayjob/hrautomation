@@ -354,7 +354,7 @@ function getHeaderMap_(sheet) {
 
 function validateOnboardingSchema_(sheet, headerMap) {
   var map = headerMap || getHeaderMap_(sheet);
-  var requiredKeys = ['onboarding_id', 'employee_name', 'email', 'role', 'start_date', 'manager_email', 'status'];
+  var requiredKeys = ['onboarding_id', 'employee_name', 'email', 'role', 'start_date', 'manager_email', 'status', 'checklist_completed', 'row_hash', 'blocked_reason'];
   var missing = [];
   for (var i = 0; i < requiredKeys.length; i += 1) {
     if (!map[requiredKeys[i]]) {
@@ -364,6 +364,9 @@ function validateOnboardingSchema_(sheet, headerMap) {
   if (missing.length > 0) {
     throw new Error('Onboarding sheet schema invalid. Missing required header(s): ' + missing.join(', '));
   }
+
+  var schemaClient = new SheetClient();
+  schemaClient.validateWorkbookSchemas();
 }
 
 function toRowObject_(rowValues, headerMap) {
