@@ -1,4 +1,4 @@
-/* global SpreadsheetApp, Config, Utilities */
+/* global SpreadsheetApp, Config, Utilities, computeHash */
 /**
  * @fileoverview Spreadsheet data access helpers.
  */
@@ -602,6 +602,35 @@ SheetClient.prototype.appendAuditIfNotExists = function (eventHash, rowValues) {
     return rowIndex;
   }
   return this.appendRow_(sheet, rowValues);
+};
+
+SheetClient.prototype.appendWorkflowLifecycleEvent = function (event) {
+  var eventHash = computeHash([
+    event.workflow_run_key,
+    event.event_type,
+    event.onboarding_id
+  ]);
+  var immutableDetails = JSON.stringify({
+    event_id: event.event_id,
+    workflow_name: event.workflow_name,
+    workflow_run_key: event.workflow_run_key,
+    event_type: event.event_type,
+    event_ts: event.event_ts,
+    actor: event.actor,
+    source_trigger: event.source_trigger,
+    onboarding_id: event.onboarding_id
+  });
+
+  return this.appendAuditIfNotExists(eventHash, [
+    event.event_id,
+    event.event_ts,
+    event.actor,
+    'WorkflowLifecycle',
+    event.onboarding_id || event.workflow_run_key,
+    event.event_type,
+    immutableDetails,
+    eventHash
+  ]);
 };
 
 if (typeof module !== 'undefined') module.exports = { SheetClient: SheetClient, COL: COL };

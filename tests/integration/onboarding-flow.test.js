@@ -64,7 +64,7 @@ describe('integration onboarding flow', () => {
       getSheetRowLink: jest.fn(() => 'https://sheet/link'),
       appendAuditIfNotExists: jest.fn()
     };
-    const auditLogger = { log: jest.fn(), error: jest.fn() };
+    const auditLogger = { log: jest.fn(), error: jest.fn(), logWorkflowLifecycle: jest.fn() };
     const slackClient = { lookupUserByEmail: jest.fn(() => ({ user: { id: 'U1' } })), postMessage: jest.fn() };
     global.SheetClient = jest.fn(() => sheetClient);
     global.AuditLogger = jest.fn(() => auditLogger);
@@ -77,6 +77,11 @@ describe('integration onboarding flow', () => {
     expect(sheetClient.appendChecklistTask).toHaveBeenCalledTimes(1);
     expect(auditLogger.log).toHaveBeenCalled();
     expect(slackClient.postMessage).toHaveBeenCalled();
+
+    var lifecycleTypes = auditLogger.logWorkflowLifecycle.mock.calls.map((call) => call[0].event_type);
+    expect(lifecycleTypes.filter((type) => type === 'WORKFLOW_CALLED')).toHaveLength(1);
+    expect(lifecycleTypes.filter((type) => type === 'WORKFLOW_STARTED')).toHaveLength(1);
+    expect(lifecycleTypes.filter((type) => type === 'WORKFLOW_ENDED')).toHaveLength(1);
   });
 
 
@@ -93,7 +98,7 @@ describe('integration onboarding flow', () => {
       getSheetRowLink: jest.fn(() => 'https://sheet/link'),
       appendAuditIfNotExists: jest.fn()
     };
-    const auditLogger = { log: jest.fn(), error: jest.fn() };
+    const auditLogger = { log: jest.fn(), error: jest.fn(), logWorkflowLifecycle: jest.fn() };
     const slackClient = { lookupUserByEmail: jest.fn(() => ({ user: { id: 'U1' } })), postMessage: jest.fn() };
     global.SheetClient = jest.fn(() => sheetClient);
     global.AuditLogger = jest.fn(() => auditLogger);
