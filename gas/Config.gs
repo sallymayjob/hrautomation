@@ -8,6 +8,7 @@ var Config = (function () {
     ONBOARDING_SPREADSHEET_ID: 'ONBOARDING_SPREADSHEET_ID',
     TRAINING_SPREADSHEET_ID: 'TRAINING_SPREADSHEET_ID',
     AUDIT_SPREADSHEET_ID: 'AUDIT_SPREADSHEET_ID',
+    CHECKLIST_SPREADSHEET_ID: 'CHECKLIST_SPREADSHEET_ID',
     ONBOARDING_SHEET_NAME: 'ONBOARDING_SHEET_NAME',
     TRAINING_SHEET_NAME: 'TRAINING_SHEET_NAME',
     AUDIT_SHEET_NAME: 'AUDIT_SHEET_NAME',
@@ -60,6 +61,10 @@ var Config = (function () {
 
     getAuditSpreadsheetId: function () {
       return getString_(KEYS.AUDIT_SPREADSHEET_ID);
+    },
+
+    getChecklistSpreadsheetId: function () {
+      return getString_(KEYS.CHECKLIST_SPREADSHEET_ID);
     },
 
     getOnboardingSheetName: function () {

@@ -44,23 +44,18 @@ var COL = {
   CHECKLIST: {
     TASK_ID: 1,
     ONBOARDING_ID: 2,
+    PHASE: 3,
+    TASK_NAME: 4,
+    OWNER_TEAM: 5,
+    OWNER_SLACK_CHANNEL: 6,
+    STATUS: 7,
+    DUE_DATE: 8,
+    UPDATED_AT: 9,
+    UPDATED_BY: 10,
+    NOTES: 11,
+    // Backward-compatible aliases.
     CATEGORY: 3,
-    PHASE: 4,
-    TASK_NAME: 5,
-    OWNER_TEAM: 6,
-    OWNER_SLACK_ID: 7,
-    STATUS: 8,
-    DUE_DATE: 9,
-    OFFSET_TYPE: 10,
-    OFFSET_DAYS: 11,
-    CRITICALITY: 12,
-    REMINDER_COUNT: 13,
-    LAST_REMINDER_AT: 14,
-    COMPLETED_AT: 15,
-    COMPLETED_BY: 16,
-    NOTES: 17,
-    EVENT_HASH: 18,
-    REQUIRED_FOR_COMPLETION: 19
+    OWNER_SLACK_ID: 6
   },
   AUDIT: {
     AUDIT_ID: 1,
@@ -117,6 +112,16 @@ var SHEET_SCHEMA_SPECS = {
     },
     sheetNameGetter: function () {
       return Config.getAuditSheetName();
+    }
+  },
+  checklist: {
+    expectedVersion: 1,
+    requiredHeaders: ['task_id', 'onboarding_id', 'phase', 'task_name', 'owner_team', 'owner_slack_channel', 'status', 'due_date', 'updated_at', 'updated_by', 'notes'],
+    spreadsheetIdGetter: function () {
+      return Config.getChecklistSpreadsheetId();
+    },
+    sheetNameGetter: function () {
+      return Config.getChecklistSheetName();
     }
   }
 };
@@ -387,7 +392,7 @@ SheetClient.prototype.getAuditSheet_ = function () {
 };
 
 SheetClient.prototype.getChecklistSheet_ = function () {
-  return this.getSheetFromSpreadsheet_(Config.getOnboardingSpreadsheetId(), Config.getChecklistSheetName(), 'CHECKLIST_SHEET_NAME');
+  return this.getSheetFromSpreadsheet_(Config.getChecklistSpreadsheetId(), Config.getChecklistSheetName(), 'CHECKLIST_SHEET_NAME');
 };
 
 SheetClient.prototype.resolveSheetByName_ = function (sheetName) {
@@ -414,6 +419,9 @@ SheetClient.prototype.resolveSpreadsheetIdBySheetName_ = function (sheetName) {
   }
   if (sheetName === Config.getAuditSheetName()) {
     return Config.getAuditSpreadsheetId();
+  }
+  if (sheetName === Config.getChecklistSheetName()) {
+    return Config.getChecklistSpreadsheetId();
   }
   return Config.getOnboardingSpreadsheetId();
 };
@@ -457,7 +465,7 @@ SheetClient.prototype.appendRow_ = function (sheet, rowValues) {
 };
 
 SheetClient.prototype.ensureSheetWithHeaders = function (sheetName, headers) {
-  var spreadsheet = this.openSpreadsheetById_(Config.getOnboardingSpreadsheetId());
+  var spreadsheet = this.openSpreadsheetById_(this.resolveSpreadsheetIdBySheetName_(sheetName));
   var sheet = spreadsheet.getSheetByName(sheetName);
   if (!sheet) {
     sheet = spreadsheet.insertSheet(sheetName);
@@ -673,18 +681,12 @@ SheetClient.prototype.evaluateOnboardingCompletionGate = function (employeeId) {
       continue;
     }
 
-    var required = row[COL.CHECKLIST.REQUIRED_FOR_COMPLETION - 1];
-    var isRequired = required === '' || required === null || typeof required === 'undefined' ? true : Boolean(required);
-    if (!isRequired) {
-      continue;
-    }
-
     var status = String(row[COL.CHECKLIST.STATUS - 1] || '').trim().toUpperCase();
     if (status === 'COMPLETE' || status === 'DONE') {
       continue;
     }
 
-    var phase = String(row[COL.CHECKLIST.PHASE - 1] || row[COL.CHECKLIST.CATEGORY - 1] || 'Unassigned').trim() || 'Unassigned';
+    var phase = String(row[COL.CHECKLIST.PHASE - 1] || 'Unassigned').trim() || 'Unassigned';
     if (!blockedByPhase[phase]) {
       blockedByPhase[phase] = [];
     }
@@ -817,6 +819,11 @@ SheetClient.prototype.appendChecklistTask = function (rowValues) {
     rowValues[COL.CHECKLIST.ONBOARDING_ID - 1]
   );
   if (existing > -1) {
+    var existingValues = sheet.getRange(existing, 1, 1, sheet.getLastColumn()).getValues()[0];
+    rowValues[COL.CHECKLIST.STATUS - 1] = existingValues[COL.CHECKLIST.STATUS - 1];
+    rowValues[COL.CHECKLIST.UPDATED_AT - 1] = existingValues[COL.CHECKLIST.UPDATED_AT - 1];
+    rowValues[COL.CHECKLIST.UPDATED_BY - 1] = existingValues[COL.CHECKLIST.UPDATED_BY - 1];
+    rowValues[COL.CHECKLIST.NOTES - 1] = existingValues[COL.CHECKLIST.NOTES - 1];
     this.writeRow_(sheet, existing, rowValues);
     return existing;
   }
@@ -851,8 +858,10 @@ SheetClient.prototype.updateChecklistReminderMetadata = function (taskId, onboar
   if (rowIndex < 0) {
     return false;
   }
-  sheet.getRange(rowIndex, COL.CHECKLIST.REMINDER_COUNT).setValue(Number(reminderCount || 0));
-  sheet.getRange(rowIndex, COL.CHECKLIST.LAST_REMINDER_AT).setValue(lastReminderAt || new Date());
+
+  var timestamp = lastReminderAt || new Date();
+  sheet.getRange(rowIndex, COL.CHECKLIST.UPDATED_AT).setValue(timestamp);
+  sheet.getRange(rowIndex, COL.CHECKLIST.UPDATED_BY).setValue('system:reminder#' + Number(reminderCount || 0));
   return true;
 };
 

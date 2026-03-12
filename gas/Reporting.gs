@@ -118,7 +118,7 @@ function buildOnboardingMetrics_(onboardingRows, checklistRows) {
 
     byOnboardingId[taskOnboardingId].unresolved_tasks.push({
       task_name: String(taskRow[COL.CHECKLIST.TASK_NAME - 1] || 'Unnamed task'),
-      category: String(taskRow[COL.CHECKLIST.CATEGORY - 1] || 'Unassigned'),
+      phase: String(taskRow[COL.CHECKLIST.PHASE - 1] || 'Unassigned'),
       owner_team: String(taskRow[COL.CHECKLIST.OWNER_TEAM - 1] || 'Unassigned'),
       due_date: taskRow[COL.CHECKLIST.DUE_DATE - 1],
       days_until_due: daysUntil
@@ -161,7 +161,7 @@ function buildOnboardingMetrics_(onboardingRows, checklistRows) {
 function syncSummaryViews_(sheetClient, onboardingRows, checklistRows, byOnboardingId) {
   writeEmployeeSummarySheet_(sheetClient, onboardingRows, byOnboardingId);
   writeTeamOwnerSummarySheet_(sheetClient, checklistRows);
-  writeCategorySummarySheet_(sheetClient, checklistRows);
+  writePhaseSummarySheet_(sheetClient, checklistRows);
   writeBlockedSummarySheet_(sheetClient, byOnboardingId);
 }
 
@@ -203,12 +203,12 @@ function writeTeamOwnerSummarySheet_(sheetClient, checklistRows) {
   writeSummarySheet_(sheetClient, WEEKLY_REPORT_SHEETS.BY_TEAM_OWNER, headers, rows);
 }
 
-function writeCategorySummarySheet_(sheetClient, checklistRows) {
-  var headers = ['category', 'tasks_total', 'tasks_done', 'tasks_overdue', 'completion_pct'];
+function writePhaseSummarySheet_(sheetClient, checklistRows) {
+  var headers = ['phase', 'tasks_total', 'tasks_done', 'tasks_overdue', 'completion_pct'];
   var aggregation = {};
 
   aggregateChecklist_(checklistRows, function (row) {
-    return String(row[COL.CHECKLIST.CATEGORY - 1] || 'Unassigned');
+    return String(row[COL.CHECKLIST.PHASE - 1] || 'Unassigned');
   }, aggregation);
 
   var rows = mapAggregatesToRows_(aggregation);

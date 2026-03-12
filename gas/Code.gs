@@ -6,23 +6,15 @@
 var CHECKLIST_HEADERS = [
   'task_id',
   'onboarding_id',
-  'category',
   'phase',
   'task_name',
   'owner_team',
-  'owner_slack_id',
+  'owner_slack_channel',
   'status',
   'due_date',
-  'offset_type',
-  'offset_days',
-  'criticality',
-  'reminder_count',
-  'last_reminder_at',
-  'completed_at',
-  'completed_by',
-  'notes',
-  'event_hash',
-  'required_for_completion'
+  'updated_at',
+  'updated_by',
+  'notes'
 ];
 
 var STATUS = {
@@ -440,34 +432,18 @@ function generateChecklistTasks_(sheetClient, auditLogger, onboardingId, rowData
     }
 
     var dueDate = computeTemplateDueDate_(template, startDate, triggerTimestamp);
-    var eventHash = computeHash([
-      onboardingId,
-      template.task_id,
-      template.category,
-      template.task_name,
-      formatDateKey_(dueDate)
-    ]);
-
     var checklistRowIndex = sheetClient.appendChecklistTask([
       template.task_id,
       onboardingId,
-      template.category,
       template.phase || template.category || 'Unassigned',
       template.task_name,
       template.owner_team,
-      template.owner_slack_id || '',
+      template.owner_slack_channel || template.owner_slack_id || '',
       'PENDING',
       dueDate,
-      String(template.offset_type || 'DAYS_FROM_START').toUpperCase(),
-      Number(!isNaN(Number(template.offset_days)) ? template.offset_days : (template.due_offset_days || 0)),
-      String(template.criticality || 'NORMAL').toUpperCase(),
-      0,
-      '',
-      '',
-      '',
-      template.notes || '',
-      eventHash,
-      template.required_for_completion === false ? false : true
+      triggerTimestamp || new Date(),
+      'system',
+      template.notes || ''
     ]);
 
     dispatchTaskAssignment_(sheetClient, auditLogger, {
@@ -475,7 +451,7 @@ function generateChecklistTasks_(sheetClient, auditLogger, onboardingId, rowData
       taskId: template.task_id,
       taskName: template.task_name,
       ownerTeam: template.owner_team,
-      ownerSlackId: template.owner_slack_id || '',
+      ownerSlackId: template.owner_slack_channel || template.owner_slack_id || '',
       employeeName: rowData.employee_name,
       dueDate: dueDate,
       checklistRowIndex: checklistRowIndex
@@ -502,22 +478,17 @@ function evaluateOnboardingCompletionGate_(sheetClient, onboardingId) {
       continue;
     }
 
-    var required = row[18] === '' || row[18] === null || typeof row[18] === 'undefined' ? true : Boolean(row[18]);
-    if (!required) {
-      continue;
-    }
-
-    var taskStatus = String(row[7] || '').trim().toUpperCase();
+    var taskStatus = String(row[6] || '').trim().toUpperCase();
     var isDone = taskStatus === STATUS.COMPLETE || taskStatus === 'DONE';
     if (isDone) {
       continue;
     }
 
-    var phase = String(row[3] || 'Unassigned').trim() || 'Unassigned';
+    var phase = String(row[2] || 'Unassigned').trim() || 'Unassigned';
     if (!missingByPhase[phase]) {
       missingByPhase[phase] = [];
     }
-    missingByPhase[phase].push(String(row[4] || 'Unnamed task'));
+    missingByPhase[phase].push(String(row[3] || 'Unnamed task'));
   }
 
   var phases = Object.keys(missingByPhase);

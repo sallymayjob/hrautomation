@@ -140,6 +140,12 @@ function escalateTrainingToManager_(sheetClient, row) {
   ]);
 }
 
+function parseReminderCountFromUpdatedBy_(value) {
+  var text = String(value || '');
+  var match = text.match(/system:reminder#(\d+)/);
+  return match ? Number(match[1]) : 0;
+}
+
 function sendChecklistReminderDM_(sheetClient, row, daysUntil) {
   var auditLogger = new AuditLogger(sheetClient);
   var slackClient = new SlackClient(auditLogger);
@@ -164,7 +170,7 @@ function sendChecklistReminderDM_(sheetClient, row, daysUntil) {
     dueDate: row[COL.CHECKLIST.DUE_DATE - 1]
   }));
 
-  var nextCount = Number(row[COL.CHECKLIST.REMINDER_COUNT - 1] || 0) + 1;
+  var nextCount = parseReminderCountFromUpdatedBy_(row[COL.CHECKLIST.UPDATED_BY - 1]) + 1;
   if (sheetClient.updateChecklistReminderMetadata) {
     sheetClient.updateChecklistReminderMetadata(taskId, onboardingId, nextCount, new Date());
   }
@@ -181,7 +187,7 @@ function escalateChecklistTask_(sheetClient, row, daysUntil) {
   var onboardingId = row[COL.CHECKLIST.ONBOARDING_ID - 1];
   var taskId = row[COL.CHECKLIST.TASK_ID - 1];
   var taskName = row[COL.CHECKLIST.TASK_NAME - 1];
-  var criticality = String(row[COL.CHECKLIST.CRITICALITY - 1] || 'NORMAL').toUpperCase();
+  var criticality = 'OVERDUE';
 
   var escalationDateKey = new Date().toISOString().slice(0, 10);
   var escalationHash = computeHash(['escalation', 'checklist', onboardingId, taskId, escalationDateKey]);
@@ -194,9 +200,8 @@ function escalateChecklistTask_(sheetClient, row, daysUntil) {
     { type: 'section', text: { type: 'mrkdwn', text: '*Onboarding:* ' + onboardingId + '\n*Task:* ' + taskName + '\n*Criticality:* ' + criticality } }
   ];
 
-  if (criticality === 'CRITICAL' || criticality === 'HIGH') {
-    slackClient.postMessage('#hr-ops-alerts', blocks);
-  }
+  // Checklist model no longer stores criticality; escalate overdue checklist tasks to HR ops consistently.
+  slackClient.postMessage('#hr-ops-alerts', blocks);
 
   var onboarding = sheetClient.findOnboardingByEmployeeId(onboardingId);
   var managerEmail = onboarding && onboarding.values ? onboarding.values[COL.ONBOARDING.MANAGER_EMAIL - 1] : '';
