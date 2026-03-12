@@ -10,6 +10,8 @@ Slack slash commands and interactive message responses in this project are **rea
 This guide helps you set up RWR-HAF without coding.
 Follow each step in order.
 
+Architecture reference: before deployment changes, review `docs/architecture-dataflow.md` for source/derived sheet flow, ownership boundaries, and fail-closed schema behavior.
+
 ## Phase 1 — Create the three spreadsheets (about 10 minutes)
 This phase creates three online spreadsheets for your records.
 A Google Sheet is an online spreadsheet, like Excel in your web browser.

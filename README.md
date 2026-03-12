@@ -54,3 +54,7 @@ Slack command responses and Slack message interactions are **read-only** for onb
 - If you are unsure the system is running, check Audit Log. If today's rows exist, it is working.
 
 You're done with this part.
+
+## Architecture and dataflow
+- See `docs/architecture-dataflow.md` for sheet connections, ownership boundaries, write rules, and failure behavior.
+
