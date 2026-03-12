@@ -3,8 +3,6 @@
  * @fileoverview Main trigger handlers for onboarding processing.
  */
 
-var ONBOARDING_SHEET_NAME = 'Onboarding';
-
 var CHECKLIST_HEADERS = [
   'task_id',
   'onboarding_id',
@@ -60,7 +58,7 @@ var ROLE_MAPPINGS = {
 
 function onChangeHandler(e) {
   var sheet = e && e.source && e.source.getActiveSheet ? e.source.getActiveSheet() : null;
-  if (!sheet || sheet.getName() !== ONBOARDING_SHEET_NAME) {
+  if (!sheet || sheet.getName() !== Config.getOnboardingSheetName()) {
     return;
   }
 
@@ -120,7 +118,7 @@ function processOnboardingRow_(sheet, rowIndex) {
     ]);
     setValueIfColumnExists_(sheet, rowIndex, headerMap, 'row_hash', rowHash);
 
-    var duplicateRow = sheetClient.checkDuplicate(ONBOARDING_SHEET_NAME, 'row_hash', rowHash, rowIndex);
+    var duplicateRow = sheetClient.checkDuplicate(Config.getOnboardingSheetName(), 'row_hash', rowHash, rowIndex);
     if (duplicateRow > -1) {
       setStatus_(sheet, rowIndex, headerMap, STATUS.BLOCKED);
       setBlockedReason_(sheet, rowIndex, headerMap, 'Duplicate onboarding row found. Matched row index ' + duplicateRow + '.');

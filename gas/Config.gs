@@ -5,7 +5,9 @@
 
 var Config = (function () {
   var KEYS = {
-    SPREADSHEET_ID: 'SPREADSHEET_ID',
+    ONBOARDING_SPREADSHEET_ID: 'ONBOARDING_SPREADSHEET_ID',
+    TRAINING_SPREADSHEET_ID: 'TRAINING_SPREADSHEET_ID',
+    AUDIT_SPREADSHEET_ID: 'AUDIT_SPREADSHEET_ID',
     ONBOARDING_SHEET_NAME: 'ONBOARDING_SHEET_NAME',
     TRAINING_SHEET_NAME: 'TRAINING_SHEET_NAME',
     AUDIT_SHEET_NAME: 'AUDIT_SHEET_NAME',
@@ -28,7 +30,7 @@ var Config = (function () {
   function getRaw_(key) {
     var value = PropertiesService.getScriptProperties().getProperty(key);
     if (value === null || value === '') {
-      throw new Error('Missing required Script Property: ' + key);
+      throw new Error('Missing required Script Property: ' + key + '. Configure it in Apps Script > Project Settings > Script Properties.');
     }
     return value;
   }
@@ -48,8 +50,16 @@ var Config = (function () {
   return {
     KEYS: KEYS,
 
-    getSpreadsheetId: function () {
-      return getString_(KEYS.SPREADSHEET_ID);
+    getOnboardingSpreadsheetId: function () {
+      return getString_(KEYS.ONBOARDING_SPREADSHEET_ID);
+    },
+
+    getTrainingSpreadsheetId: function () {
+      return getString_(KEYS.TRAINING_SPREADSHEET_ID);
+    },
+
+    getAuditSpreadsheetId: function () {
+      return getString_(KEYS.AUDIT_SPREADSHEET_ID);
     },
 
     getOnboardingSheetName: function () {

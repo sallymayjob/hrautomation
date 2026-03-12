@@ -142,26 +142,34 @@ If one name is wrong, the system can fail.
 6. Paste the `#hr-approvals` channel ID.
 7. Add `GENERAL_CHANNEL_ID`.
 8. Paste the `#general` channel ID.
-9. Add `ONBOARDING_SHEET_ID`.
+9. Add `ONBOARDING_SPREADSHEET_ID`.
 10. Paste the Onboarding spreadsheet ID.
-11. Add `TRAINING_SHEET_ID`.
+11. Add `TRAINING_SPREADSHEET_ID`.
 12. Paste the Training Log spreadsheet ID.
-13. Add `AUDIT_SHEET_ID`.
+13. Add `AUDIT_SPREADSHEET_ID`.
 14. Paste the Audit Log spreadsheet ID.
-15. Add `ADMIN_FALLBACK_EMAIL`.
-16. Paste the HR admin email, for example `hr@rwrgroup.com`.
-17. Add `ENV`.
-18. Type `production` as the value.
-19. Add `ADMIN_TEAM_CHANNEL_ID`.
-20. Add `FINANCE_TEAM_CHANNEL_ID`.
-21. Add `HR_TEAM_CHANNEL_ID`.
-22. Add `IT_TEAM_CHANNEL_ID`.
-23. Add `LEGAL_TEAM_CHANNEL_ID`.
-24. Add `OPERATIONS_TEAM_CHANNEL_ID`.
-25. Add `PEOPLE_TEAM_CHANNEL_ID`.
-26. Add `DEFAULT_ASSIGNMENTS_CHANNEL_ID`.
-27. Paste the Slack channel IDs for each destination.
-28. Click "Save script properties".
+15. Add `ONBOARDING_SHEET_NAME`.
+16. Set value to the onboarding tab name (for example `Onboarding`).
+17. Add `TRAINING_SHEET_NAME`.
+18. Set value to the training tab name (for example `Training Log`).
+19. Add `AUDIT_SHEET_NAME`.
+20. Set value to the audit tab name (for example `Audit Log`).
+21. Add `CHECKLIST_SHEET_NAME`.
+22. Set value to the checklist tab name (for example `Checklist Tasks`).
+23. Add `ADMIN_FALLBACK_EMAIL`.
+24. Paste the HR admin email, for example `hr@rwrgroup.com`.
+25. Add `ENV`.
+26. Type `production` as the value.
+27. Add `ADMIN_TEAM_CHANNEL_ID`.
+28. Add `FINANCE_TEAM_CHANNEL_ID`.
+29. Add `HR_TEAM_CHANNEL_ID`.
+30. Add `IT_TEAM_CHANNEL_ID`.
+31. Add `LEGAL_TEAM_CHANNEL_ID`.
+32. Add `OPERATIONS_TEAM_CHANNEL_ID`.
+33. Add `PEOPLE_TEAM_CHANNEL_ID`.
+34. Add `DEFAULT_ASSIGNMENTS_CHANNEL_ID`.
+35. Paste the Slack channel IDs for each destination.
+36. Click "Save script properties".
 What just happened? The system now knows every address and password it needs, including checklist assignment destinations.
 
 You're done with Phase 3. The system now knows where everything lives.

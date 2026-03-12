@@ -19,7 +19,7 @@ describe('integration reminder flow', () => {
     };
     global.Config = {
       getAuditSheetName: jest.fn(() => 'Audit'),
-      getSpreadsheetId: jest.fn(() => 'id'),
+      getOnboardingSpreadsheetId: jest.fn(() => 'onboarding-id'),
       getOnboardingSheetName: jest.fn(() => 'Onboarding'),
       getFinanceTeamChannelId: jest.fn(() => 'CFIN'),
       getAdminTeamChannelId: jest.fn(() => 'CADM'),
