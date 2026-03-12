@@ -84,27 +84,53 @@ var REQUIRED_NAMED_FUNCTIONS = {
 var SCHEMA_CONFIG_TAB = '_sys_config';
 var LIBRARY_SCHEMA_VERSION_KEY = 'version';
 var LIBRARY_SCHEMA_VERSION = 'schema_v1';
-var LIBRARY_ENTRY_HEADERS = [
-  'EmployeeID',
-  'FullName',
-  'WorkEmail',
-  'StartDate',
-  'Department',
-  'ManagerEmail',
-  'OnboardingStatus',
-  'AuditStatus',
-  'LastUpdated'
-];
-var LIBRARY_ENTRY_TYPES = {
-  EmployeeID: 'string',
-  FullName: 'string',
-  WorkEmail: 'string(email)',
-  StartDate: 'date',
-  Department: 'string',
-  ManagerEmail: 'string(email)',
-  OnboardingStatus: 'string(enum)',
-  AuditStatus: 'string(enum)',
-  LastUpdated: 'datetime'
+var LIBRARY_ENTRY_SCHEMAS = {
+  onboarding: {
+    headers: [
+      'EmployeeID',
+      'FullName',
+      'WorkEmail',
+      'StartDate',
+      'Department',
+      'ManagerEmail',
+      'OnboardingStatus',
+      'AuditStatus',
+      'LastUpdated'
+    ],
+    types: {
+      EmployeeID: 'string',
+      FullName: 'string',
+      WorkEmail: 'string(email)',
+      StartDate: 'date',
+      Department: 'string',
+      ManagerEmail: 'string(email)',
+      OnboardingStatus: 'string(enum)',
+      AuditStatus: 'string(enum)',
+      LastUpdated: 'datetime'
+    }
+  },
+  training: {
+    headers: [
+      'EmployeeID',
+      'TrainingPlan',
+      'TrainingAssignedDate',
+      'TrainingDueDate',
+      'TrainingStatus',
+      'TrainingCompletedDate',
+      'TrainingOwner',
+      'TrainingEscalationLevel'
+    ],
+    types: {
+      EmployeeID: 'string',
+      TrainingPlan: 'string',
+      TrainingAssignedDate: 'date',
+      TrainingDueDate: 'date',
+      TrainingStatus: 'string(enum)',
+      TrainingCompletedDate: 'date',
+      TrainingOwner: 'string',
+      TrainingEscalationLevel: 'string|number'
+    }
+  }
 };
 
 var SHEET_SCHEMA_SPECS = {
@@ -323,17 +349,21 @@ SheetClient.prototype.ensureSchemaVersionMetadata = function () {
   }
 };
 
-SheetClient.prototype.validateSchema = function (headers) {
+SheetClient.prototype.validateSchema = function (headers, context) {
   var provided = headers || [];
+  var normalizedContext = this.normalizeKey_(context || 'onboarding') || 'onboarding';
+  var schema = LIBRARY_ENTRY_SCHEMAS[normalizedContext] || LIBRARY_ENTRY_SCHEMAS.onboarding;
+  var expectedHeaders = schema.headers;
+  var expectedTypes = schema.types;
   var errors = [];
 
-  if (provided.length !== LIBRARY_ENTRY_HEADERS.length) {
-    errors.push('Expected ' + LIBRARY_ENTRY_HEADERS.length + ' columns but found ' + provided.length + '.');
+  if (provided.length !== expectedHeaders.length) {
+    errors.push('Expected ' + expectedHeaders.length + ' columns but found ' + provided.length + '.');
   }
 
-  var maxColumns = Math.max(provided.length, LIBRARY_ENTRY_HEADERS.length);
+  var maxColumns = Math.max(provided.length, expectedHeaders.length);
   for (var i = 0; i < maxColumns; i += 1) {
-    var expected = LIBRARY_ENTRY_HEADERS[i];
+    var expected = expectedHeaders[i];
     var actual = provided[i];
     if (String(actual || '') !== String(expected || '')) {
       errors.push('Column ' + (i + 1) + ' must be "' + expected + '" but found "' + String(actual || '') + '".');
@@ -343,8 +373,8 @@ SheetClient.prototype.validateSchema = function (headers) {
   if (errors.length > 0) {
     throw new Error(
       'Library schema drift detected. Required header order is: ' +
-      LIBRARY_ENTRY_HEADERS.join(', ') +
-      '.\nExpected data types: ' + JSON.stringify(LIBRARY_ENTRY_TYPES) +
+      expectedHeaders.join(', ') +
+      '.\nExpected data types: ' + JSON.stringify(expectedTypes) +
       '.\n' + errors.join(' ')
     );
   }
@@ -354,7 +384,8 @@ SheetClient.prototype.validateSchema = function (headers) {
 
 SheetClient.prototype.validateLibrarySheetSchema_ = function (sheet) {
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  this.validateSchema(headers);
+  var context = this.normalizeKey_(sheet.getName()) === this.normalizeKey_(Config.getTrainingSheetName()) ? 'training' : 'onboarding';
+  this.validateSchema(headers, context);
 };
 
 SheetClient.prototype.getSchemaVersionFromConfig_ = function (spreadsheet, sheetName) {

@@ -195,8 +195,10 @@ describe('SheetClient', () => {
     const client = new SheetClient();
 
     expect(client.validateSchema(['EmployeeID', 'FullName', 'WorkEmail', 'StartDate', 'Department', 'ManagerEmail', 'OnboardingStatus', 'AuditStatus', 'LastUpdated'])).toBe(true);
+    expect(client.validateSchema(['EmployeeID', 'TrainingPlan', 'TrainingAssignedDate', 'TrainingDueDate', 'TrainingStatus', 'TrainingCompletedDate', 'TrainingOwner', 'TrainingEscalationLevel'], 'training')).toBe(true);
     expect(() => client.validateSchema(['EmployeeID', 'FullName', 'Email'])).toThrow('Library schema drift detected');
     expect(() => client.validateSchema(['EmployeeID', 'FullName', 'Email'])).toThrow('Expected data types');
+    expect(() => client.validateSchema(['EmployeeID', 'FullName', 'Email'], 'training')).toThrow('TrainingPlan');
   });
 
   test('ensureSchemaVersionMetadata writes canonical version marker to _sys_config', () => {
