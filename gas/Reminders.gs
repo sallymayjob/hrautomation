@@ -164,7 +164,7 @@ function sendChecklistReminderDM_(sheetClient, row, daysUntil) {
     dueDate: row[COL.CHECKLIST.DUE_DATE - 1]
   }));
 
-  var nextCount = Number(row[COL.CHECKLIST.REMINDER_COUNT - 1] || 0) + 1;
+  var nextCount = 1;
   if (sheetClient.updateChecklistReminderMetadata) {
     sheetClient.updateChecklistReminderMetadata(taskId, onboardingId, nextCount, new Date());
   }
@@ -181,7 +181,7 @@ function escalateChecklistTask_(sheetClient, row, daysUntil) {
   var onboardingId = row[COL.CHECKLIST.ONBOARDING_ID - 1];
   var taskId = row[COL.CHECKLIST.TASK_ID - 1];
   var taskName = row[COL.CHECKLIST.TASK_NAME - 1];
-  var criticality = String(row[COL.CHECKLIST.CRITICALITY - 1] || 'NORMAL').toUpperCase();
+  var criticality = 'NORMAL';
 
   var escalationDateKey = new Date().toISOString().slice(0, 10);
   var escalationHash = computeHash(['escalation', 'checklist', onboardingId, taskId, escalationDateKey]);

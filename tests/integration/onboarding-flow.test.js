@@ -86,13 +86,13 @@ describe('integration onboarding flow', () => {
 
     const { onChangeHandler } = require('../../gas/Code.gs');
     expect(() => onChangeHandler({ source: { getActiveSheet: () => sheet } })).toThrow(
-      'Onboarding sheet schema invalid. Missing required header(s): checklist_completed, row_hash, blocked_reason'
+      'Onboarding sheet schema invalid. Missing required header(s): role'
     );
   });
 
   test('schema version mismatch blocks processing before row writes', () => {
-    const headers = ['onboarding_id', 'employee_name', 'email', 'start_date', 'manager_email', 'role', 'status', 'checklist_completed', 'row_hash', 'blocked_reason'];
-    const row = ['OB-1', 'Alex Doe', 'a@x.com', '2026-01-01', 'm@x.com', 'MANAGER', 'PENDING', false, '', ''];
+    const headers = ['onboarding_id', 'employee_name', 'email', 'start_date', 'manager_email', 'buddy_email', 'role', 'status', 'checklist_completed', 'row_hash', 'blocked_reason'];
+    const row = ['OB-1', 'Alex Doe', 'a@x.com', '2026-01-01', 'm@x.com', 'b@x.com', 'MANAGER', 'PENDING', false, '', ''];
     const sheet = makeOnboardingSheet(headers, row);
 
     const sheetClient = { validateWorkbookSchemas: jest.fn(() => { throw new Error('Schema version mismatch for sheet "Onboarding". Expected 3 but found 2.'); }) };

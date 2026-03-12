@@ -73,6 +73,7 @@ describe('SheetClient', () => {
       getOnboardingSpreadsheetId: jest.fn(() => 'onboarding-id'),
       getTrainingSpreadsheetId: jest.fn(() => 'training-id'),
       getAuditSpreadsheetId: jest.fn(() => 'audit-id'),
+      getChecklistSpreadsheetId: jest.fn(() => 'checklist-id'),
       getOnboardingSheetName: jest.fn(() => 'Onboarding'),
       getTrainingSheetName: jest.fn(() => 'Training'),
       getAuditSheetName: jest.fn(() => 'Audit'),
@@ -96,12 +97,13 @@ describe('SheetClient', () => {
     const training = makeSheet(['employee_id', 'module_code', 'module_name', 'assigned_date', 'due_date', 'completion_date', 'training_status', 'owner_email', 'reminder_count', 'last_reminder_at', 'last_updated_at', 'completion_hash', 'celebration_posted'], [['E1', 'M1', 'm', 'd', 'd', '', 'ASSIGNED', '', 0, '', '', '', false]], 'Training');
     const audit = makeSheet(['audit_id', 'event_timestamp', 'actor_email', 'entity_type', 'entity_id', 'action', 'details', 'event_hash'], [], 'Audit');
     const config = makeSheet(['key', 'value'], [['Onboarding.schema_version', '3'], ['Training.schema_version', '1'], ['Audit.schema_version', '1']], '_sys_config');
-    const checklist = makeSheet(['task_id', 'onboarding_id', 'category', 'phase', 'task_name', 'owner_team', 'owner_slack_id', 'status', 'due_date', 'offset_type', 'offset_days', 'criticality', 'reminder_count', 'last_reminder_at', 'completed_at', 'completed_by', 'notes', 'event_hash', 'required_for_completion'], [['DOC-001', 'OB-1', 'Documentation', 'Documentation', 'Share employee handbook', 'People Ops', '@ops', 'PENDING', '', 'DAYS_FROM_START', 1, 'HIGH', 0, '', '', '', '', 'h1', true]], 'Checklist Tasks');
+    const checklist = makeSheet(['task_id', 'onboarding_id', 'phase', 'task_name', 'owner_team', 'owner_slack_channel', 'status', 'due_date', 'updated_at', 'updated_by', 'notes'], [['DOC-001', 'OB-1', 'Documentation', 'Share employee handbook', 'People Ops', 'COPS', 'PENDING', '', '', '', '']], 'Checklist Tasks');
 
-    const onboardingSpreadsheet = makeSpreadsheet({ Onboarding: onboarding, 'Checklist Tasks': checklist, _sys_config: config });
+    const onboardingSpreadsheet = makeSpreadsheet({ Onboarding: onboarding, _sys_config: config });
     const trainingSpreadsheet = makeSpreadsheet({ Training: training, _sys_config: config });
     const auditSpreadsheet = makeSpreadsheet({ Audit: audit, _sys_config: config });
-    SpreadsheetApp.openById.mockImplementation((id) => ({ 'onboarding-id': onboardingSpreadsheet, 'training-id': trainingSpreadsheet, 'audit-id': auditSpreadsheet }[id]));
+    const checklistSpreadsheet = makeSpreadsheet({ 'Checklist Tasks': checklist, _sys_config: config });
+    SpreadsheetApp.openById.mockImplementation((id) => ({ 'onboarding-id': onboardingSpreadsheet, 'training-id': trainingSpreadsheet, 'audit-id': auditSpreadsheet, 'checklist-id': checklistSpreadsheet }[id]));
 
     const { SheetClient } = require('../../gas/SheetClient.gs');
     const client = new SheetClient();
@@ -159,18 +161,19 @@ describe('SheetClient', () => {
     const audit = makeSheet(['audit_id', 'event_timestamp', 'actor_email', 'entity_type', 'entity_id', 'action', 'details', 'event_hash'], [], 'Audit');
     const config = makeSheet(['key', 'value'], [['Onboarding.schema_version', '3'], ['Training.schema_version', '1'], ['Audit.schema_version', '1']], '_sys_config');
     const checklist = makeSheet(
-      ['task_id', 'onboarding_id', 'category', 'phase', 'task_name', 'owner_team', 'owner_slack_id', 'status', 'due_date', 'offset_type', 'offset_days', 'criticality', 'reminder_count', 'last_reminder_at', 'completed_at', 'completed_by', 'notes', 'event_hash', 'required_for_completion'],
+      ['task_id', 'onboarding_id', 'phase', 'task_name', 'owner_team', 'owner_slack_channel', 'status', 'due_date', 'updated_at', 'updated_by', 'notes'],
       [
-        ['DOC-001', 'OB-2', 'Documentation', 'Documentation', 'Collect signed contract', 'People Ops', '@ops', 'PENDING', '', 'DAYS_FROM_START', 1, 'HIGH', 0, '', '', '', '', 'h1', true],
-        ['WRK-001', 'OB-2', 'Workspace', 'Pre-onboarding', 'Provision Google account test', 'IT', '@it', 'PENDING', '', 'DAYS_FROM_START', 0, 'HIGH', 0, '', '', '', '', 'h2', true]
+        ['DOC-001', 'OB-2', 'Documentation', 'Collect signed contract', 'People Ops', 'CPEO', 'PENDING', '', '', '', ''],
+        ['WRK-001', 'OB-2', 'Pre-onboarding', 'Provision Google account test', 'IT', 'CIT', 'PENDING', '', '', '', '']
       ],
       'Checklist Tasks'
     );
 
-    const onboardingSpreadsheet = makeSpreadsheet({ Onboarding: onboarding, 'Checklist Tasks': checklist, _sys_config: config });
+    const onboardingSpreadsheet = makeSpreadsheet({ Onboarding: onboarding, _sys_config: config });
     const trainingSpreadsheet = makeSpreadsheet({ Training: training, _sys_config: config });
     const auditSpreadsheet = makeSpreadsheet({ Audit: audit, _sys_config: config });
-    SpreadsheetApp.openById.mockImplementation((id) => ({ 'onboarding-id': onboardingSpreadsheet, 'training-id': trainingSpreadsheet, 'audit-id': auditSpreadsheet }[id]));
+    const checklistSpreadsheet = makeSpreadsheet({ 'Checklist Tasks': checklist, _sys_config: config });
+    SpreadsheetApp.openById.mockImplementation((id) => ({ 'onboarding-id': onboardingSpreadsheet, 'training-id': trainingSpreadsheet, 'audit-id': auditSpreadsheet, 'checklist-id': checklistSpreadsheet }[id]));
 
     const { SheetClient } = require('../../gas/SheetClient.gs');
     const client = new SheetClient();

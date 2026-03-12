@@ -148,28 +148,30 @@ If one name is wrong, the system can fail.
 12. Paste the Training Log spreadsheet ID.
 13. Add `AUDIT_SPREADSHEET_ID`.
 14. Paste the Audit Log spreadsheet ID.
-15. Add `ONBOARDING_SHEET_NAME`.
-16. Set value to the onboarding tab name (for example `Onboarding`).
-17. Add `TRAINING_SHEET_NAME`.
-18. Set value to the training tab name (for example `Training Log`).
-19. Add `AUDIT_SHEET_NAME`.
-20. Set value to the audit tab name (for example `Audit Log`).
-21. Add `CHECKLIST_SHEET_NAME`.
-22. Set value to the checklist tab name (for example `Checklist Tasks`).
-23. Add `ADMIN_FALLBACK_EMAIL`.
-24. Paste the HR admin email, for example `hr@rwrgroup.com`.
-25. Add `ENV`.
-26. Type `production` as the value.
-27. Add `ADMIN_TEAM_CHANNEL_ID`.
-28. Add `FINANCE_TEAM_CHANNEL_ID`.
-29. Add `HR_TEAM_CHANNEL_ID`.
-30. Add `IT_TEAM_CHANNEL_ID`.
-31. Add `LEGAL_TEAM_CHANNEL_ID`.
-32. Add `OPERATIONS_TEAM_CHANNEL_ID`.
-33. Add `PEOPLE_TEAM_CHANNEL_ID`.
-34. Add `DEFAULT_ASSIGNMENTS_CHANNEL_ID`.
-35. Paste the Slack channel IDs for each destination.
-36. Click "Save script properties".
+15. Add `CHECKLIST_SPREADSHEET_ID`.
+16. Paste the Checklist spreadsheet ID (standalone checklist workbook).
+17. Add `ONBOARDING_SHEET_NAME`.
+18. Set value to the onboarding tab name (for example `Onboarding`).
+19. Add `TRAINING_SHEET_NAME`.
+20. Set value to the training tab name (for example `Training Log`).
+21. Add `AUDIT_SHEET_NAME`.
+22. Set value to the audit tab name (for example `Audit Log`).
+23. Add `CHECKLIST_SHEET_NAME`.
+24. Set value to the checklist tab name (for example `Checklist Tasks`).
+25. Add `ADMIN_FALLBACK_EMAIL`.
+26. Paste the HR admin email, for example `hr@rwrgroup.com`.
+27. Add `ENV`.
+28. Type `production` as the value.
+29. Add `ADMIN_TEAM_CHANNEL_ID`.
+30. Add `FINANCE_TEAM_CHANNEL_ID`.
+31. Add `HR_TEAM_CHANNEL_ID`.
+32. Add `IT_TEAM_CHANNEL_ID`.
+33. Add `LEGAL_TEAM_CHANNEL_ID`.
+34. Add `OPERATIONS_TEAM_CHANNEL_ID`.
+35. Add `PEOPLE_TEAM_CHANNEL_ID`.
+36. Add `DEFAULT_ASSIGNMENTS_CHANNEL_ID`.
+37. Paste the Slack channel IDs for each destination.
+38. Click "Save script properties".
 What just happened? The system now knows every address and password it needs, including checklist assignment destinations.
 
 You're done with Phase 3. The system now knows where everything lives.
@@ -369,7 +371,7 @@ Testing complete. If all three checks passed, the system is ready for real use.
 ## Onboarding completion gate logic
 - Valid onboarding statuses are `PENDING`, `IN_PROGRESS`, `BLOCKED`, `COMPLETE`.
 - The system generates checklist tasks with explicit phases (`Documentation`, `Pre-onboarding`, `Day-1 readiness`).
-- `required_for_completion = true` tasks must be `COMPLETE`/`DONE` before onboarding can move to `COMPLETE`.
+- All generated checklist tasks are treated as required before onboarding can move to `COMPLETE`.
 - If an operator attempts to complete onboarding early, the gate writes `BLOCKED` and a detailed `blocked_reason` grouped by phase.
 - Typical blocked reasons include missing contract completion and missing Google account test verification.
 
@@ -379,6 +381,13 @@ Testing complete. If all three checks passed, the system is ready for real use.
 3. Update corresponding Checklist Tasks rows to `COMPLETE`.
 4. Set onboarding status to `COMPLETE` again.
 5. Confirm `blocked_reason` is cleared.
+
+
+## Manual checklist status updates (operations)
+- Checklist tasks live in a standalone workbook configured by `CHECKLIST_SPREADSHEET_ID` + `CHECKLIST_SHEET_NAME`.
+- Operations teams may manually edit only these columns when intervening: `status`, `updated_at`, `updated_by`, and `notes`.
+- Generator reruns overwrite template-controlled fields (`phase`, `task_name`, `owner_team`, `owner_slack_channel`, `due_date`) but preserve the manual status fields above.
+- When resolving a blocked onboarding, update checklist `status` to `COMPLETE`/`DONE`, set `updated_at` to now, and set `updated_by` to your email or handle.
 
 ## What happens every day (no action needed)
 - At 8:00 AM NZ time, training deadlines are checked for reminders.

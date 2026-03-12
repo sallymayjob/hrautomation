@@ -1,0 +1,40 @@
+{
+  "schemaName": "checklist",
+  "version": 1,
+  "sheetName": "Checklist Tasks",
+  "columns": [
+    { "index": 1, "key": "task_id", "header": "task_id", "type": "string", "required": true },
+    { "index": 2, "key": "onboarding_id", "header": "onboarding_id", "type": "string", "required": true },
+    { "index": 3, "key": "phase", "header": "phase", "type": "string", "required": true },
+    { "index": 4, "key": "task_name", "header": "task_name", "type": "string", "required": true },
+    { "index": 5, "key": "owner_team", "header": "owner_team", "type": "string", "required": true },
+    { "index": 6, "key": "owner_slack_channel", "header": "owner_slack_channel", "type": "string", "required": false },
+    {
+      "index": 7,
+      "key": "status",
+      "header": "status",
+      "type": "enum",
+      "required": true,
+      "allowedValues": ["PENDING", "IN_PROGRESS", "BLOCKED", "COMPLETE", "DONE"]
+    },
+    { "index": 8, "key": "due_date", "header": "due_date", "type": "date", "required": false },
+    { "index": 9, "key": "updated_at", "header": "updated_at", "type": "datetime", "required": false },
+    { "index": 10, "key": "updated_by", "header": "updated_by", "type": "string", "required": false },
+    { "index": 11, "key": "notes", "header": "notes", "type": "string", "required": false }
+  ],
+  "requiredHeaders": [
+    "task_id",
+    "onboarding_id",
+    "phase",
+    "task_name",
+    "owner_team",
+    "owner_slack_channel",
+    "status",
+    "due_date",
+    "updated_at",
+    "updated_by",
+    "notes"
+  ],
+  "schemaConfigTab": "_sys_config",
+  "schemaVersionMetadataKey": "Checklist.schema_version"
+}
