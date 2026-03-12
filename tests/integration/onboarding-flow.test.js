@@ -9,6 +9,7 @@ function mockGasGlobals() {
 
 function makeOnboardingSheet(headers, row) {
   const values = [headers, row];
+  const setValueCalls = [];
   return {
     getName: jest.fn(() => 'Onboarding'),
     getLastRow: jest.fn(() => values.length),
@@ -16,8 +17,12 @@ function makeOnboardingSheet(headers, row) {
     getRange: jest.fn((r, c, nr, nc) => ({
       getValues: jest.fn(() => values.slice(r - 1, r - 1 + nr).map((rv) => rv.slice(c - 1, c - 1 + nc))),
       getValue: jest.fn(() => values[r - 1][c - 1]),
-      setValue: jest.fn((v) => { values[r - 1][c - 1] = v; })
-    }))
+      setValue: jest.fn((v) => {
+        setValueCalls.push({ row: r, col: c, value: v });
+        values[r - 1][c - 1] = v;
+      })
+    })),
+    getSetValueCalls: () => setValueCalls
   };
 }
 
@@ -72,6 +77,33 @@ describe('integration onboarding flow', () => {
     expect(sheetClient.appendChecklistTask).toHaveBeenCalledTimes(1);
     expect(auditLogger.log).toHaveBeenCalled();
     expect(slackClient.postMessage).toHaveBeenCalled();
+  });
+
+
+  test('does not overwrite a non-empty formula-derived onboarding_id', () => {
+    const headers = ['onboarding_id', 'employee_name', 'email', 'start_date', 'manager_email', 'role', 'status', 'row_hash'];
+    const row = ['ONB_20260101T000000Z_0001_SLACK', 'Alex Doe', 'a@x.com', '2026-01-01', 'm@x.com', 'MANAGER', 'PENDING', ''];
+    const sheet = makeOnboardingSheet(headers, row);
+
+    const sheetClient = {
+      checkDuplicate: jest.fn(() => -1),
+      appendTrainingRow: jest.fn(),
+      ensureSheetWithHeaders: jest.fn(),
+      appendChecklistTask: jest.fn(() => 4),
+      getSheetRowLink: jest.fn(() => 'https://sheet/link'),
+      appendAuditIfNotExists: jest.fn()
+    };
+    const auditLogger = { log: jest.fn(), error: jest.fn() };
+    const slackClient = { lookupUserByEmail: jest.fn(() => ({ user: { id: 'U1' } })), postMessage: jest.fn() };
+    global.SheetClient = jest.fn(() => sheetClient);
+    global.AuditLogger = jest.fn(() => auditLogger);
+    global.SlackClient = jest.fn(() => slackClient);
+
+    const { onChangeHandler } = require('../../gas/Code.gs');
+    onChangeHandler({ source: { getActiveSheet: () => sheet } });
+
+    const idWrites = sheet.getSetValueCalls().filter((call) => call.row === 2 && call.col === 1);
+    expect(idWrites).toEqual([]);
   });
 
   test('throws clear error when required onboarding headers are missing', () => {

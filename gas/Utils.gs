@@ -90,6 +90,13 @@ AuditLogger.prototype.retry = function (event, attempt, maxAttempts) {
   });
 };
 
+
+function verifyRequiredNamedFunctions(sheetClient) {
+  var client = sheetClient || new SheetClient();
+  var auditLogger = new AuditLogger(client);
+  return client.validateRequiredNamedFunctions(auditLogger);
+}
+
 function notifyHrAlerts(message) {
   try {
     MailApp.sendEmail({
@@ -107,5 +114,6 @@ if (typeof module !== 'undefined') module.exports = {
   computeHash: computeHash,
   getDaysUntilDue: getDaysUntilDue,
   AuditLogger: AuditLogger,
-  notifyHrAlerts: notifyHrAlerts
+  notifyHrAlerts: notifyHrAlerts,
+  verifyRequiredNamedFunctions: verifyRequiredNamedFunctions
 };

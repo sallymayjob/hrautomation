@@ -8,42 +8,48 @@
       "key": "employee_id",
       "header": "Employee ID",
       "type": "string",
-      "required": true
+      "required": true,
+      "population": "script"
     },
     {
       "index": 2,
       "key": "module_code",
       "header": "Module Code",
       "type": "string",
-      "required": true
+      "required": true,
+      "population": "script"
     },
     {
       "index": 3,
       "key": "module_name",
       "header": "Module Name",
       "type": "string",
-      "required": true
+      "required": true,
+      "population": "script"
     },
     {
       "index": 4,
       "key": "assigned_date",
       "header": "Assigned Date",
       "type": "date",
-      "required": true
+      "required": true,
+      "population": "script"
     },
     {
       "index": 5,
       "key": "due_date",
       "header": "Due Date",
       "type": "date",
-      "required": true
+      "required": true,
+      "population": "script"
     },
     {
       "index": 6,
       "key": "completion_date",
       "header": "Completion Date",
       "type": "date",
-      "required": false
+      "required": false,
+      "population": "workflow"
     },
     {
       "index": 7,
@@ -56,7 +62,8 @@
         "In Progress",
         "Completed",
         "Overdue"
-      ]
+      ],
+      "population": "script"
     }
   ]
 }
