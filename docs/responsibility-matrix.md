@@ -5,7 +5,7 @@ This matrix maps core workflow actions to the canonical spreadsheet of record an
 ## Scope and naming baseline
 
 - **Onboarding spreadsheet of record**: `ONBOARDING_SPREADSHEET_ID` / `ONBOARDING_SHEET_NAME` (tab name: `Onboarding`).
-- **Audit spreadsheet of record**: `AUDIT_SPREADSHEET_ID` / `AUDIT_SHEET_NAME` (tab name: `Audit`), maintained as a separate workbook from onboarding/training.
+- **Audit spreadsheet of record**: `AUDIT_SHEET_NAME` (tab name: `Audit`) in the workbook resolved by `AUDIT_SPREADSHEET_ID` when configured, otherwise `TRAINING_SPREADSHEET_ID`.
 - Naming in this doc follows existing schema/script identifiers to avoid drift.
 
 ## Responsibility matrix

@@ -155,8 +155,8 @@ If one name is wrong, the system can fail.
 10. Paste the Onboarding spreadsheet ID.
 11. Add `TRAINING_SPREADSHEET_ID`.
 12. Paste the Training Log spreadsheet ID.
-13. Add `AUDIT_SPREADSHEET_ID`.
-14. Paste the Audit Log spreadsheet ID.
+13. Add `AUDIT_SPREADSHEET_ID` *(optional)*.
+14. If audit data is stored in a separate workbook, paste the Audit Log spreadsheet ID. If omitted, audit operations default to `TRAINING_SPREADSHEET_ID`.
 15. Add `CHECKLIST_SPREADSHEET_ID`.
 16. Paste the Checklist spreadsheet ID (standalone checklist workbook).
 17. Add `ONBOARDING_SHEET_NAME`.

@@ -185,6 +185,22 @@ describe('SheetClient', () => {
     expect(gate.blockedReason).toContain('Pre-onboarding');
   });
 
+
+  test('getAuditSheet_ falls back to training spreadsheet when audit spreadsheet id is not configured', () => {
+    Config.getAuditSpreadsheetId.mockReturnValue('');
+    const auditSheet = makeSheet(['audit_id', 'event_timestamp', 'actor_email', 'entity_type', 'entity_id', 'action', 'details', 'event_hash'], [], 'Audit');
+    const config = makeSheet(['key', 'value'], [['Audit.schema_version', '1']], '_sys_config');
+    const trainingSpreadsheet = makeSpreadsheet({ Audit: auditSheet, _sys_config: config });
+    SpreadsheetApp.openById.mockImplementation((id) => ({ 'training-id': trainingSpreadsheet }[id]));
+
+    const { SheetClient } = require('../../gas/SheetClient.gs');
+    const client = new SheetClient();
+    const sheet = client.getAuditSheet_();
+
+    expect(sheet).toBe(auditSheet);
+    expect(SpreadsheetApp.openById).toHaveBeenCalledWith('training-id');
+  });
+
   test('validateSchema accepts canonical library headers and rejects drift with readable errors', () => {
     const onboarding = makeSheet(['EmployeeID', 'FullName', 'WorkEmail', 'StartDate', 'Department', 'ManagerEmail', 'OnboardingStatus', 'AuditStatus', 'LastUpdated'], [], 'Onboarding');
     const config = makeSheet(['key', 'value'], [['Onboarding.schema_version', '3']], '_sys_config');
