@@ -24,12 +24,12 @@ function runOnboardingManual() {
 function routeIngressEvent_(ingressEvent) {
   if (ingressEvent.source === 'slack_workflow') {
     // ACK immediately for Slack-style ingress and defer governed work.
-    return { ok: true, trace_id: ingressEvent.traceId, accepted: true };
+    return buildControllerResponse_(ingressEvent.traceId, 'accepted', { accepted: true });
   }
 
   var sheet = ingressEvent.sheet;
   if (!sheet || sheet.getName() !== Config.getOnboardingSheetName()) {
-    return { ok: true, trace_id: ingressEvent.traceId, skipped: true };
+    return buildControllerResponse_(ingressEvent.traceId, 'skipped', { skipped: true });
   }
 
   var sheetClient = new SheetClient();
@@ -52,7 +52,18 @@ function routeIngressEvent_(ingressEvent) {
     processOnboardingRow_(sheet, rowIndex, rowWorkflowContext);
   }
 
-  return { ok: true, trace_id: ingressEvent.traceId, processed: true };
+  return buildControllerResponse_(ingressEvent.traceId, 'processed', { processed: true });
+}
+
+
+function buildControllerResponse_(traceId, status, data) {
+  return {
+    ok: true,
+    trace_id: traceId,
+    status: String(status || ''),
+    data: data || {},
+    error: null
+  };
 }
 
 function normalizeIngressPayload_(e, overrides) {
