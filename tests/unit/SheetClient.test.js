@@ -245,4 +245,38 @@ describe('SheetClient', () => {
     expect(configChecklist.appendRow).toHaveBeenCalledWith(['version', 'schema_v1']);
   });
 
+  test('validateWorkbookSchemas enforces governance tab contracts when tabs are present', () => {
+    global.Config.getLessonsSpreadsheetId = jest.fn(() => 'training-id');
+    global.Config.getLessonsSheetName = jest.fn(() => 'lessons');
+    global.Config.getMappingsSpreadsheetId = jest.fn(() => 'training-id');
+    global.Config.getMappingsSheetName = jest.fn(() => 'mappings');
+    global.Config.getApprovalsSpreadsheetId = jest.fn(() => 'training-id');
+    global.Config.getApprovalsSheetName = jest.fn(() => 'approvals');
+    global.Config.getSubmissionsSpreadsheetId = jest.fn(() => 'training-id');
+    global.Config.getSubmissionsSheetName = jest.fn(() => 'submissions');
+
+    const training = makeSheet(['employee_id', 'module_code', 'module_name', 'assigned_date', 'due_date', 'completion_date', 'training_status', 'last_updated_at', 'completion_hash', 'celebration_posted'], [], 'Training');
+    const lessons = makeSheet(['lesson_id', 'module_code', 'lesson_title', 'version', 'source', 'trace_id', 'approval_status', 'submitted_by', 'approved_by', 'submitted_at', 'approved_at', 'created_at', 'updated_at'], [], 'lessons');
+    const mappings = makeSheet(['mapping_id', 'lesson_id', 'target_entity', 'target_key', 'version', 'source', 'trace_id', 'approval_status', 'submitted_by', 'approved_by', 'submitted_at', 'approved_at', 'created_at', 'updated_at'], [], 'mappings');
+    const approvals = makeSheet(['approval_id', 'entity_type', 'entity_key', 'approval_status', 'submitted_by', 'approved_by', 'trace_id', 'version', 'source', 'submitted_at', 'approved_at', 'created_at', 'updated_at'], [], 'approvals');
+    const submissions = makeSheet(['submission_id', 'entity_type', 'entity_key', 'payload_json', 'approval_status', 'submitted_by', 'approved_by', 'trace_id', 'version', 'source', 'submitted_at', 'approved_at', 'created_at', 'updated_at'], [], 'submissions');
+    const config = makeSheet(['key', 'value'], [['Training.schema_version', '1'], ['lessons.schema_version', '1'], ['mappings.schema_version', '1'], ['approvals.schema_version', '1'], ['submissions.schema_version', '1']], '_sys_config');
+    const trainingSpreadsheet = makeSpreadsheet({ Training: training, lessons: lessons, mappings: mappings, approvals: approvals, submissions: submissions, _sys_config: config });
+    const onboardingSpreadsheet = makeSpreadsheet({ Onboarding: makeSheet(['onboarding_id', 'employee_name', 'email', 'role', 'start_date', 'manager_email', 'status', 'checklist_completed', 'row_hash', 'blocked_reason'], [], 'Onboarding'), _sys_config: makeSheet(['key', 'value'], [['Onboarding.schema_version', '3']], '_sys_config') });
+    const auditSpreadsheet = makeSpreadsheet({ Audit: makeSheet(['audit_id', 'event_timestamp', 'actor_email', 'entity_type', 'entity_id', 'action', 'details', 'event_hash'], [], 'Audit'), _sys_config: makeSheet(['key', 'value'], [['Audit.schema_version', '1']], '_sys_config') });
+    const checklistSpreadsheet = makeSpreadsheet({ 'Checklist Tasks': makeSheet(['task_id', 'onboarding_id', 'phase', 'task_name', 'owner_team', 'owner_slack_channel', 'status', 'due_date', 'updated_at', 'updated_by', 'notes'], [], 'Checklist Tasks'), _sys_config: makeSheet(['key', 'value'], [['Checklist Tasks.schema_version', '1']], '_sys_config') });
+
+    SpreadsheetApp.openById.mockImplementation((id) => ({ 'training-id': trainingSpreadsheet, 'onboarding-id': onboardingSpreadsheet, 'audit-id': auditSpreadsheet, 'checklist-id': checklistSpreadsheet }[id]));
+
+    const { SheetClient } = require('../../gas/SheetClient.gs');
+    const client = new SheetClient();
+    expect(client.validateWorkbookSchemas()).toBe(true);
+
+    lessons.getRange = jest.fn((r, c, numRows, numCols) => ({
+      getValues: jest.fn(() => [['lesson_id', 'module_code', 'version']])
+    }));
+    lessons.getLastColumn = jest.fn(() => 3);
+    expect(() => client.validateWorkbookSchemas()).toThrow('Schema mismatch on sheet "lessons"');
+  });
+
 });
