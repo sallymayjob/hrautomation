@@ -21,6 +21,20 @@ function runOnboardingManual() {
   return routeIngressEvent_(ingressEvent);
 }
 
+
+function doPost(e) {
+  if (typeof handleCommandsPost_ === 'function') {
+    return handleCommandsPost_(e);
+  }
+
+  if (typeof module !== 'undefined') {
+    var commands = require('./Commands.gs');
+    return commands.doPost(e);
+  }
+
+  throw new Error('Commands entrypoint is unavailable. Expected handleCommandsPost_.');
+}
+
 function routeIngressEvent_(ingressEvent) {
   if (ingressEvent.source === 'slack_workflow') {
     // ACK immediately for Slack-style ingress and defer governed work.
@@ -189,6 +203,7 @@ if (typeof module !== 'undefined') {
   AuditRepository = repos.AuditRepository;
 
   module.exports = {
+    doPost: doPost,
     onChangeHandler: onChangeHandler,
     runOnboardingManual: runOnboardingManual,
     routeIngressEvent_: routeIngressEvent_,

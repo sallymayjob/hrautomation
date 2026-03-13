@@ -107,7 +107,7 @@ var TEAM_VIEW_CONFIG = {
   }
 };
 
-function doPost(e) {
+function handleCommandsPost_(e) {
   var preflightPayload = extractSlackJsonBodyForChallenge_(e);
   if (preflightPayload && preflightPayload.type === 'url_verification') {
     return toSlackChallengeOutput_(preflightPayload);
@@ -734,7 +734,8 @@ function formatCommandOutput_(responsePayload) {
 
 if (typeof module !== 'undefined') {
   module.exports = {
-    doPost: doPost,
+    doPost: handleCommandsPost_,
+    handleCommandsPost_: handleCommandsPost_,
     routeSlackCommand_: routeSlackCommand_,
     handleOnboardingStatusCommand_: handleOnboardingStatusCommand_,
     parseStatusCommandInput_: parseStatusCommandInput_,
