@@ -898,6 +898,19 @@ SheetClient.prototype.markCelebrationPosted = function (employeeId, moduleCode, 
   return true;
 };
 
+SheetClient.prototype.updateTrainingRecognitionMetadata = function (employeeId, moduleCode, celebrationPosted, lastUpdatedAt) {
+  var sheet = this.getTrainingSheet_();
+  var rowIndex = this.findRowIndexByValues_(sheet, COL.TRAINING.EMPLOYEE_ID, employeeId, COL.TRAINING.MODULE_CODE, moduleCode);
+  if (rowIndex < 0) {
+    return false;
+  }
+  sheet.getRange(rowIndex, COL.TRAINING.CELEBRATION_POSTED).setValue(Boolean(celebrationPosted));
+  if (COL.TRAINING.LAST_UPDATED_AT) {
+    sheet.getRange(rowIndex, COL.TRAINING.LAST_UPDATED_AT).setValue(lastUpdatedAt || new Date());
+  }
+  return true;
+};
+
 SheetClient.prototype.getChecklistRows = function () {
   var sheet = this.getChecklistSheet_();
   return this.getDataRows_(sheet);
