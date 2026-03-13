@@ -228,15 +228,34 @@ function resolveChecklistOwnerDestination_(ownerTeam, ownerSlackId) {
   }
 
   var teamKey = String(ownerTeam || '').trim().toUpperCase();
-  if (teamKey.indexOf('FINANCE') > -1) return { channelId: Config.getFinanceTeamChannelId() };
-  if (teamKey.indexOf('ADMIN') > -1) return { channelId: Config.getAdminTeamChannelId() };
-  if (teamKey.indexOf('IT') > -1) return { channelId: Config.getItTeamChannelId() };
-  if (teamKey.indexOf('LEGAL') > -1) return { channelId: Config.getLegalTeamChannelId() };
-  if (teamKey.indexOf('OPERATIONS') > -1) return { channelId: Config.getOperationsTeamChannelId() };
-  if (teamKey.indexOf('PEOPLE') > -1 || teamKey.indexOf('HR') > -1) return { channelId: Config.getPeopleTeamChannelId() };
+  var getterName = resolveReminderChannelGetterName_(teamKey);
+  if (getterName && typeof Config[getterName] === 'function') {
+    return { channelId: Config[getterName]() };
+  }
   return { channelId: Config.getDefaultAssignmentsChannelId() };
 }
 
+function resolveReminderChannelGetterName_(teamKey) {
+  var normalizedKey = String(teamKey || '').trim().toUpperCase();
+  var routing = (Config && Config.CHANNEL_ROUTING) || {
+    ADMIN: 'getAdminTeamChannelId',
+    FINANCE: 'getFinanceTeamChannelId',
+    HR: 'getHrTeamChannelId',
+    IT: 'getItTeamChannelId',
+    LEGAL: 'getLegalTeamChannelId',
+    OPERATIONS: 'getOperationsTeamChannelId',
+    PEOPLE: 'getPeopleTeamChannelId',
+    'PEOPLE OPS': 'getPeopleTeamChannelId'
+  };
+  if (routing[normalizedKey]) return routing[normalizedKey];
+  if (normalizedKey.indexOf('FINANCE') > -1) return routing.FINANCE;
+  if (normalizedKey.indexOf('ADMIN') > -1) return routing.ADMIN;
+  if (normalizedKey.indexOf('IT') > -1) return routing.IT;
+  if (normalizedKey.indexOf('LEGAL') > -1) return routing.LEGAL;
+  if (normalizedKey.indexOf('OPERATIONS') > -1) return routing.OPERATIONS;
+  if (normalizedKey.indexOf('PEOPLE') > -1 || normalizedKey.indexOf('HR') > -1) return routing.PEOPLE;
+  return '';
+}
 
 function sendReminderDM(row, daysUntil) {
   var sheetClient = new SheetClient();

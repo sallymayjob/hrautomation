@@ -1,4 +1,4 @@
-/* global generateId */
+/* global generateId, Config */
 /**
  * @fileoverview Proposal lifecycle controller for governed LMS lesson mutations.
  */
@@ -7,18 +7,29 @@ var ProposalStore_ = {
   proposals: {}
 };
 
-var GOVERNED_LESSON_ACTIONS_ = {
-  lesson_create: true,
-  lesson_edit: true,
-  lesson_overwrite: true,
-  lesson_version: true,
-  lesson_mapping_change: true,
-  create_lesson: true,
-  edit_lesson: true,
-  overwrite_lesson: true,
-  version_lesson: true,
-  update_lesson_mapping: true
-};
+
+function getGovernanceConfig_() {
+  if (typeof Config !== 'undefined' && Config) {
+    return Config;
+  }
+  return {
+    ENTITY_NAMES: { LESSON: 'lesson', PROPOSAL: 'proposal' },
+    APPROVAL_REQUIRED_ACTIONS: {
+      lesson_create: true,
+      lesson_edit: true,
+      lesson_overwrite: true,
+      lesson_version: true,
+      lesson_mapping_change: true,
+      create_lesson: true,
+      edit_lesson: true,
+      overwrite_lesson: true,
+      version_lesson: true,
+      update_lesson_mapping: true
+    },
+    isGovernanceEnabled: function () { return true; },
+    isGovernanceApprovalRequired: function () { return true; }
+  };
+}
 
 function createProposal(input) {
   var proposalInput = input || {};
@@ -35,7 +46,7 @@ function createProposal(input) {
     approved_by: String(proposalInput.approved_by || ''),
     approved_at: proposalInput.approved_at || '',
     trace_id: String(proposalInput.trace_id || buildId_('TRACE')),
-    entity_type: entityType || 'proposal',
+    entity_type: entityType || getGovernanceConfig_().ENTITY_NAMES.PROPOSAL,
     entity_key: String(proposalInput.entity_key || inferEntityKey_(proposalInput)),
     requires_approval: requiresApprovalForAction_(entityType, normalizedAction),
     committed_at: ''
@@ -102,7 +113,11 @@ function requiresApprovalForAction_(entityType, action) {
   if (String(entityType || '').toLowerCase() !== 'lesson') {
     return false;
   }
-  return Boolean(GOVERNED_LESSON_ACTIONS_[String(action || '').toLowerCase()]);
+  var governanceConfig = getGovernanceConfig_();
+  if (!governanceConfig.isGovernanceEnabled() || !governanceConfig.isGovernanceApprovalRequired()) {
+    return false;
+  }
+  return Boolean(governanceConfig.APPROVAL_REQUIRED_ACTIONS[String(action || '').toLowerCase()]);
 }
 
 function inferEntityType_(input) {
@@ -112,7 +127,8 @@ function inferEntityType_(input) {
     return explicit;
   }
   var action = normalizeActionKey_(input && (input.action || input.intent) || payload.action || '');
-  return action.indexOf('lesson') > -1 ? 'lesson' : 'proposal';
+  var governanceConfig = getGovernanceConfig_();
+  return action.indexOf('lesson') > -1 ? governanceConfig.ENTITY_NAMES.LESSON : governanceConfig.ENTITY_NAMES.PROPOSAL;
 }
 
 function inferEntityKey_(input) {

@@ -482,31 +482,37 @@ function resolveTaskOwnerDestination_(ownerTeam, ownerSlackId) {
     return { channelId: cleanedDestination, ownerLabel: cleanedDestination, rule: 'direct_slack_id' };
   }
   var teamKey = String(ownerTeam || '').trim().toUpperCase();
-  var byTeam = {
-    ADMIN: Config.getAdminTeamChannelId,
-    FINANCE: Config.getFinanceTeamChannelId,
-    HR: Config.getHrTeamChannelId,
-    IT: Config.getItTeamChannelId,
-    LEGAL: Config.getLegalTeamChannelId,
-    OPERATIONS: Config.getOperationsTeamChannelId,
-    PEOPLE: Config.getPeopleTeamChannelId,
-    'PEOPLE OPS': Config.getPeopleTeamChannelId
-  };
-  var resolver = byTeam[teamKey] || null;
-  if (!resolver && teamKey.indexOf('FINANCE') > -1) {
-    resolver = Config.getFinanceTeamChannelId;
-  } else if (!resolver && teamKey.indexOf('ADMIN') > -1) {
-    resolver = Config.getAdminTeamChannelId;
-  } else if (!resolver && teamKey.indexOf('IT') > -1) {
-    resolver = Config.getItTeamChannelId;
-  } else if (!resolver && (teamKey.indexOf('PEOPLE') > -1 || teamKey.indexOf('HR') > -1)) {
-    resolver = Config.getPeopleTeamChannelId;
-  }
+  var resolverName = resolveTeamChannelGetterName_(teamKey);
 
-  if (resolver) {
-    return { channelId: resolver.call(Config), ownerLabel: cleanedDestination || ownerTeam || 'Team', rule: 'team_channel_map' };
+  if (resolverName && typeof Config[resolverName] === 'function') {
+    return { channelId: Config[resolverName](), ownerLabel: cleanedDestination || ownerTeam || 'Team', rule: 'team_channel_map' };
   }
   return { channelId: Config.getDefaultAssignmentsChannelId(), ownerLabel: cleanedDestination || ownerTeam || 'Team', rule: 'default_channel' };
+}
+
+
+function resolveTeamChannelGetterName_(teamKey) {
+  var normalizedKey = String(teamKey || '').trim().toUpperCase();
+  var routing = (Config && Config.CHANNEL_ROUTING) || {
+    ADMIN: 'getAdminTeamChannelId',
+    FINANCE: 'getFinanceTeamChannelId',
+    HR: 'getHrTeamChannelId',
+    IT: 'getItTeamChannelId',
+    LEGAL: 'getLegalTeamChannelId',
+    OPERATIONS: 'getOperationsTeamChannelId',
+    PEOPLE: 'getPeopleTeamChannelId',
+    'PEOPLE OPS': 'getPeopleTeamChannelId'
+  };
+  if (routing[normalizedKey]) {
+    return routing[normalizedKey];
+  }
+  if (normalizedKey.indexOf('FINANCE') > -1) return routing.FINANCE;
+  if (normalizedKey.indexOf('ADMIN') > -1) return routing.ADMIN;
+  if (normalizedKey.indexOf('IT') > -1) return routing.IT;
+  if (normalizedKey.indexOf('LEGAL') > -1) return routing.LEGAL;
+  if (normalizedKey.indexOf('OPERATIONS') > -1) return routing.OPERATIONS;
+  if (normalizedKey.indexOf('PEOPLE') > -1 || normalizedKey.indexOf('HR') > -1) return routing.PEOPLE;
+  return '';
 }
 
 function runOnboardingBusinessHours_(onboardingRunner, nowProvider) {

@@ -226,8 +226,26 @@ var DASHBOARD_SCHEMAS = {
 
 function SheetClient() {}
 
+SheetClient.prototype.getDatasetConfig_ = function (datasetKey) {
+  if (Config && typeof Config.getDatasetSpreadsheetId === 'function' && typeof Config.getDatasetSheetName === 'function') {
+    return {
+      spreadsheetId: Config.getDatasetSpreadsheetId(datasetKey),
+      sheetName: Config.getDatasetSheetName(datasetKey)
+    };
+  }
+
+  var legacy = {
+    onboarding: { spreadsheetId: Config.getOnboardingSpreadsheetId(), sheetName: Config.getOnboardingSheetName() },
+    training: { spreadsheetId: Config.getTrainingSpreadsheetId(), sheetName: Config.getTrainingSheetName() },
+    audit: { spreadsheetId: (Config.getAuditSpreadsheetId && Config.getAuditSpreadsheetId()) || Config.getTrainingSpreadsheetId(), sheetName: Config.getAuditSheetName() },
+    checklist: { spreadsheetId: Config.getChecklistSpreadsheetId(), sheetName: Config.getChecklistSheetName() },
+    mapping: { spreadsheetId: Config.getTrainingSpreadsheetId(), sheetName: 'lessons' }
+  };
+  return legacy[datasetKey] || legacy.onboarding;
+};
+
 SheetClient.prototype.getAuditSpreadsheetId_ = function () {
-  return Config.getAuditSpreadsheetId() || Config.getTrainingSpreadsheetId();
+  return this.getDatasetConfig_('audit').spreadsheetId;
 };
 
 SheetClient.prototype.validateRequiredNamedFunctions = function (auditLogger) {
@@ -498,50 +516,47 @@ SheetClient.prototype.safeWrite_ = function (sheetName, writeOperation, context)
 };
 
 SheetClient.prototype.getOnboardingSheet_ = function () {
-  return this.getSheetFromSpreadsheet_(Config.getOnboardingSpreadsheetId(), Config.getOnboardingSheetName(), 'ONBOARDING_SHEET_NAME');
+  var config = this.getDatasetConfig_('onboarding');
+  return this.getSheetFromSpreadsheet_(config.spreadsheetId, config.sheetName, 'ONBOARDING_SHEET_NAME');
 };
 
 SheetClient.prototype.getTrainingSheet_ = function () {
-  return this.getSheetFromSpreadsheet_(Config.getTrainingSpreadsheetId(), Config.getTrainingSheetName(), 'TRAINING_SHEET_NAME');
+  var config = this.getDatasetConfig_('training');
+  return this.getSheetFromSpreadsheet_(config.spreadsheetId, config.sheetName, 'TRAINING_SHEET_NAME');
 };
 
 SheetClient.prototype.getAuditSheet_ = function () {
-  return this.getSheetFromSpreadsheet_(this.getAuditSpreadsheetId_(), Config.getAuditSheetName(), 'AUDIT_SHEET_NAME');
+  var config = this.getDatasetConfig_('audit');
+  return this.getSheetFromSpreadsheet_(config.spreadsheetId, config.sheetName, 'AUDIT_SHEET_NAME');
 };
 
 SheetClient.prototype.getChecklistSheet_ = function () {
-  return this.getSheetFromSpreadsheet_(Config.getChecklistSpreadsheetId(), Config.getChecklistSheetName(), 'CHECKLIST_SHEET_NAME');
+  var config = this.getDatasetConfig_('checklist');
+  return this.getSheetFromSpreadsheet_(config.spreadsheetId, config.sheetName, 'CHECKLIST_SHEET_NAME');
 };
 
 SheetClient.prototype.resolveSheetByName_ = function (sheetName) {
-  if (sheetName === Config.getOnboardingSheetName()) {
-    return this.getOnboardingSheet_();
-  }
-  if (sheetName === Config.getTrainingSheetName()) {
-    return this.getTrainingSheet_();
-  }
-  if (sheetName === Config.getAuditSheetName()) {
-    return this.getAuditSheet_();
-  }
-  if (sheetName === Config.getChecklistSheetName()) {
-    return this.getChecklistSheet_();
+  var datasets = ['onboarding', 'training', 'audit', 'checklist', 'mapping'];
+  for (var i = 0; i < datasets.length; i += 1) {
+    var config = this.getDatasetConfig_(datasets[i]);
+    if (sheetName === config.sheetName) {
+      return this.getSheetFromSpreadsheet_(config.spreadsheetId, config.sheetName, datasets[i].toUpperCase() + '_SHEET_NAME');
+    }
   }
 
-  return this.getSheetFromSpreadsheet_(Config.getOnboardingSpreadsheetId(), sheetName, 'ONBOARDING_SPREADSHEET_ID');
+  var onboardingConfig = this.getDatasetConfig_('onboarding');
+  return this.getSheetFromSpreadsheet_(onboardingConfig.spreadsheetId, sheetName, 'ONBOARDING_SPREADSHEET_ID');
 };
 
-
 SheetClient.prototype.resolveSpreadsheetIdBySheetName_ = function (sheetName) {
-  if (sheetName === Config.getTrainingSheetName()) {
-    return Config.getTrainingSpreadsheetId();
+  var datasets = ['onboarding', 'training', 'audit', 'checklist', 'mapping'];
+  for (var i = 0; i < datasets.length; i += 1) {
+    var config = this.getDatasetConfig_(datasets[i]);
+    if (sheetName === config.sheetName) {
+      return config.spreadsheetId;
+    }
   }
-  if (sheetName === Config.getAuditSheetName()) {
-    return this.getAuditSpreadsheetId_();
-  }
-  if (sheetName === Config.getChecklistSheetName()) {
-    return Config.getChecklistSpreadsheetId();
-  }
-  return Config.getOnboardingSpreadsheetId();
+  return this.getDatasetConfig_('onboarding').spreadsheetId;
 };
 
 SheetClient.prototype.getDataRows_ = function (sheet) {
