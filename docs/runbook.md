@@ -243,3 +243,20 @@ Mandatory rules:
 4. Keep rollback notes with the previous known-good version and restore steps.
 5. Capture who approved the bump and where version references were updated.
 
+
+
+## 10) Governed Write Pipeline Operations
+
+All governed write operations (LMS webhook mutations and Slack write-like intents) must follow this sequence:
+
+1. Capture as a draft proposal in `SubmissionController`.
+2. Run Gemini clarification/validation (`GeminiService.validateAndClarify`).
+3. Route to approvals (`ApprovalController.requestLiamApproval`/`requestApproval`).
+4. Commit only from repository commit paths after approval state is `APPROVED`.
+
+Operational checks:
+- Confirm proposal exists and includes `trace_id`, `entity_type`, and `entity_key`.
+- Confirm Gemini result is not rejected before requesting approval.
+- Confirm commit logs show repository commit action and matching proposal hash/version.
+- If approval/hash/version mismatch occurs, do not bypass guardrails; re-open proposal review.
+
