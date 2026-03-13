@@ -35,4 +35,50 @@ describe('ValidationService', () => {
     expect(firstPass).toHaveLength(0);
     expect(secondPass.map((e) => e.code)).toContain('AUDIT_DUPLICATE_EVENT');
   });
+
+  test('validateTemplateToChecklistMapping_ validates checklist field mapping conformance', () => {
+    const { validateTemplateToChecklistMapping_ } = require('../../gas/ValidationService.gs');
+    const requiredFields = ['task_id', 'phase', 'task_name', 'owner_team'];
+
+    const missingMappingErrors = validateTemplateToChecklistMapping_({
+      template_task_id: 'DOC-001',
+      template_phase: 'Documentation',
+      template_task_name: 'Share handbook',
+      template_owner_team: 'People Ops'
+    }, 0, {
+      task_id: 'template_task_id',
+      phase: 'template_phase',
+      task_name: 'template_task_name'
+    }, requiredFields);
+
+    expect(missingMappingErrors.map((error) => error.code)).toContain('CHECKLIST_MAPPING_FIELD_MISSING');
+
+    const missingSourceErrors = validateTemplateToChecklistMapping_({
+      template_task_id: '',
+      template_phase: 'Documentation',
+      template_task_name: 'Share handbook',
+      template_owner_team: 'People Ops'
+    }, 1, {
+      task_id: 'template_task_id',
+      phase: 'template_phase',
+      task_name: 'template_task_name',
+      owner_team: 'template_owner_team'
+    }, requiredFields);
+
+    expect(missingSourceErrors.map((error) => error.code)).toContain('CHECKLIST_TEMPLATE_SOURCE_MISSING');
+
+    const validErrors = validateTemplateToChecklistMapping_({
+      template_task_id: 'DOC-001',
+      template_phase: 'Documentation',
+      template_task_name: 'Share handbook',
+      template_owner_team: 'People Ops'
+    }, 2, {
+      task_id: 'template_task_id',
+      phase: 'template_phase',
+      task_name: ['template_task_name', 'fallback_task_name'],
+      owner_team: 'template_owner_team'
+    }, requiredFields);
+
+    expect(validErrors).toHaveLength(0);
+  });
 });
