@@ -15,6 +15,7 @@ describe('LmsWebhook', () => {
     jest.resetModules();
     mockGasGlobals();
     global.AuditLogger = jest.fn(() => ({ log: jest.fn() }));
+    global.Config = { getSlackVerificationToken: jest.fn(() => 'verif-token-123') };
     global.SheetClient = jest.fn(() => ({}));
     global.SubmissionController = {
       createProposal: jest.fn(() => ({ id: 'PROP-1' })),
@@ -44,6 +45,7 @@ describe('LmsWebhook', () => {
     const output = doPostLms({
       postData: {
         contents: JSON.stringify({
+          token: 'verif-token-123',
           source: 'slack_workflow_builder',
           action: 'create_course',
           actor_slack_id: 'U123'
@@ -64,6 +66,7 @@ describe('LmsWebhook', () => {
     const { routeLmsAction_ } = require('../../gas/LmsWebhook.gs');
 
     const result = routeLmsAction_({
+      token: 'verif-token-123',
       source: 'slack_workflow_builder',
       action: 'enroll_single',
       actor_slack_id: 'UHR1'
@@ -90,6 +93,7 @@ describe('LmsWebhook', () => {
     });
 
     const result = routeLmsAction_({
+      token: 'verif-token-123',
       source: 'slack_workflow_builder',
       action: 'lesson_create',
       actor_slack_id: 'UHR1',
@@ -98,5 +102,13 @@ describe('LmsWebhook', () => {
 
     expect(global.ApprovalController.requestLiamApproval).toHaveBeenCalledTimes(1);
     expect(result.ok).toBe(true);
+  });
+
+  test('doPostLms rejects missing verification token', () => {
+    const { doPostLms } = require('../../gas/LmsWebhook.gs');
+    const output = doPostLms({ postData: { contents: JSON.stringify({ source: 'slack_workflow_builder', action: 'create_course' }) } });
+    const payload = JSON.parse(output.value);
+    expect(payload.ok).toBe(false);
+    expect(payload.code).toBe('MISSING_TOKEN');
   });
 });

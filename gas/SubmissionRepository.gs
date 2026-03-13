@@ -1,0 +1,128 @@
+/* global Config */
+/**
+ * @fileoverview Durable proposal persistence for governance submissions/approvals sheets.
+ */
+
+var SubmissionRepoBindings_ = null;
+if (typeof module !== 'undefined') {
+  SubmissionRepoBindings_ = {
+    SheetClient: require('./SheetClient.gs').SheetClient
+  };
+}
+
+var SUBMISSION_HEADERS = [
+  'submission_id', 'entity_type', 'entity_key', 'payload_json', 'approval_status',
+  'submitted_by', 'approved_by', 'trace_id', 'version', 'source',
+  'submitted_at', 'approved_at', 'created_at', 'updated_at', 'action',
+  'request_id', 'requires_approval', 'proposal_hash', 'approval_hash', 'approval_version',
+  'rejection_reason', 'committed_at'
+];
+
+function getSheetClientForSubmission_() {
+  if (typeof SheetClient !== 'undefined' && SheetClient) return SheetClient;
+  return SubmissionRepoBindings_ ? SubmissionRepoBindings_.SheetClient : null;
+}
+
+function SubmissionRepository(sheetClient) {
+  this.sheetClient = sheetClient || (getSheetClientForSubmission_() ? new (getSheetClientForSubmission_())() : null);
+}
+
+SubmissionRepository.prototype.ensureSheet_ = function () {
+  if (!this.sheetClient) return null;
+  return this.sheetClient.ensureSheetWithHeaders(Config.getSubmissionsSheetName(), SUBMISSION_HEADERS);
+};
+
+SubmissionRepository.prototype.saveProposal = function (proposal) {
+  if (!this.sheetClient) return proposal;
+  var sheet = this.ensureSheet_();
+  var idColumn = this.sheetClient.getColumnIndexByHeaderKey_(sheet, 'submission_id', true);
+  var existingRow = this.sheetClient.findRowIndexByValue_(sheet, idColumn, proposal.id);
+  var row = this.toRow_(proposal);
+  if (existingRow > -1) {
+    this.sheetClient.writeRow_(sheet, existingRow, row);
+  } else {
+    this.sheetClient.appendRow_(sheet, row);
+  }
+  return proposal;
+};
+
+SubmissionRepository.prototype.getProposalById = function (proposalId) {
+  if (!this.sheetClient) return null;
+  var sheet = this.ensureSheet_();
+  var idColumn = this.sheetClient.getColumnIndexByHeaderKey_(sheet, 'submission_id', true);
+  var rowIndex = this.sheetClient.findRowIndexByValue_(sheet, idColumn, String(proposalId || ''));
+  if (rowIndex < 0) return null;
+  var values = sheet.getRange(rowIndex, 1, 1, SUBMISSION_HEADERS.length).getValues()[0];
+  return this.fromRow_(values);
+};
+
+SubmissionRepository.prototype.toRow_ = function (proposal) {
+  var payloadJson = '{}';
+  try {
+    payloadJson = JSON.stringify(proposal.payload || {});
+  } catch (err) {
+    payloadJson = '{}';
+  }
+
+  return [
+    String(proposal.id || ''),
+    String(proposal.entity_type || ''),
+    String(proposal.entity_key || ''),
+    payloadJson,
+    String(proposal.approval_status || 'PENDING'),
+    String(proposal.actor || ''),
+    String(proposal.approved_by || ''),
+    String(proposal.trace_id || ''),
+    Number(proposal.proposal_version || 1),
+    String(proposal.source || ''),
+    String(proposal.submitted_at || ''),
+    String(proposal.approved_at || ''),
+    String(proposal.created_at || ''),
+    String(proposal.updated_at || ''),
+    String(proposal.action || ''),
+    String(proposal.request_id || ''),
+    proposal.requires_approval ? 'true' : 'false',
+    String(proposal.proposal_hash || ''),
+    String(proposal.approval_hash || ''),
+    proposal.approval_version === undefined ? '' : Number(proposal.approval_version),
+    String(proposal.rejection_reason || ''),
+    String(proposal.committed_at || '')
+  ];
+};
+
+SubmissionRepository.prototype.fromRow_ = function (row) {
+  var payload = {};
+  try {
+    payload = JSON.parse(String(row[3] || '{}'));
+  } catch (err) {
+    payload = {};
+  }
+  return {
+    id: String(row[0] || ''),
+    entity_type: String(row[1] || ''),
+    entity_key: String(row[2] || ''),
+    payload: payload,
+    approval_status: String(row[4] || 'PENDING'),
+    actor: String(row[5] || ''),
+    approved_by: String(row[6] || ''),
+    trace_id: String(row[7] || ''),
+    proposal_version: Number(row[8] || 1),
+    source: String(row[9] || ''),
+    submitted_at: String(row[10] || ''),
+    approved_at: String(row[11] || ''),
+    created_at: String(row[12] || ''),
+    updated_at: String(row[13] || ''),
+    action: String(row[14] || ''),
+    request_id: String(row[15] || ''),
+    requires_approval: String(row[16] || '').toLowerCase() === 'true',
+    proposal_hash: String(row[17] || ''),
+    approval_hash: String(row[18] || ''),
+    approval_version: row[19] === '' ? undefined : Number(row[19]),
+    rejection_reason: String(row[20] || ''),
+    committed_at: String(row[21] || '')
+  };
+};
+
+if (typeof module !== 'undefined') {
+  module.exports = { SubmissionRepository: SubmissionRepository };
+}

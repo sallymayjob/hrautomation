@@ -1,4 +1,4 @@
-/* global SheetClient, SlackClient, BlockKit, computeHash, generateId, CHECKLIST_TASK_TEMPLATE, Config, console, OnboardingRepository, TrainingRepository, AuditRepository */
+/* global SheetClient, SlackClient, BlockKit, computeHash, generateId, CHECKLIST_TASK_TEMPLATE, Config, console, OnboardingRepository, TrainingRepository, AuditRepository, sanitizeErrorForLog */
 /**
  * @fileoverview Onboarding business mutations and orchestration.
  */
@@ -35,7 +35,13 @@ var ROLE_MAPPINGS = {
 };
 
 function processOnboardingRow_(sheet, rowIndex, workflowContext, repositories) {
-  var deps = repositories || createOnboardingRepositories_();
+  var deps = createOnboardingRepositories_();
+  if (repositories) {
+    var dependencyKeys = Object.keys(repositories);
+    for (var depIndex = 0; depIndex < dependencyKeys.length; depIndex += 1) {
+      deps[dependencyKeys[depIndex]] = repositories[dependencyKeys[depIndex]];
+    }
+  }
   var runContext = workflowContext || {};
   emitLifecycleEvent_(deps.auditRepository, runContext, 'WORKFLOW_STARTED', runContext.onboardingId || '');
   var headerMap = deps.onboardingRepository.getHeaderMap(sheet);
@@ -53,7 +59,7 @@ function processOnboardingRow_(sheet, rowIndex, workflowContext, repositories) {
     var rowHash = computeHash([normalizedRowData.email, formatDateKey_(normalizedRowData.start_date), normalizedRowData.role, normalizedRowData.manager_email]);
     deps.onboardingRepository.setValueIfPresent(sheet, rowIndex, headerMap, 'row_hash', rowHash);
 
-    var duplicateRow = headerMap.row_hash ? deps.onboardingRepository.findDuplicateByRowHash(rowHash, rowIndex) : -1;
+    var duplicateRow = findDuplicateForRowHash_(deps, rowHash, rowIndex, headerMap);
     if (duplicateRow > -1) {
       deps.onboardingRepository.setStatus(sheet, rowIndex, headerMap, STATUS.BLOCKED);
       deps.onboardingRepository.setBlockedReason(sheet, rowIndex, headerMap, 'Duplicate onboarding row found. Matched row index ' + duplicateRow + '.');
@@ -116,13 +122,21 @@ function processOnboardingRow_(sheet, rowIndex, workflowContext, repositories) {
     runContext.onboardingId = onboardingId;
   } catch (err) {
     deps.onboardingRepository.setStatus(sheet, rowIndex, headerMap, STATUS.BLOCKED);
-    deps.onboardingRepository.setBlockedReason(sheet, rowIndex, headerMap, String(err && err.message ? err.message : err));
-    deps.onboardingRepository.setValueIfPresent(sheet, rowIndex, headerMap, 'error_message', String(err && err.message ? err.message : err));
-    console.error('Onboarding processing failed for row ' + rowIndex + ': ' + err);
-    deps.auditRepository.error({ entityType: 'Onboarding', entityId: 'row_' + rowIndex, action: 'UPDATE', details: 'Onboarding processing failed.' }, err);
+    var safeError = typeof sanitizeErrorForLog === 'function' ? sanitizeErrorForLog(err) : String(err && err.message ? err.message : err);
+    deps.onboardingRepository.setBlockedReason(sheet, rowIndex, headerMap, safeError);
+    deps.onboardingRepository.setValueIfPresent(sheet, rowIndex, headerMap, 'error_message', safeError);
+    console.error('Onboarding processing failed for row ' + rowIndex + ': ' + safeError);
+    deps.auditRepository.error({ entityType: 'Onboarding', entityId: 'row_' + rowIndex, action: 'UPDATE', details: 'Onboarding processing failed. reason=' + safeError }, err);
   } finally {
     emitLifecycleEvent_(deps.auditRepository, runContext, 'WORKFLOW_ENDED', runContext.onboardingId || '');
   }
+}
+
+function findDuplicateForRowHash_(deps, rowHash, rowIndex, headerMap) {
+  if (deps.duplicateIndex && deps.duplicateIndex[rowHash]) {
+    return deps.duplicateIndex[rowHash] === rowIndex ? -1 : deps.duplicateIndex[rowHash];
+  }
+  return headerMap.row_hash ? deps.onboardingRepository.findDuplicateByRowHash(rowHash, rowIndex) : -1;
 }
 
 function createOnboardingRepositories_() {

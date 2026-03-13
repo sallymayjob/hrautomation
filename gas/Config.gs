@@ -28,6 +28,7 @@ var Config = (function () {
     RETRY_MAX_ATTEMPTS: 'RETRY_MAX_ATTEMPTS',
     RETRY_DELAY_MS: 'RETRY_DELAY_MS',
     SLACK_BOT_TOKEN: 'SLACK_BOT_TOKEN',
+    SLACK_VERIFICATION_TOKEN: 'SLACK_VERIFICATION_TOKEN',
     ADMIN_TEAM_CHANNEL_ID: 'ADMIN_TEAM_CHANNEL_ID',
     FINANCE_TEAM_CHANNEL_ID: 'FINANCE_TEAM_CHANNEL_ID',
     HR_TEAM_CHANNEL_ID: 'HR_TEAM_CHANNEL_ID',
@@ -36,6 +37,7 @@ var Config = (function () {
     OPERATIONS_TEAM_CHANNEL_ID: 'OPERATIONS_TEAM_CHANNEL_ID',
     PEOPLE_TEAM_CHANNEL_ID: 'PEOPLE_TEAM_CHANNEL_ID',
     DEFAULT_ASSIGNMENTS_CHANNEL_ID: 'DEFAULT_ASSIGNMENTS_CHANNEL_ID',
+    HR_OPS_ALERTS_CHANNEL_ID: 'HR_OPS_ALERTS_CHANNEL_ID',
     GEMINI_API_KEY: 'GEMINI_API_KEY',
     GEMINI_MODEL: 'GEMINI_MODEL',
     GEMINI_ENABLED: 'GEMINI_ENABLED',
@@ -306,6 +308,10 @@ var Config = (function () {
       return getString_(KEYS.SLACK_BOT_TOKEN);
     },
 
+    getSlackVerificationToken: function () {
+      return getString_(KEYS.SLACK_VERIFICATION_TOKEN);
+    },
+
     getGeminiApiKey: function () {
       return getOptionalString_(KEYS.GEMINI_API_KEY);
     },
@@ -356,6 +362,10 @@ var Config = (function () {
 
     getDefaultAssignmentsChannelId: function () {
       return getString_(KEYS.DEFAULT_ASSIGNMENTS_CHANNEL_ID);
+    },
+
+    getHrOpsAlertsChannelId: function () {
+      return getString_(KEYS.HR_OPS_ALERTS_CHANNEL_ID);
     }
   };
 })();

@@ -1,4 +1,4 @@
-/* global generateId, Config, computeHash */
+/* global generateId, Config, computeHash, SubmissionRepository, SheetClient */
 /**
  * @fileoverview Proposal lifecycle controller for governed LMS lesson mutations.
  */
@@ -8,13 +8,17 @@ if (typeof module !== 'undefined') {
   SubmissionControllerBindings_ = {
     VersioningService: require('./VersioningService.gs'),
     MappingService: require('./MappingService.gs'),
-    DuplicateDetector: require('./DuplicateDetector.gs')
+    DuplicateDetector: require('./DuplicateDetector.gs'),
+    SubmissionRepository: require('./SubmissionRepository.gs').SubmissionRepository,
+    SheetClient: require('./SheetClient.gs').SheetClient
   };
 }
 
 var ProposalStore_ = {
   proposals: {}
 };
+
+var SubmissionRepositoryOverride_ = null;
 
 
 function getGovernanceConfig_() {
@@ -68,6 +72,7 @@ function createProposal(input) {
   }
 
   ProposalStore_.proposals[proposal.id] = proposal;
+  persistProposal_(proposal, proposalInput.repository);
   return proposal;
 }
 
@@ -78,7 +83,7 @@ function createDraft(input) {
 function persistIngressDraft(input, options) {
   var proposal = createDraft(input);
   var opts = options || {};
-  var repository = opts.repository;
+  var repository = opts.repository || getDefaultSubmissionRepository_();
   if (repository && typeof repository.writeDraftProposal === 'function') {
     repository.writeDraftProposal(proposal, opts);
   } else if (repository && typeof repository.writeProposalDraft === 'function') {
@@ -86,11 +91,18 @@ function persistIngressDraft(input, options) {
   } else if (repository && typeof repository.writeProposal === 'function') {
     repository.writeProposal(proposal, opts);
   }
+  persistProposal_(proposal, repository);
   return proposal;
 }
 
 function getProposal(proposalId) {
-  return ProposalStore_.proposals[String(proposalId || '')] || null;
+  var normalizedId = String(proposalId || '');
+  var persisted = loadPersistedProposal_(normalizedId);
+  if (persisted) {
+    ProposalStore_.proposals[normalizedId] = persisted;
+    return persisted;
+  }
+  return ProposalStore_.proposals[normalizedId] || null;
 }
 
 function updateProposalState(proposalId, patch) {
@@ -105,6 +117,7 @@ function updateProposalState(proposalId, patch) {
     proposal[keys[i]] = updates[keys[i]];
   }
   ProposalStore_.proposals[proposal.id] = proposal;
+  persistProposal_(proposal);
   return proposal;
 }
 
@@ -154,7 +167,39 @@ function commitApprovedProposal(proposalId, options) {
   proposal.committed_at = new Date().toISOString();
   proposal.approval_status = String(proposal.approval_status || '').toUpperCase() || 'APPROVED';
   ProposalStore_.proposals[proposal.id] = proposal;
+  persistProposal_(proposal, repository);
   return proposal;
+}
+
+function getDefaultSubmissionRepository_() {
+  if (SubmissionRepositoryOverride_) {
+    return SubmissionRepositoryOverride_;
+  }
+  if (typeof SpreadsheetApp === 'undefined') {
+    return null;
+  }
+  if (typeof SubmissionRepository !== 'undefined' && SubmissionRepository && typeof SheetClient !== 'undefined' && SheetClient) {
+    return new SubmissionRepository(new SheetClient());
+  }
+  if (SubmissionControllerBindings_ && SubmissionControllerBindings_.SubmissionRepository && SubmissionControllerBindings_.SheetClient) {
+    return new SubmissionControllerBindings_.SubmissionRepository(new SubmissionControllerBindings_.SheetClient());
+  }
+  return null;
+}
+
+function persistProposal_(proposal, repository) {
+  var repo = repository || getDefaultSubmissionRepository_();
+  if (repo && typeof repo.saveProposal === 'function') {
+    repo.saveProposal(proposal);
+  }
+}
+
+function loadPersistedProposal_(proposalId) {
+  var repo = getDefaultSubmissionRepository_();
+  if (!repo || typeof repo.getProposalById !== 'function') {
+    return null;
+  }
+  return repo.getProposalById(proposalId);
 }
 
 function getVersioningService_(opts) {
@@ -266,6 +311,11 @@ function buildId_(prefix) {
   return String(prefix || 'ID') + '-' + new Date().getTime();
 }
 
+
+function setSubmissionRepositoryForTests_(repository) {
+  SubmissionRepositoryOverride_ = repository || null;
+}
+
 if (typeof module !== 'undefined') {
   module.exports = {
     createProposal: createProposal,
@@ -278,6 +328,7 @@ if (typeof module !== 'undefined') {
     runCommitGates_: runCommitGates_,
     computeProposalHash_: computeProposalHash_,
     requiresApprovalForAction_: requiresApprovalForAction_,
-    ProposalStore_: ProposalStore_
+    ProposalStore_: ProposalStore_,
+    setSubmissionRepositoryForTests_: setSubmissionRepositoryForTests_
   };
 }

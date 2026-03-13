@@ -27,7 +27,8 @@ describe('integration reminder flow', () => {
       getLegalTeamChannelId: jest.fn(() => 'CLEG'),
       getOperationsTeamChannelId: jest.fn(() => 'COPS'),
       getPeopleTeamChannelId: jest.fn(() => 'CPEO'),
-      getDefaultAssignmentsChannelId: jest.fn(() => 'CDEF')
+      getDefaultAssignmentsChannelId: jest.fn(() => 'CDEF'),
+      getHrOpsAlertsChannelId: jest.fn(() => 'CHROPS')
     };
     global.BlockKit = { reminderDM: jest.fn(() => []), birthdayDM: jest.fn(() => []), anniversaryDM: jest.fn(() => []) };
     global.computeHash = jest.fn(() => 'hash');
