@@ -13,7 +13,7 @@ All workflows use Google Sheets as the system of record (`Courses`, `Modules`, a
 ## Architecture summary
 
 ```text
-Slack Trigger (link trigger, shortcut, or slash command)
+Slack Trigger (link trigger, shortcut, or workflow button)
   -> (Optional) permissions guard / requester capture
   -> Google Sheets: Lookup rows (for dropdown source data)
   -> Form step (admin input)
@@ -21,7 +21,7 @@ Slack Trigger (link trigger, shortcut, or slash command)
   -> Confirmation message + audit log row
 ```
 
-> Preferred trigger mode: **Link trigger** or **Workflow button/shortcut** for low-friction operations. Slash commands can be added for power users and to preserve discoverability.
+> Required trigger mode: **Slack Workflow Builder only** (link trigger, workflow button, or shortcut). All operation handshakes must originate from Workflow Builder payloads.
 
 ---
 
@@ -29,7 +29,7 @@ Slack Trigger (link trigger, shortcut, or slash command)
 
 ### Trigger
 - `Link trigger`: `Start Add Course`
-- Optional slash command: `/training-add-course`
+- No slash command fallback (Workflow Builder handshake required)
 
 ### Steps
 1. **Collect admin input (Form):**
@@ -58,7 +58,7 @@ Slack Trigger (link trigger, shortcut, or slash command)
 
 ### Trigger
 - `Link trigger`: `Start Add Module`
-- Optional slash command: `/training-add-module`
+- No slash command fallback (Workflow Builder handshake required)
 
 ### Steps
 1. **Lookup existing courses (Google Sheets: `Courses`):** fetch `CourseID`, `Course Title`, `Status=Active`.
@@ -92,7 +92,7 @@ Slack Trigger (link trigger, shortcut, or slash command)
 
 ### Trigger
 - `Link trigger`: `Start Enroll Learner`
-- Optional slash command: `/training-enroll`
+- No slash command fallback (Workflow Builder handshake required)
 
 ### Steps
 1. **Lookup existing active courses (Google Sheets: `Courses`):**
@@ -141,7 +141,7 @@ If native dynamic dropdown binding is unavailable in your workspace plan, implem
 ## OAuth, token, and app configuration requirements
 
 ### Slack tokens used
-- **Bot token (`xoxb-...`)**: required for slash commands, confirmations, and workflow notifications.
+- **Bot token (`xoxb-...`)**: required for confirmations and workflow notifications initiated by Workflow Builder.
 - **Workflow execution token (`xwfp-...` issued by Slack runtime, if using custom workflow steps/functions)**: used only at runtime for Workflow Apps steps.
 
 ### Google authorization

@@ -48,6 +48,13 @@ Slack command responses and Slack message interactions are **read-only** for onb
 - Make all status edits in Google Sheets (Onboarding, Checklist Tasks, and Training Log as applicable).
 - Do not expect Slack buttons or interactive actions to update statuses.
 
+
+## LMS handshake guardrail (important)
+All LMS operational mutations must be initiated by **Slack Workflow Builder** handshakes.
+- Use Workflow Builder triggers (shortcut, link trigger, workflow button) to collect input.
+- Send payloads to the LMS Apps Script webhook endpoint (`doPostLms`).
+- Do not use slash-command initiated handshakes for LMS write operations.
+
 ## 5. Where to go if something is not working
 - If a new hire did not receive a welcome message, tell the tech lead. They can fix it in under five minutes.
 - If a reminder went to the wrong person, tell the tech lead immediately.
