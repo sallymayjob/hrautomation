@@ -1,6 +1,7 @@
-/* global ScriptApp, runDailyReminders, checkBirthdaysAndAnniversaries, runOnboardingBusinessHours, runOnboarding, runAudit, runAuditDeepWeekly, runTrainingAssignments, runTrainingReminders, runTrainingSync */
+/* global ScriptApp */
 /**
  * @fileoverview Trigger setup and teardown helpers.
+ * CONTRACT: no SpreadsheetApp writes in this file.
  */
 
 var TRIGGER_HANDLERS = {
@@ -149,18 +150,6 @@ function ensureEveryHoursTrigger_(handlerName, hours) {
     .create();
 }
 
-function runOnboardingBusinessHours() {
-  var now = new Date();
-  var day = now.getDay();
-  var hour = now.getHours();
-  var isBusinessDay = day >= 1 && day <= 5;
-  var isBusinessHour = hour >= 8 && hour < 18;
-  if (!isBusinessDay || !isBusinessHour) {
-    return { skipped: true, reason: 'outside_business_hours' };
-  }
-  return runOnboarding();
-}
-
 if (typeof module !== 'undefined') {
   module.exports = {
     setupDailyTrigger: setupDailyTrigger,
@@ -168,7 +157,6 @@ if (typeof module !== 'undefined') {
     teardownAllTriggers: teardownAllTriggers,
     setupOnboardingBusinessHoursTrigger: setupOnboardingBusinessHoursTrigger,
     setupAuditTriggers: setupAuditTriggers,
-    setupTrainingTriggers: setupTrainingTriggers,
-    runOnboardingBusinessHours: runOnboardingBusinessHours
+    setupTrainingTriggers: setupTrainingTriggers
   };
 }

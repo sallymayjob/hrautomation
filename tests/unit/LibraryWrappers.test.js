@@ -39,6 +39,22 @@ describe('LibraryWrappers', () => {
     };
   });
 
+
+  test('runOnboardingBusinessHours only delegates to controller entrypoint', () => {
+    const controllerEntrypoint = jest.fn(() => ({ ok: true, delegated: true }));
+    jest.doMock('../../gas/OnboardingController.gs', () => ({
+      runOnboardingBusinessHours_: controllerEntrypoint
+    }));
+
+    const wrappers = require('../../gas/LibraryWrappers.gs');
+    const result = wrappers.runOnboardingBusinessHours();
+
+    expect(controllerEntrypoint).toHaveBeenCalledTimes(1);
+    expect(typeof controllerEntrypoint.mock.calls[0][0]).toBe('function');
+    expect(controllerEntrypoint.mock.calls[0][0]).toBe(wrappers.runOnboarding);
+    expect(result).toEqual({ ok: true, delegated: true });
+  });
+
   test('runOnboarding reads sheet rows, calls HRLib, writes status, and emails summary', () => {
     const sourceSheet = createSheet([
       ['onboarding_id', 'employee_name', 'email', 'start_date', 'status'],
