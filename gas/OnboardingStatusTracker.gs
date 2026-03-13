@@ -1,5 +1,5 @@
 /**
- * @fileoverview Parser and validator for onboarding status tracker CSV rows.
+ * @fileoverview Strict parser and validator for onboarding status tracker CSV rows.
  */
 
 var ONBOARDING_STATUS_BASE_HEADERS = ['Task_ID', 'Onboarding_ID', 'User_ID', 'Employee_Name'];
@@ -52,77 +52,154 @@ function getOnboardingStatusStepHeaders() {
 
 function parseOnboardingStatusCsv(csvText) {
   if (csvText === null || csvText === undefined || String(csvText).trim() === '') {
-    return [];
+    return buildParseResult_([], []);
   }
 
-  var rows = parseCsvText_(String(csvText));
-  return parseOnboardingStatusRows_(rows);
+  var parsedCsv = parseCsvText_(String(csvText));
+  if (parsedCsv.error) {
+    return buildParseResult_([], [parsedCsv.error]);
+  }
+
+  return parseOnboardingStatusRows_(parsedCsv.rows);
 }
 
 function parseOnboardingStatusRows_(rows) {
   if (!Array.isArray(rows) || rows.length === 0) {
-    return [];
+    return buildParseResult_([], []);
   }
 
+  var errors = [];
   var headerRow = normalizeRow_(rows[0]);
-  validateHeaders_(headerRow);
+  errors = errors.concat(validateHeaders_(headerRow));
+  if (errors.length > 0) {
+    return buildParseResult_([], errors);
+  }
 
   var records = [];
   for (var i = 1; i < rows.length; i += 1) {
+    var rowNumber = i + 1;
     var row = normalizeRow_(rows[i]);
     if (isBlankRow_(row)) {
       continue;
     }
 
-    var taskId = row[0];
-    var onboardingId = row[1];
-    var userId = row[2];
-    var employeeName = row[3];
-    if (!taskId) {
-      throw new Error('Onboarding tracker row ' + (i + 1) + ' is missing required Task_ID.');
-    }
-    if (!onboardingId) {
-      throw new Error('Onboarding tracker row ' + (i + 1) + ' is missing required Onboarding_ID.');
-    }
-    if (!userId) {
-      throw new Error('Onboarding tracker row ' + (i + 1) + ' is missing required User_ID.');
-    }
-    if (!employeeName) {
-      throw new Error('Onboarding tracker row ' + (i + 1) + ' is missing required Employee_Name.');
+    var rowErrors = validateRequiredFields_(row, rowNumber);
+    rowErrors = rowErrors.concat(validateStatuses_(row, rowNumber));
+    if (rowErrors.length > 0) {
+      errors = errors.concat(rowErrors);
+      continue;
     }
 
     var stepStatuses = {};
     for (var s = 0; s < ONBOARDING_STATUS_STEP_HEADERS.length; s += 1) {
       var stepName = ONBOARDING_STATUS_STEP_HEADERS[s];
-      var status = row[s + ONBOARDING_STATUS_BASE_HEADERS.length];
-      if (ONBOARDING_STATUS_ALLOWED_VALUES.indexOf(status) === -1) {
-        throw new Error('Onboarding tracker row ' + (i + 1) + ' has invalid status for "' + stepName + '": ' + status + '. Allowed values: ' + ONBOARDING_STATUS_ALLOWED_VALUES.join(', ') + '.');
-      }
-      stepStatuses[stepName] = status;
+      stepStatuses[stepName] = row[s + ONBOARDING_STATUS_BASE_HEADERS.length];
     }
 
     records.push({
-      taskId: taskId,
-      onboardingId: onboardingId,
-      userId: userId,
-      employeeName: employeeName,
+      rowNumber: rowNumber,
+      taskId: row[0],
+      onboardingId: row[1],
+      userId: row[2],
+      employeeName: row[3],
       steps: stepStatuses
     });
   }
 
-  return records;
+  return buildParseResult_(records, errors);
+}
+
+function buildParseResult_(records, errors) {
+  return {
+    records: Array.isArray(records) ? records : [],
+    errors: Array.isArray(errors) ? errors : [],
+    isValid: Array.isArray(errors) ? errors.length === 0 : true
+  };
+}
+
+function buildError_(props) {
+  return {
+    code: props.code,
+    message: props.message,
+    row: props.row || null,
+    column: props.column || null,
+    header: props.header || null,
+    value: props.value === undefined ? null : props.value,
+    expected: props.expected || null,
+    allowedValues: props.allowedValues || null
+  };
 }
 
 function validateHeaders_(headers) {
+  var errors = [];
+
   if (headers.length !== ONBOARDING_STATUS_HEADERS.length) {
-    throw new Error('Onboarding tracker header count mismatch. Expected ' + ONBOARDING_STATUS_HEADERS.length + ' columns but found ' + headers.length + '.');
+    errors.push(buildError_({
+      code: 'HEADER_COUNT_MISMATCH',
+      message: 'Onboarding tracker header count mismatch. Expected ' + ONBOARDING_STATUS_HEADERS.length + ' columns but found ' + headers.length + '.',
+      row: 1,
+      expected: ONBOARDING_STATUS_HEADERS.length,
+      value: headers.length
+    }));
+    return errors;
   }
 
   for (var i = 0; i < ONBOARDING_STATUS_HEADERS.length; i += 1) {
     if (headers[i] !== ONBOARDING_STATUS_HEADERS[i]) {
-      throw new Error('Onboarding tracker header mismatch at column ' + (i + 1) + '. Expected "' + ONBOARDING_STATUS_HEADERS[i] + '" but found "' + headers[i] + '".');
+      errors.push(buildError_({
+        code: 'HEADER_MISMATCH',
+        message: 'Onboarding tracker header mismatch at column ' + (i + 1) + '. Expected "' + ONBOARDING_STATUS_HEADERS[i] + '" but found "' + headers[i] + '".',
+        row: 1,
+        column: i + 1,
+        header: headers[i],
+        expected: ONBOARDING_STATUS_HEADERS[i],
+        value: headers[i]
+      }));
     }
   }
+
+  return errors;
+}
+
+function validateRequiredFields_(row, rowNumber) {
+  var requiredHeaders = ONBOARDING_STATUS_BASE_HEADERS;
+  var errors = [];
+
+  for (var i = 0; i < requiredHeaders.length; i += 1) {
+    var value = row[i];
+    if (!value) {
+      errors.push(buildError_({
+        code: 'MISSING_REQUIRED_FIELD',
+        message: 'Onboarding tracker row ' + rowNumber + ' is missing required ' + requiredHeaders[i] + '.',
+        row: rowNumber,
+        column: i + 1,
+        header: requiredHeaders[i],
+        value: value
+      }));
+    }
+  }
+
+  return errors;
+}
+
+function validateStatuses_(row, rowNumber) {
+  var errors = [];
+  for (var s = 0; s < ONBOARDING_STATUS_STEP_HEADERS.length; s += 1) {
+    var colIndex = s + ONBOARDING_STATUS_BASE_HEADERS.length;
+    var status = row[colIndex];
+    if (ONBOARDING_STATUS_ALLOWED_VALUES.indexOf(status) === -1) {
+      errors.push(buildError_({
+        code: 'INVALID_STATUS',
+        message: 'Onboarding tracker row ' + rowNumber + ' has invalid status for "' + ONBOARDING_STATUS_STEP_HEADERS[s] + '": ' + status + '. Allowed values: ' + ONBOARDING_STATUS_ALLOWED_VALUES.join(', ') + '.',
+        row: rowNumber,
+        column: colIndex + 1,
+        header: ONBOARDING_STATUS_STEP_HEADERS[s],
+        value: status,
+        allowedValues: ONBOARDING_STATUS_ALLOWED_VALUES.slice()
+      }));
+    }
+  }
+  return errors;
 }
 
 function normalizeRow_(row) {
@@ -183,12 +260,23 @@ function parseCsvText_(text) {
     currentCell += char;
   }
 
+  if (inQuotes) {
+    return {
+      rows: [],
+      error: buildError_({
+        code: 'MALFORMED_CSV',
+        message: 'Malformed CSV: unmatched quote found while parsing onboarding status tracker data.',
+        row: rows.length + 1
+      })
+    };
+  }
+
   if (currentCell !== '' || currentRow.length > 0) {
     currentRow.push(currentCell);
     rows.push(currentRow);
   }
 
-  return rows;
+  return { rows: rows, error: null };
 }
 
 if (typeof module !== 'undefined') module.exports = {
