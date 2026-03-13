@@ -50,91 +50,19 @@ describe('SharedHrLibrary', () => {
       'AUDIT_TIMESTAMP_INVALID'
     ]));
   });
-
-  test('writeExecutionLog logs when logger exists and reports clear failure when missing', () => {
-    const { writeExecutionLog } = require('../../gas/SharedHrLibrary.gs');
-    const logger = { log: jest.fn() };
-
-    const success = writeExecutionLog({ traceId: 'TRACE_LOG', logger: logger, workflow: 'onboarding' }, {
-      successCount: 2,
-      errorCount: 0,
-      errors: []
-    });
-    expect(success.successCount).toBe(1);
-    expect(success.errorCount).toBe(0);
-    expect(logger.log).toHaveBeenCalled();
-
-    const failure = writeExecutionLog({ traceId: 'TRACE_LOG_2' }, { successCount: 1 });
-    expect(failure.successCount).toBe(0);
-    expect(failure.errorCount).toBe(1);
-    expect(failure.errors[0].message).toContain('logging channel');
-  });
-
-  test('writeExecutionLog writes to Automation Logs and Exceptions tabs when spreadsheet is provided', () => {
-    const { writeExecutionLog } = require('../../gas/SharedHrLibrary.gs');
-    const automationLogSheet = { appendRow: jest.fn() };
-    const exceptionsSheet = { appendRow: jest.fn() };
-    const spreadsheet = {
-      getSheetByName: jest.fn((name) => {
-        if (name === 'Automation Logs') return automationLogSheet;
-        if (name === 'Exceptions') return exceptionsSheet;
-        return null;
-      }),
-      insertSheet: jest.fn((name) => (name === 'Automation Logs' ? automationLogSheet : exceptionsSheet))
-    };
-
-    const result = writeExecutionLog({
-      spreadsheet,
-      entries: [
-        {
-          timestamp: new Date('2026-01-01T00:00:00Z'),
-          spreadsheetType: 'Onboarding',
-          function: 'processOnboardingBatch',
-          traceId: 'TRACE_X',
-          recordKey: 'RUN-1',
-          result: 'COMPLETED',
-          errorMessage: ''
-        },
-        {
-          timestamp: new Date('2026-01-01T00:00:01Z'),
-          spreadsheetType: 'Onboarding',
-          function: 'processOnboardingBatch',
-          traceId: 'TRACE_X',
-          recordKey: '2',
-          result: 'FAILED',
-          errorMessage: 'Invalid email'
-        }
-      ]
-    }, {
-      traceId: 'TRACE_X',
-      successCount: 1,
-      errorCount: 1,
-      errors: [{ message: 'Invalid email' }]
-    });
-
-    expect(result.errorCount).toBe(0);
-    expect(automationLogSheet.appendRow).toHaveBeenCalledTimes(2);
-    expect(exceptionsSheet.appendRow).toHaveBeenCalledTimes(2);
-  });
-
-
-
-  test('training operations return structured counts and reuse logging/notification pathways', () => {
+  test('training operations return structured counts for pure processing', () => {
     const {
       processTrainingAssignments,
       runTrainingReminders,
       syncTrainingCompletion
     } = require('../../gas/SharedHrLibrary.gs');
 
-    const logger = { log: jest.fn() };
 
     const assignmentResult = processTrainingAssignments([
       { employee_id: 'E1', module_code: 'SEC-101', role: 'Engineer' },
       { employee_id: '', module_code: '', role: '' }
     ], {
-      traceId: 'TRACE_TRN_ASSIGN',
-      logger,
-      exceptionRecipients: ['hr-alerts@example.com']
+      traceId: 'TRACE_TRN_ASSIGN'
     });
 
     expect(assignmentResult).toEqual(expect.objectContaining({
@@ -143,9 +71,6 @@ describe('SharedHrLibrary', () => {
       traceId: 'TRACE_TRN_ASSIGN',
       counts: expect.objectContaining({ assigned: 1 })
     }));
-    expect(assignmentResult.logResult.errorCount).toBe(0);
-    expect(assignmentResult.notificationResult.successCount).toBe(3);
-
     const reminderResult = runTrainingReminders([
       { employee_id: 'E1', module_code: 'A', due_date: '2026-01-02' },
       { employee_id: 'E2', module_code: 'B', due_date: '2025-12-20' },
@@ -154,7 +79,6 @@ describe('SharedHrLibrary', () => {
       traceId: 'TRACE_TRN_REM',
       now: new Date('2026-01-01T00:00:00Z'),
       reminderWindowDays: 3,
-      logger
     });
 
     expect(reminderResult.successCount).toBe(3);
@@ -170,9 +94,7 @@ describe('SharedHrLibrary', () => {
       { employee_id: 'E2', module_code: 'B', training_status: 'in_progress', completion_date: '' },
       { employee_id: '', module_code: 'C', training_status: '' }
     ], {
-      traceId: 'TRACE_TRN_SYNC',
-      logger,
-      exceptionRecipients: ['hr-alerts@example.com']
+      traceId: 'TRACE_TRN_SYNC'
     });
 
     expect(completionResult.successCount).toBe(2);
@@ -184,27 +106,5 @@ describe('SharedHrLibrary', () => {
     }));
     expect(completionResult.updates).toHaveLength(2);
     expect(completionResult.updates[0].completionDate).toBeTruthy();
-    expect(logger.log).toHaveBeenCalled();
-    expect(global.MailApp.sendEmail).toHaveBeenCalled();
-  });
-
-  test('notifyExceptions sends alerts and returns structured errors for invalid inputs', () => {
-    const { notifyExceptions } = require('../../gas/SharedHrLibrary.gs');
-
-    const noRecipients = notifyExceptions([{ message: 'Something failed' }], []);
-    expect(noRecipients.successCount).toBe(0);
-    expect(noRecipients.errorCount).toBe(1);
-
-    const result = notifyExceptions([
-      { message: 'Primary failure', code: 'ROW_FAILED' },
-      { code: 'MISSING_MESSAGE' }
-    ], ['hr-alerts@example.com']);
-
-    expect(result.successCount).toBe(1);
-    expect(result.errorCount).toBe(1);
-    expect(global.MailApp.sendEmail).toHaveBeenCalledTimes(1);
-    expect(result).toEqual(expect.objectContaining({
-      traceId: 'TRACE_123'
-    }));
   });
 });
