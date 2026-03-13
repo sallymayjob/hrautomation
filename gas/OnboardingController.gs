@@ -1,4 +1,4 @@
-/* global SheetClient, SlackClient, AuditLogger, BlockKit, computeHash, generateId, CHECKLIST_TASK_TEMPLATE, Config, console, OnboardingRepository, TrainingRepository, AuditRepository */
+/* global SheetClient, SlackClient, BlockKit, computeHash, generateId, CHECKLIST_TASK_TEMPLATE, Config, console, OnboardingRepository, TrainingRepository, AuditRepository */
 /**
  * @fileoverview Onboarding business mutations and orchestration.
  */
@@ -127,7 +127,6 @@ function processOnboardingRow_(sheet, rowIndex, workflowContext, repositories) {
 
 function createOnboardingRepositories_() {
   var sheetClient = new SheetClient();
-  var auditLogger = new AuditLogger(sheetClient);
   var OnboardingRepoCtor = getRepositoryCtor_('OnboardingRepository', typeof OnboardingRepository !== 'undefined' ? OnboardingRepository : null);
   var TrainingRepoCtor = getRepositoryCtor_('TrainingRepository', typeof TrainingRepository !== 'undefined' ? TrainingRepository : null);
   var AuditRepoCtor = getRepositoryCtor_('AuditRepository', typeof AuditRepository !== 'undefined' ? AuditRepository : null);
@@ -135,8 +134,8 @@ function createOnboardingRepositories_() {
   return {
     onboardingRepository: new OnboardingRepoCtor(sheetClient),
     trainingRepository: new TrainingRepoCtor(sheetClient),
-    auditRepository: new AuditRepoCtor(sheetClient, auditLogger),
-    slackClient: new SlackClient(auditLogger)
+    auditRepository: new AuditRepoCtor(sheetClient),
+    slackClient: new SlackClient()
   };
 }
 

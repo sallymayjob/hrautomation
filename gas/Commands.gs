@@ -1,4 +1,4 @@
-/* global SheetClient, AuditLogger, ContentService, SlackClient, Config */
+/* global SheetClient, AuditService, ContentService, SlackClient, Config */
 /**
  * @fileoverview Slack slash command handlers for read-only onboarding lookups.
  */
@@ -19,6 +19,29 @@ var READ_ONLY_COMMANDS = [
 ];
 var MAX_DISAMBIGUATION_RESULTS = 5;
 var MAX_DUE_ITEMS = 3;
+
+
+function createCommandAuditService_(sheetClient) {
+  if (typeof AuditService !== 'undefined' && AuditService) {
+    return new AuditService(sheetClient);
+  }
+  return {
+    logEvent: function (payload) {
+      if (!sheetClient || typeof sheetClient.appendAuditRow !== 'function') return;
+      sheetClient.appendAuditRow([
+        '',
+        new Date(),
+        payload.actorEmail || 'system',
+        payload.entityType || 'System',
+        payload.entityId || '',
+        payload.action || 'UPDATE',
+        payload.details || '',
+        ''
+      ]);
+    }
+  };
+}
+
 
 var TEAM_VIEW_CONFIG = {
   default: {
@@ -110,16 +133,20 @@ function routeSlackCommand_(payload) {
   }
 
   if (commandName === COMMAND_NAME_ONBOARDING_STATUS || commandName === COMMAND_NAME_CHECKLIST_STATUS || commandName === COMMAND_NAME_CHECKLIST_PROGRESS) {
-    return handleOnboardingStatusCommand_(payload, 'default', new SheetClient(), new AuditLogger(), new SlackClient());
+    var defaultClient = new SheetClient();
+    return handleOnboardingStatusCommand_(payload, 'default', defaultClient, createCommandAuditService_(defaultClient), new SlackClient());
   }
   if (commandName === COMMAND_NAME_IT_STATUS) {
-    return handleOnboardingStatusCommand_(payload, 'it', new SheetClient(), new AuditLogger(), new SlackClient());
+    var itClient = new SheetClient();
+    return handleOnboardingStatusCommand_(payload, 'it', itClient, createCommandAuditService_(itClient), new SlackClient());
   }
   if (commandName === COMMAND_NAME_FINANCE_STATUS) {
-    return handleOnboardingStatusCommand_(payload, 'finance', new SheetClient(), new AuditLogger(), new SlackClient());
+    var financeClient = new SheetClient();
+    return handleOnboardingStatusCommand_(payload, 'finance', financeClient, createCommandAuditService_(financeClient), new SlackClient());
   }
   if (commandName === COMMAND_NAME_HR_STATUS) {
-    return handleOnboardingStatusCommand_(payload, 'hr', new SheetClient(), new AuditLogger(), new SlackClient());
+    var hrClient = new SheetClient();
+    return handleOnboardingStatusCommand_(payload, 'hr', hrClient, createCommandAuditService_(hrClient), new SlackClient());
   }
 
   return formatCommandOutput_({
@@ -168,7 +195,7 @@ function detectWriteIntent_(rawText) {
   };
 }
 
-function handleOnboardingStatusCommand_(payload, teamViewKey, sheetClient, auditLogger, slackClient) {
+function handleOnboardingStatusCommand_(payload, teamViewKey, sheetClient, auditService, slackClient) {
   var parsedInput = parseStatusCommandInput_(payload.text || '');
   var query = parsedInput.query;
   var shareToTeamChannel = parsedInput.shareToTeamChannel;
@@ -176,7 +203,7 @@ function handleOnboardingStatusCommand_(payload, teamViewKey, sheetClient, audit
   var teamView = TEAM_VIEW_CONFIG[teamViewKey] || TEAM_VIEW_CONFIG.default;
 
   if (!query) {
-    logOnboardingStatusRead_(auditLogger, actor, query, teamView.label, 'invalid_query', 0);
+    logOnboardingStatusRead_(auditService, actor, query, teamView.label, 'invalid_query', 0);
     return formatCommandOutput_({
       responseType: 'ephemeral',
       text: 'Usage: /onboarding-status <new hire name>\nExample: /onboarding-status Amelia Thompson'
@@ -184,7 +211,7 @@ function handleOnboardingStatusCommand_(payload, teamViewKey, sheetClient, audit
   }
 
   var lookupResult = performOnboardingStatusLookup_(query, sheetClient);
-  logOnboardingStatusRead_(auditLogger, actor, query, teamView.label, lookupResult.matchType, lookupResult.candidates.length);
+  logOnboardingStatusRead_(auditService, actor, query, teamView.label, lookupResult.matchType, lookupResult.candidates.length);
 
   if (lookupResult.candidates.length === 0) {
     return formatCommandOutput_({
@@ -256,17 +283,29 @@ function performOnboardingStatusLookup_(query, sheetClient) {
   };
 }
 
-function logOnboardingStatusRead_(auditLogger, actor, query, teamLabel, matchType, resultCount) {
-  if (!auditLogger || typeof auditLogger.log !== 'function') {
+function logOnboardingStatusRead_(auditService, actor, query, teamLabel, matchType, resultCount) {
+  if (!auditService) {
     return;
   }
-  auditLogger.log({
+  if (typeof auditService.logEvent === 'function') {
+    auditService.logEvent({
     actorEmail: actor,
     entityType: 'OnboardingCommand',
     entityId: COMMAND_NAME_ONBOARDING_STATUS,
     action: 'READ',
     details: 'team=' + teamLabel + '; query="' + query + '"; match_type=' + matchType + '; result_count=' + resultCount
-  });
+    });
+    return;
+  }
+  if (typeof auditService.log === 'function') {
+    auditService.log({
+      actorEmail: actor,
+      entityType: 'OnboardingCommand',
+      entityId: COMMAND_NAME_ONBOARDING_STATUS,
+      action: 'READ',
+      details: 'team=' + teamLabel + '; query="' + query + '"; match_type=' + matchType + '; result_count=' + resultCount
+    });
+  }
 }
 
 function resolveOnboardingCandidates_(query, sheetClient) {

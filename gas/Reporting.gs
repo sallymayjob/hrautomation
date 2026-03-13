@@ -1,4 +1,4 @@
-/* global SheetClient, COL, getDaysUntilDue, Utils, AuditRepository, AuditLogger, generateId */
+/* global SheetClient, COL, getDaysUntilDue, Utils, AuditRepository, generateId */
 /**
  * @fileoverview Weekly reporting for HR alerting.
  */
@@ -17,7 +17,7 @@ function appendWorkflowLifecycleRow_(sheetClient, event) {
 
 function postWeeklyMetrics() {
   var sheetClient = new SheetClient();
-  var auditRepository = new AuditRepository(sheetClient, new AuditLogger(sheetClient));
+  var auditRepository = new AuditRepository(sheetClient);
   var trainingRows = sheetClient.getTrainingRows();
   var onboardingRows = sheetClient.getOnboardingRows();
   var checklistRows = sheetClient.getChecklistRows();

@@ -1,4 +1,4 @@
-/* global ContentService, AuditLogger, SheetClient, Utilities, Config */
+/* global ContentService, AuditService, SheetClient, Utilities, Config */
 /**
  * @fileoverview LMS webhook entrypoint for Slack Workflow Builder initiated handshakes.
  */
@@ -239,18 +239,19 @@ function isGeminiValidationEnabled_() {
 }
 
 function writeLmsAuditLog_(payload, action, status, details) {
-  if (typeof AuditLogger === 'undefined' || typeof SheetClient === 'undefined') {
+  if (typeof AuditService === 'undefined' || typeof SheetClient === 'undefined') {
     return;
   }
 
   var requestId = String(payload.request_id || payload.idempotency_key || '');
   var actor = String(payload.actor_slack_id || payload.user_id || 'workflow_builder');
-  var auditLogger = new AuditLogger(new SheetClient());
-  if (typeof auditLogger.log !== 'function') {
+  var sheetClient = new SheetClient();
+  var auditService = new AuditService(sheetClient);
+  if (typeof auditService.logEvent !== 'function') {
     return;
   }
 
-  auditLogger.log({
+  auditService.logEvent({
     actorEmail: actor,
     entityType: 'LmsWorkflow',
     entityId: requestId || action,
