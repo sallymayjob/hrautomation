@@ -150,9 +150,9 @@ describe('SheetClient', () => {
     const { SheetClient } = require('../../gas/SheetClient.gs');
     const client = new SheetClient();
 
-    expect(() => client.updateOnboardingStatus('OB-1', 'IN_PROGRESS')).toThrow('Schema version mismatch');
+    expect(() => client.updateOnboardingStatus('OB-1', 'IN_PROGRESS')).toThrow('Schema drift detected');
     expect(audit.appendRow).toHaveBeenCalled();
-    expect(JSON.parse(audit.appendRow.mock.calls[0][0][6]).type).toBe('SCHEMA_WRITE_BLOCKED');
+    expect(JSON.parse(audit.appendRow.mock.calls[0][0][6]).type).toBe('SCHEMA_DRIFT_DETECTED');
   });
 
   test('completion gate blocks COMPLETE when required tasks are still pending', () => {
@@ -199,6 +199,25 @@ describe('SheetClient', () => {
 
     expect(sheet).toBe(auditSheet);
     expect(SpreadsheetApp.openById).toHaveBeenCalledWith('training-id');
+  });
+
+  test('validateSheetSchema_ catches naming and case drift fixture headers', () => {
+    const training = makeSheet(['employee_id', 'modulecode', 'training_status', 'assigned_date', 'due_date', 'completion_date', 'last_updated_at', 'completion_hash', 'celebration_posted', 'module_name'], [], 'Training');
+    const config = makeSheet(['key', 'value'], [['Training.schema_version', '1']], '_sys_config');
+    const spreadsheet = makeSpreadsheet({ Training: training, _sys_config: config });
+    SpreadsheetApp.openById.mockReturnValue(spreadsheet);
+
+    const { SheetClient } = require('../../gas/SheetClient.gs');
+    const client = new SheetClient();
+
+    expect(() => client.validateSheetSchema_(training, 1, ['employee_id', 'module_code', 'module_name', 'assigned_date', 'due_date', 'completion_date', 'training_status', 'last_updated_at', 'completion_hash', 'celebration_posted'])).toThrow('Missing required header(s): module_code');
+
+    training.getRange = jest.fn((r, c, numRows, numCols) => ({
+      getValues: jest.fn(() => [['employee_id', 'MODULE_CODE', 'module_name', 'assigned_date', 'due_date', 'completion_date', 'last_updated_at', 'training_status', 'completion_hash', 'celebration_posted']])
+    }));
+    training.getLastColumn = jest.fn(() => 10);
+
+    expect(() => client.validateSheetSchema_(training, 1, ['employee_id', 'module_code', 'module_name', 'assigned_date', 'due_date', 'completion_date', 'training_status', 'last_updated_at', 'completion_hash', 'celebration_posted'])).toThrow('Header order mismatch');
   });
 
   test('validateSchema accepts canonical library headers and rejects drift with readable errors', () => {
@@ -276,7 +295,7 @@ describe('SheetClient', () => {
       getValues: jest.fn(() => [['lesson_id', 'module_code', 'version']])
     }));
     lessons.getLastColumn = jest.fn(() => 3);
-    expect(() => client.validateWorkbookSchemas()).toThrow('Schema mismatch on sheet "lessons"');
+    expect(() => client.validateWorkbookSchemas()).toThrow('Schema drift detected for sheet "lessons"');
   });
 
 });

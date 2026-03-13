@@ -81,4 +81,43 @@ describe('ValidationService', () => {
 
     expect(validErrors).toHaveLength(0);
   });
+
+
+  test('assertSchemaConformance validates required headers, order, and config version markers', () => {
+    const { assertSchemaConformance } = require('../../gas/ValidationService.gs');
+    const requiredHeaders = ['employee_id', 'module_code', 'training_status'];
+
+    expect(assertSchemaConformance('Training', {
+      requiredHeaders,
+      actualHeaders: ['Employee_ID', 'module_code', 'training_status'],
+      requireOrder: true,
+      expectedVersion: '1',
+      configuredVersion: '1'
+    })).toBe(true);
+
+    expect(() => assertSchemaConformance('Training', {
+      requiredHeaders,
+      actualHeaders: ['employee_id', 'training_Status', 'module_code'],
+      requireOrder: true,
+      expectedVersion: '1',
+      configuredVersion: '1'
+    })).toThrow('Header order mismatch');
+
+    expect(() => assertSchemaConformance('Training', {
+      requiredHeaders,
+      actualHeaders: ['employee_id', 'modulecode', 'training_status'],
+      requireOrder: true,
+      expectedVersion: '1',
+      configuredVersion: '1'
+    })).toThrow('Missing required header(s): module_code');
+
+    expect(() => assertSchemaConformance('Training', {
+      requiredHeaders,
+      actualHeaders: ['employee_id', 'module_code', 'training_status'],
+      requireOrder: true,
+      expectedVersion: '1',
+      configuredVersion: ''
+    })).toThrow('missing version marker');
+  });
+
 });
