@@ -14,7 +14,12 @@ var LMS_ACTIONS = {
   UNENROLL_SINGLE: 'unenroll_single',
   BULK_UNENROLL: 'bulk_unenroll',
   ASSIGN_COHORT: 'assign_cohort',
-  MARK_COMPLETION: 'mark_completion'
+  MARK_COMPLETION: 'mark_completion',
+  LESSON_CREATE: 'lesson_create',
+  LESSON_EDIT: 'lesson_edit',
+  LESSON_OVERWRITE: 'lesson_overwrite',
+  LESSON_VERSION: 'lesson_version',
+  LESSON_MAPPING_CHANGE: 'lesson_mapping_change'
 };
 
 function doPostLms(e) {
@@ -136,7 +141,12 @@ function getLmsHandlers_() {
     'unenroll_single',
     'bulk_unenroll',
     'assign_cohort',
-    'mark_completion'
+    'mark_completion',
+    'lesson_create',
+    'lesson_edit',
+    'lesson_overwrite',
+    'lesson_version',
+    'lesson_mapping_change'
   ];
 }
 
@@ -151,7 +161,10 @@ function submitLmsProposal_(payload, action) {
     actor: String(payload.actor_slack_id || payload.user_id || 'workflow_builder'),
     request_id: String(payload.request_id || payload.idempotency_key || ''),
     payload: payload,
-    approval_status: 'PENDING'
+    approval_status: 'PENDING',
+    trace_id: String(payload.trace_id || payload.request_id || payload.idempotency_key || ''),
+    entity_type: resolveEntityType_(payload, action),
+    entity_key: resolveEntityKey_(payload, action)
   };
 
   var proposal = null;
@@ -186,6 +199,34 @@ function submitLmsProposal_(payload, action) {
     commit_blocked: true,
     message: 'Proposal captured. Governed LMS content updates are blocked until ApprovalController marks this proposal approved.'
   };
+}
+
+function resolveEntityType_(payload, action) {
+  var explicitType = String((payload && payload.entity_type) || '').trim().toLowerCase();
+  if (explicitType) {
+    return explicitType;
+  }
+  return String(action || '').indexOf('lesson') > -1 ? 'lesson' : 'lms_action';
+}
+
+function resolveEntityKey_(payload, action) {
+  var explicitKey = String((payload && payload.entity_key) || '').trim();
+  if (explicitKey) {
+    return explicitKey;
+  }
+
+  var keyParts = [
+    payload && (payload.lesson_id || payload.module_code || payload.course_id || payload.request_id || payload.idempotency_key),
+    payload && (payload.lesson_version || payload.version || ''),
+    String(action || '')
+  ];
+  var normalized = [];
+  for (var i = 0; i < keyParts.length; i += 1) {
+    if (String(keyParts[i] || '').trim()) {
+      normalized.push(String(keyParts[i]).trim());
+    }
+  }
+  return normalized.join(':');
 }
 
 function writeLmsAuditLog_(payload, action, status, details) {
@@ -229,6 +270,8 @@ if (typeof module !== 'undefined') {
     routeLmsAction_: routeLmsAction_,
     getLmsHandlers_: getLmsHandlers_,
     isSupportedLmsAction_: isSupportedLmsAction_,
-    submitLmsProposal_: submitLmsProposal_
+    submitLmsProposal_: submitLmsProposal_,
+    resolveEntityType_: resolveEntityType_,
+    resolveEntityKey_: resolveEntityKey_
   };
 }
