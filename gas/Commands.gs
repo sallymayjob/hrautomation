@@ -107,7 +107,12 @@ var TEAM_VIEW_CONFIG = {
   }
 };
 
-function doPost(e) {
+function handleCommandsPost_(e) {
+  var preflightPayload = extractSlackJsonBodyForChallenge_(e);
+  if (preflightPayload && preflightPayload.type === 'url_verification') {
+    return toSlackChallengeOutput_(preflightPayload);
+  }
+
   var verification = verifySlackRequestForCommands_(e);
   if (!verification.ok) {
     console.warn('Slack ingress rejected: ' + sanitizeForCommandLog_(verification.errorCode + ' ' + verification.reason));
@@ -130,6 +135,19 @@ function doPost(e) {
       ? handleSlackInteractivePayload_(payload)
       : routeSlackCommand_(payload));
   return toSlackTextOutput_(response);
+}
+
+function extractSlackJsonBodyForChallenge_(event) {
+  var rawBody = event && event.postData && event.postData.contents;
+  if (!rawBody) {
+    return null;
+  }
+  try {
+    var parsed = JSON.parse(rawBody);
+    return parsed && parsed.type === 'url_verification' ? parsed : null;
+  } catch (err) {
+    return null;
+  }
 }
 
 function parseSlackPayloadEnvelope_(envelope) {
@@ -699,15 +717,11 @@ function toSlackTextOutput_(responsePayload) {
 }
 
 function toSlackChallengeOutput_(payload) {
-  var challengePayload = {
-    challenge: String((payload && payload.challenge) || '')
-  };
+  var challenge = String((payload && payload.challenge) || '');
   if (typeof ContentService === 'undefined' || !ContentService.createTextOutput) {
-    return challengePayload;
+    return challenge;
   }
-  return ContentService
-    .createTextOutput(JSON.stringify(challengePayload))
-    .setMimeType(ContentService.MimeType.JSON);
+  return ContentService.createTextOutput(challenge);
 }
 
 function formatCommandOutput_(responsePayload) {
@@ -720,7 +734,8 @@ function formatCommandOutput_(responsePayload) {
 
 if (typeof module !== 'undefined') {
   module.exports = {
-    doPost: doPost,
+    doPost: handleCommandsPost_,
+    handleCommandsPost_: handleCommandsPost_,
     routeSlackCommand_: routeSlackCommand_,
     handleOnboardingStatusCommand_: handleOnboardingStatusCommand_,
     parseStatusCommandInput_: parseStatusCommandInput_,
@@ -733,6 +748,7 @@ if (typeof module !== 'undefined') {
     scoreFuzzyNameMatch_: scoreFuzzyNameMatch_,
     normalizeForMatch_: normalizeForMatch_,
     logOnboardingStatusRead_: logOnboardingStatusRead_,
+    extractSlackJsonBodyForChallenge_: extractSlackJsonBodyForChallenge_,
     parseSlackPayloadEnvelope_: parseSlackPayloadEnvelope_,
     handleSlackInteractivePayload_: handleSlackInteractivePayload_,
     parseSlackUserIdFromQuery_: parseSlackUserIdFromQuery_,

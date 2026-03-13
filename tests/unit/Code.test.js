@@ -24,3 +24,22 @@ describe('Code duplicate index', () => {
     expect(index[key]).toBe(2);
   });
 });
+
+
+describe('Code entrypoint routing', () => {
+  beforeEach(() => {
+    jest.resetModules();
+  });
+
+  test('doPost delegates to commands handler', () => {
+    global.handleCommandsPost_ = jest.fn(() => ({ ok: true }));
+    const { doPost } = require('../../gas/Code.gs');
+
+    const event = { parameter: { command: '/onboarding-status' } };
+    const result = doPost(event);
+
+    expect(global.handleCommandsPost_).toHaveBeenCalledWith(event);
+    expect(result).toEqual({ ok: true });
+    delete global.handleCommandsPost_;
+  });
+});

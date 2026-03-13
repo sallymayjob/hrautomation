@@ -92,9 +92,9 @@ In this project, Slack command responses are for **checking status**, not editin
 ---
 
 ## Most important files
-- `gas/Commands.gs` → Slack command entry point (`doPost`)
-- `gas/LmsWebhook.gs` → LMS/workflow webhook entry point (`doPostLms`)
-- `gas/Code.gs` → onboarding event routing
+- `gas/Code.gs` → web entry point (`doPost`) and onboarding event routing
+- `gas/Commands.gs` → Slack command/request handler logic used by `doPost`
+- `gas/LmsWebhook.gs` → LMS/workflow webhook handler (`doPostLms`)
 - `gas/OnboardingController.gs` → onboarding logic
 - `gas/Reminders.gs` → reminder and escalation logic
 - `gas/Reporting.gs` → weekly summaries
