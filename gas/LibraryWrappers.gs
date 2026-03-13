@@ -1,4 +1,4 @@
-/* global Config, SpreadsheetApp, MailApp, Session, HRLib, console, LockService, WorkflowSheetRepository, runWorkflowController_ */
+/* global Config, SpreadsheetApp, MailApp, Session, HRLib, console, LockService, WorkflowSheetRepository, runWorkflowController_, runOnboardingBusinessHours_ */
 /**
  * @fileoverview Thin spreadsheet wrappers around shared HR library entry points.
  */
@@ -17,7 +17,8 @@ var WorkflowRunBindings_ = null;
 if (typeof require === 'function') {
   WorkflowRunBindings_ = {
     repository: require('./WorkflowSheetRepository.gs'),
-    controller: require('./WorkflowRunController.gs')
+    controller: require('./WorkflowRunController.gs'),
+    onboardingController: require('./OnboardingController.gs')
   };
 }
 
@@ -33,6 +34,18 @@ function getWorkflowControllerFn_() {
     return runWorkflowController_;
   }
   return WorkflowRunBindings_ && WorkflowRunBindings_.controller && WorkflowRunBindings_.controller.runWorkflowController_;
+}
+
+function getOnboardingBusinessHoursRunner_() {
+  if (typeof runOnboardingBusinessHours_ !== 'undefined') {
+    return runOnboardingBusinessHours_;
+  }
+  return WorkflowRunBindings_ && WorkflowRunBindings_.onboardingController && WorkflowRunBindings_.onboardingController.runOnboardingBusinessHours_;
+}
+
+function runOnboardingBusinessHours() {
+  var runner = getOnboardingBusinessHoursRunner_();
+  return runner(runOnboarding);
 }
 
 function runOnboarding() {
@@ -499,6 +512,7 @@ function assertLibraryAvailable_() {
 }
 
 if (typeof module !== 'undefined') module.exports = {
+  runOnboardingBusinessHours: runOnboardingBusinessHours,
   runOnboarding: runOnboarding,
   runAudit: runAudit,
   runAuditDeepWeekly: runAuditDeepWeekly,

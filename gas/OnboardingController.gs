@@ -509,6 +509,18 @@ function resolveTaskOwnerDestination_(ownerTeam, ownerSlackId) {
   return { channelId: Config.getDefaultAssignmentsChannelId(), ownerLabel: cleanedDestination || ownerTeam || 'Team', rule: 'default_channel' };
 }
 
+function runOnboardingBusinessHours_(onboardingRunner, nowProvider) {
+  var current = nowProvider ? nowProvider() : new Date();
+  var day = current.getDay();
+  var hour = current.getHours();
+  var isBusinessDay = day >= 1 && day <= 5;
+  var isBusinessHour = hour >= 8 && hour < 18;
+  if (!isBusinessDay || !isBusinessHour) {
+    return { skipped: true, reason: 'outside_business_hours' };
+  }
+  return onboardingRunner();
+}
+
 function validateOnboardingSchema_(sheet, headerMap) {
   var OnboardingRepoCtor = getRepositoryCtor_('OnboardingRepository', typeof OnboardingRepository !== 'undefined' ? OnboardingRepository : null);
   var map = headerMap || (new OnboardingRepoCtor(new SheetClient())).getHeaderMap(sheet);
@@ -544,6 +556,7 @@ if (typeof module !== 'undefined') {
     templateMatchesOnboarding_: templateMatchesOnboarding_,
     resolveTaskOwnerDestination_: resolveTaskOwnerDestination_,
     notifyOnboardingAssignment_: notifyOnboardingAssignment_,
+    runOnboardingBusinessHours_: runOnboardingBusinessHours_,
     STATUS: STATUS
   };
 }

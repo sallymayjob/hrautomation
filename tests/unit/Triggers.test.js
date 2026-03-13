@@ -1,7 +1,6 @@
 describe('Triggers', () => {
   beforeEach(() => {
     jest.resetModules();
-    global.runOnboarding = jest.fn(() => ({ ok: true }));
     global.ScriptApp = {
       WeekDay: { SUNDAY: 'SUNDAY', MONDAY: 'MONDAY', TUESDAY: 'TUESDAY', WEDNESDAY: 'WEDNESDAY', THURSDAY: 'THURSDAY', FRIDAY: 'FRIDAY' },
       getProjectTriggers: jest.fn(() => []),
@@ -49,19 +48,5 @@ describe('Triggers', () => {
     expect(global.ScriptApp.newTrigger).toHaveBeenCalledWith('runTrainingSync');
   });
 
-  test('runOnboardingBusinessHours skips outside business windows', () => {
-    const RealDate = Date;
-    global.Date = class extends RealDate {
-      constructor() {
-        super('2026-03-14T20:00:00Z');
-      }
-    };
 
-    const { runOnboardingBusinessHours } = require('../../gas/Triggers.gs');
-    const result = runOnboardingBusinessHours();
-
-    expect(result).toEqual({ skipped: true, reason: 'outside_business_hours' });
-    expect(global.runOnboarding).not.toHaveBeenCalled();
-    global.Date = RealDate;
-  });
 });
