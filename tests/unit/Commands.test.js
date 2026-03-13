@@ -123,7 +123,7 @@ describe('Commands', () => {
     doPost({
       postData: {
         type: 'application/json',
-        contents: JSON.stringify({ type: 'url_verification', token: 'verif-token-123', challenge: 'abc123' })
+        contents: JSON.stringify({ type: 'url_verification', token: '', challenge: 'abc123' })
       },
       parameter: {}
     });
