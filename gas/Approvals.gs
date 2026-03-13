@@ -1,12 +1,12 @@
-/* global SheetClient, SlackClient, AuditLogger, BlockKit, COL, generateId */
+/* global SheetClient, SlackClient, AuditService, BlockKit, COL */
 /**
  * @fileoverview Approval workflow posting and response handling.
  */
 
 function postApprovalRequest(trainingId, managerEmail, requestSummary) {
   var sheetClient = new SheetClient();
-  var auditLogger = new AuditLogger(sheetClient);
-  var slackClient = new SlackClient(auditLogger);
+  var auditService = new AuditService(sheetClient);
+  var slackClient = new SlackClient();
   var managerLookup = slackClient.lookupUserByEmail(managerEmail);
   var managerSlackId = managerLookup && managerLookup.user ? managerLookup.user.id : '';
   if (!managerSlackId) {
@@ -18,8 +18,7 @@ function postApprovalRequest(trainingId, managerEmail, requestSummary) {
     requestSummary: requestSummary || 'Please review this training decision.'
   }));
 
-  auditLogger.log({
-    auditId: generateId('AUD'),
+  auditService.logEvent({
     entityType: 'Training',
     entityId: String(trainingId),
     action: 'UPDATE',
@@ -31,7 +30,7 @@ function postApprovalRequest(trainingId, managerEmail, requestSummary) {
 
 function handleApprovalResponse(trainingId, decision) {
   var sheetClient = new SheetClient();
-  var auditLogger = new AuditLogger(sheetClient);
+  var auditService = new AuditService(sheetClient);
   var resolved = resolveTrainingFromId_(sheetClient, trainingId);
   if (!resolved) {
     throw new Error('Training record not found for ID: ' + trainingId);
@@ -44,8 +43,7 @@ function handleApprovalResponse(trainingId, decision) {
 
   sheetClient.upsertTrainingRow(resolved.employeeId, resolved.moduleCode, resolved.row);
 
-  auditLogger.log({
-    auditId: generateId('AUD'),
+  auditService.logEvent({
     entityType: 'Training',
     entityId: String(trainingId),
     action: 'STATUS_CHANGE',

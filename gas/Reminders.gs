@@ -1,4 +1,4 @@
-/* global SheetClient, SlackClient, AuditLogger, BlockKit, COL, Config, computeHash, generateId, getDaysUntilDue, Utils, TrainingRepository, OnboardingRepository, AuditRepository, LessonRepository */
+/* global SheetClient, SlackClient, BlockKit, COL, Config, computeHash, generateId, getDaysUntilDue, Utils, TrainingRepository, OnboardingRepository, AuditRepository, LessonRepository */
 /**
  * @fileoverview Daily reminder, escalation, and celebration reminder flows.
  */
@@ -75,8 +75,7 @@ function processChecklistReminders_(sheetClient, lessonRepository, onboardingRep
 }
 
 function sendTrainingReminderDM_(sheetClient, trainingRepository, onboardingRepository, auditRepository, row, daysUntil) {
-  var auditLogger = new AuditLogger(sheetClient);
-  var slackClient = new SlackClient(auditLogger);
+  var slackClient = new SlackClient();
   var employeeId = row[COL.TRAINING.EMPLOYEE_ID - 1];
   var moduleCode = row[COL.TRAINING.MODULE_CODE - 1];
   var onboarding = onboardingRepository.findByEmployeeId(employeeId);
@@ -108,18 +107,20 @@ function sendTrainingReminderDM_(sheetClient, trainingRepository, onboardingRepo
     trainingRepository.updateReminderMetadata(employeeId, moduleCode, nextCount, new Date());
   }
 
-  auditLogger.log({
-    auditId: generateId('AUD'),
-    entityType: 'Training',
-    entityId: String(employeeId) + ':' + String(moduleCode),
-    action: 'UPDATE',
-    details: 'Reminder DM sent (' + daysUntil + ' days)'
-  });
+  var reminderDetails = 'Reminder DM sent (' + daysUntil + ' days)';
+  if (auditRepository && typeof auditRepository.log === 'function') {
+    auditRepository.log({
+      auditId: generateId('AUD'),
+      entityType: 'Training',
+      entityId: String(employeeId) + ':' + String(moduleCode),
+      action: 'UPDATE',
+      details: reminderDetails
+    });
+  }
 }
 
 function escalateTrainingToManager_(sheetClient, auditRepository, row) {
-  var auditLogger = new AuditLogger(sheetClient);
-  var slackClient = new SlackClient(auditLogger);
+  var slackClient = new SlackClient();
   var employeeId = row[COL.TRAINING.EMPLOYEE_ID - 1];
   var moduleCode = row[COL.TRAINING.MODULE_CODE - 1];
   var managerEmail = row[COL.TRAINING.OWNER_EMAIL - 1];
@@ -157,8 +158,7 @@ function parseReminderCountFromUpdatedBy_(value) {
 }
 
 function sendChecklistReminderDM_(sheetClient, lessonRepository, auditRepository, row, daysUntil) {
-  var auditLogger = new AuditLogger(sheetClient);
-  var slackClient = new SlackClient(auditLogger);
+  var slackClient = new SlackClient();
   var onboardingId = row[COL.CHECKLIST.ONBOARDING_ID - 1];
   var taskId = row[COL.CHECKLIST.TASK_ID - 1];
 
@@ -187,8 +187,7 @@ function sendChecklistReminderDM_(sheetClient, lessonRepository, auditRepository
 }
 
 function escalateChecklistTask_(sheetClient, onboardingRepository, auditRepository, row, daysUntil) {
-  var auditLogger = new AuditLogger(sheetClient);
-  var slackClient = new SlackClient(auditLogger);
+  var slackClient = new SlackClient();
   var onboardingId = row[COL.CHECKLIST.ONBOARDING_ID - 1];
   var taskId = row[COL.CHECKLIST.TASK_ID - 1];
   var taskName = row[COL.CHECKLIST.TASK_NAME - 1];
@@ -275,8 +274,7 @@ function checkBirthdaysAndAnniversaries() {
   var sheetClient = new SheetClient();
   var onboardingRepository = new OnboardingRepository(sheetClient);
   var auditRepository = new AuditRepository(sheetClient);
-  var auditLogger = new AuditLogger(sheetClient);
-  var slackClient = new SlackClient(auditLogger);
+  var slackClient = new SlackClient();
   var onboardingData = onboardingRepository.getRowsWithHeaders();
   if (!onboardingData.rows.length) {
     return;

@@ -1,4 +1,4 @@
-/* global SheetClient, computeHash, Config, OnboardingRepository, processOnboardingRow_, hydrateOnboardingDefaults_, validateOnboardingSchema_, AuditLogger, AuditRepository */
+/* global SheetClient, computeHash, Config, OnboardingRepository, processOnboardingRow_, hydrateOnboardingDefaults_, validateOnboardingSchema_, AuditRepository */
 /**
  * @fileoverview Event ingress handlers for onboarding processing.
  */
@@ -37,7 +37,7 @@ function routeIngressEvent_(ingressEvent) {
   var headerMap = onboardingRepository.getHeaderMap(sheet);
   validateOnboardingSchema_(sheet, headerMap);
 
-  var auditRepository = new AuditRepository(sheetClient, new AuditLogger(sheetClient));
+  var auditRepository = new AuditRepository(sheetClient);
   emitIngressLifecycle_(auditRepository, ingressEvent.workflowContext, WORKFLOW_EVENT_TYPES.WORKFLOW_CALLED, '');
 
   var lastRow = sheet.getLastRow();
