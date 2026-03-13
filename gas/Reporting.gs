@@ -1,4 +1,4 @@
-/* global SheetClient, COL, getDaysUntilDue, Utils, AuditRepository, generateId */
+/* global SheetClient, COL, getDaysUntilDue, Utils, AuditRepository, ReportingRepository, generateId */
 /**
  * @fileoverview Weekly reporting for HR alerting.
  */
@@ -164,13 +164,14 @@ function buildOnboardingMetrics_(onboardingRows, checklistRows) {
 }
 
 function syncSummaryViews_(sheetClient, onboardingRows, checklistRows, byOnboardingId) {
-  writeEmployeeSummarySheet_(sheetClient, onboardingRows, byOnboardingId);
-  writeTeamOwnerSummarySheet_(sheetClient, checklistRows);
-  writePhaseSummarySheet_(sheetClient, checklistRows);
-  writeBlockedSummarySheet_(sheetClient, byOnboardingId);
+  var reportingRepository = new ReportingRepository(sheetClient);
+  writeEmployeeSummarySheet_(reportingRepository, onboardingRows, byOnboardingId);
+  writeTeamOwnerSummarySheet_(reportingRepository, checklistRows);
+  writePhaseSummarySheet_(reportingRepository, checklistRows);
+  writeBlockedSummarySheet_(reportingRepository, byOnboardingId);
 }
 
-function writeEmployeeSummarySheet_(sheetClient, onboardingRows, byOnboardingId) {
+function writeEmployeeSummarySheet_(reportingRepository, onboardingRows, byOnboardingId) {
   var headers = ['onboarding_id', 'employee_name', 'status', 'tasks_total', 'tasks_done', 'tasks_overdue', 'completion_pct', 'top_unresolved_tasks'];
   var rows = [];
 
@@ -193,10 +194,10 @@ function writeEmployeeSummarySheet_(sheetClient, onboardingRows, byOnboardingId)
     ]);
   }
 
-  writeSummarySheet_(sheetClient, WEEKLY_REPORT_SHEETS.BY_EMPLOYEE, headers, rows);
+  writeSummarySheet_(reportingRepository, WEEKLY_REPORT_SHEETS.BY_EMPLOYEE, headers, rows);
 }
 
-function writeTeamOwnerSummarySheet_(sheetClient, checklistRows) {
+function writeTeamOwnerSummarySheet_(reportingRepository, checklistRows) {
   var headers = ['owner_team', 'tasks_total', 'tasks_done', 'tasks_overdue', 'completion_pct'];
   var aggregation = {};
 
@@ -205,10 +206,10 @@ function writeTeamOwnerSummarySheet_(sheetClient, checklistRows) {
   }, aggregation);
 
   var rows = mapAggregatesToRows_(aggregation);
-  writeSummarySheet_(sheetClient, WEEKLY_REPORT_SHEETS.BY_TEAM_OWNER, headers, rows);
+  writeSummarySheet_(reportingRepository, WEEKLY_REPORT_SHEETS.BY_TEAM_OWNER, headers, rows);
 }
 
-function writePhaseSummarySheet_(sheetClient, checklistRows) {
+function writePhaseSummarySheet_(reportingRepository, checklistRows) {
   var headers = ['phase', 'tasks_total', 'tasks_done', 'tasks_overdue', 'completion_pct'];
   var aggregation = {};
 
@@ -217,10 +218,10 @@ function writePhaseSummarySheet_(sheetClient, checklistRows) {
   }, aggregation);
 
   var rows = mapAggregatesToRows_(aggregation);
-  writeSummarySheet_(sheetClient, WEEKLY_REPORT_SHEETS.BY_CATEGORY, headers, rows);
+  writeSummarySheet_(reportingRepository, WEEKLY_REPORT_SHEETS.BY_CATEGORY, headers, rows);
 }
 
-function writeBlockedSummarySheet_(sheetClient, byOnboardingId) {
+function writeBlockedSummarySheet_(reportingRepository, byOnboardingId) {
   var headers = ['onboarding_id', 'employee_name', 'tasks_overdue', 'blocked_reason', 'top_unresolved_tasks'];
   var rows = [];
   var ids = Object.keys(byOnboardingId);
@@ -243,7 +244,7 @@ function writeBlockedSummarySheet_(sheetClient, byOnboardingId) {
     return Number(b[2] || 0) - Number(a[2] || 0);
   });
 
-  writeSummarySheet_(sheetClient, WEEKLY_REPORT_SHEETS.BLOCKED, headers, rows);
+  writeSummarySheet_(reportingRepository, WEEKLY_REPORT_SHEETS.BLOCKED, headers, rows);
 }
 
 function aggregateChecklist_(checklistRows, keyResolver, aggregation) {
@@ -282,16 +283,8 @@ function mapAggregatesToRows_(aggregation) {
   return rows;
 }
 
-function writeSummarySheet_(sheetClient, sheetName, headers, rows) {
-  var sheet = sheetClient.ensureSheetWithHeaders(sheetName, headers);
-
-  if (sheet.getLastRow() > 1) {
-    sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).clearContent();
-  }
-
-  if (rows.length > 0) {
-    sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
-  }
+function writeSummarySheet_(reportingRepository, sheetName, headers, rows) {
+  reportingRepository.replaceSummarySheet(sheetName, headers, rows);
 }
 
 function formatTopTasks_(tasks, limit) {

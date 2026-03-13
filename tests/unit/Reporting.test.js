@@ -46,10 +46,7 @@ describe('Reporting', () => {
   });
 
   test('postWeeklyMetrics only writes summary sheets and audit logs', () => {
-    const ensureSheetWithHeaders = jest.fn(() => ({
-      getLastRow: jest.fn(() => 1),
-      getRange: jest.fn(() => ({ clearContent: jest.fn(), setValues: jest.fn() }))
-    }));
+    const replaceSummarySheet = jest.fn();
 
     const trainingRows = [['', '', '', '', 2, '', 'COMPLETED']];
     const onboardingRows = [['OB-1', 'Alex', 'IN_PROGRESS', '']];
@@ -58,14 +55,14 @@ describe('Reporting', () => {
     const sheetClient = {
       getTrainingRows: jest.fn(() => trainingRows),
       getOnboardingRows: jest.fn(() => onboardingRows),
-      getChecklistRows: jest.fn(() => checklistRows),
-      ensureSheetWithHeaders
+      getChecklistRows: jest.fn(() => checklistRows)
     };
 
     const auditLog = jest.fn();
     global.SheetClient = jest.fn(() => sheetClient);
     global.AuditLogger = jest.fn(() => ({ log: auditLog }));
     global.AuditRepository = jest.fn(() => ({ log: auditLog }));
+    global.ReportingRepository = jest.fn(() => ({ replaceSummarySheet }));
 
     const { postWeeklyMetrics } = require('../../gas/Reporting.gs');
 
@@ -86,7 +83,7 @@ describe('Reporting', () => {
       entityId: 'weekly_digest',
       action: 'SUMMARY_DIGEST'
     }));
-    expect(ensureSheetWithHeaders).toHaveBeenCalled();
+    expect(replaceSummarySheet).toHaveBeenCalled();
     expect(JSON.stringify(trainingRows)).toBe(trainingBefore);
     expect(JSON.stringify(onboardingRows)).toBe(onboardingBefore);
     expect(JSON.stringify(checklistRows)).toBe(checklistBefore);
