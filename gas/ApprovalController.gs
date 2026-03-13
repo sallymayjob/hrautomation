@@ -17,6 +17,32 @@ function requestApproval(context) {
   };
 }
 
+
+function requestLiamApproval(context) {
+  var payload = context || {};
+  var proposal = payload.proposal || null;
+  if (!proposal || !proposal.id) {
+    return { ok: false, message: 'Missing proposal for Liam approval request.' };
+  }
+  if (!proposal.requires_approval) {
+    return {
+      ok: true,
+      skipped: true,
+      proposal_id: proposal.id,
+      approval_status: String(proposal.approval_status || 'NOT_REQUIRED').toUpperCase()
+    };
+  }
+
+  var targetApprover = String(payload.approver || 'liam').toLowerCase();
+  return {
+    ok: true,
+    proposal_id: proposal.id,
+    approver: targetApprover,
+    approval_status: String(proposal.approval_status || 'PENDING').toUpperCase(),
+    governed: true
+  };
+}
+
 function approveProposal(input) {
   var decision = input || {};
   var proposal = getSubmissionController_().getProposal(decision.proposal_id);
@@ -26,6 +52,8 @@ function approveProposal(input) {
     approval_status: 'APPROVED',
     approved_by: String(decision.actor || ''),
     approved_at: new Date().toISOString(),
+    approval_hash: String(proposal.proposal_hash || ''),
+    approval_version: Number(proposal.proposal_version || 1),
     rejection_reason: ''
   });
 }
@@ -76,6 +104,7 @@ function getSubmissionController_() {
 if (typeof module !== 'undefined') {
   module.exports = {
     requestApproval: requestApproval,
+    requestLiamApproval: requestLiamApproval,
     approveProposal: approveProposal,
     rejectProposal: rejectProposal,
     assertActorAuthorized_: assertActorAuthorized_

@@ -27,9 +27,11 @@ describe('integration approval flow', () => {
     expect(approved.approval_status).toBe('APPROVED');
     expect(approved.approved_by).toBe('manager@example.com');
 
-    const repository = { writeProposal: jest.fn() };
-    const committed = submission.commitApprovedProposal(proposal.id, { repository });
-    expect(repository.writeProposal).toHaveBeenCalledTimes(1);
+    const repository = { commitProposal: jest.fn() };
+    const auditService = { logEvent: jest.fn() };
+    const committed = submission.commitApprovedProposal(proposal.id, { repository, auditService });
+    expect(repository.commitProposal).toHaveBeenCalledTimes(1);
+    expect(auditService.logEvent).toHaveBeenCalledTimes(1);
     expect(committed.committed_at).toBeTruthy();
   });
 
@@ -51,7 +53,7 @@ describe('integration approval flow', () => {
     expect(rejected.rejection_reason).toBe('Needs updates');
 
     expect(() => submission.commitApprovedProposal(proposal.id, {
-      repository: { writeProposal: jest.fn() }
+      repository: { commitProposal: jest.fn() }
     })).toThrow('Governed action cannot commit without APPROVED state.');
   });
 
@@ -73,5 +75,29 @@ describe('integration approval flow', () => {
       actor: 'random.user@example.com',
       allowed_actors: ['manager@example.com']
     })).toThrow('Actor is not authorized to approve/reject this proposal.');
+  });
+
+  test('blocks commit when approved hash/version drift is detected', () => {
+    const proposal = submission.createProposal({
+      action: 'lesson_edit',
+      entity_type: 'lesson',
+      entity_key: 'lesson:SEC101:v3',
+      payload: { lesson_id: 'SEC101', title: 'Original' }
+    });
+
+    approval.approveProposal({
+      proposal_id: proposal.id,
+      actor: 'manager@example.com',
+      allowed_actors: ['manager@example.com']
+    });
+
+    submission.updateProposalState(proposal.id, {
+      payload: { lesson_id: 'SEC101', title: 'Changed after approval' },
+      proposal_version: 2
+    });
+
+    expect(() => submission.commitApprovedProposal(proposal.id, {
+      repository: { commitProposal: jest.fn() }
+    })).toThrow('Governed action cannot commit because proposal version changed after approval.');
   });
 });
