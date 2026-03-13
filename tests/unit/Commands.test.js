@@ -117,6 +117,22 @@ describe('Commands', () => {
     expect(auditLogger.log).toHaveBeenCalledWith(expect.objectContaining({ action: 'READ' }));
   });
 
+  test('doPost returns challenge payload for Slack url_verification', () => {
+    const { doPost } = require('../../gas/Commands.gs');
+
+    doPost({
+      postData: {
+        type: 'application/json',
+        contents: JSON.stringify({ type: 'url_verification', token: '', challenge: 'abc123' })
+      },
+      parameter: {}
+    });
+
+    expect(global.ContentService.createTextOutput).toHaveBeenCalledTimes(1);
+    const payload = JSON.parse(global.ContentService.createTextOutput.mock.calls[0][0]);
+    expect(payload).toEqual({ challenge: 'abc123' });
+  });
+
   test('doPost rejects Slack interactive payloads as read-only', () => {
     const { doPost } = require('../../gas/Commands.gs');
 

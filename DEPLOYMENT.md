@@ -54,6 +54,8 @@ You will need:
 - Slash commands for status checks
 - Callback URL(s) that point to your deployed Apps Script web app
 
+Slack app manifest source of truth: `manifest.json` at the repository root (the `workflows/manifest.json` duplicate was removed).
+
 Supported slash commands in this repo:
 - `/onboarding-status`
 - `/it-onboarding-status`
