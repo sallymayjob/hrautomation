@@ -173,6 +173,50 @@ var SHEET_SCHEMA_SPECS = {
     sheetNameGetter: function () {
       return Config.getChecklistSheetName();
     }
+  },
+  lessons: {
+    expectedVersion: 1,
+    optional: true,
+    requiredHeaders: ['lesson_id', 'module_code', 'lesson_title', 'version', 'source', 'trace_id', 'approval_status', 'submitted_by', 'approved_by', 'submitted_at', 'approved_at', 'created_at', 'updated_at'],
+    spreadsheetIdGetter: function () {
+      return Config.getLessonsSpreadsheetId ? Config.getLessonsSpreadsheetId() : Config.getTrainingSpreadsheetId();
+    },
+    sheetNameGetter: function () {
+      return Config.getLessonsSheetName ? Config.getLessonsSheetName() : 'lessons';
+    }
+  },
+  mappings: {
+    expectedVersion: 1,
+    optional: true,
+    requiredHeaders: ['mapping_id', 'lesson_id', 'target_entity', 'target_key', 'version', 'source', 'trace_id', 'approval_status', 'submitted_by', 'approved_by', 'submitted_at', 'approved_at', 'created_at', 'updated_at'],
+    spreadsheetIdGetter: function () {
+      return Config.getMappingsSpreadsheetId ? Config.getMappingsSpreadsheetId() : Config.getTrainingSpreadsheetId();
+    },
+    sheetNameGetter: function () {
+      return Config.getMappingsSheetName ? Config.getMappingsSheetName() : 'mappings';
+    }
+  },
+  approvals: {
+    expectedVersion: 1,
+    optional: true,
+    requiredHeaders: ['approval_id', 'entity_type', 'entity_key', 'approval_status', 'submitted_by', 'approved_by', 'trace_id', 'version', 'source', 'submitted_at', 'approved_at', 'created_at', 'updated_at'],
+    spreadsheetIdGetter: function () {
+      return Config.getApprovalsSpreadsheetId ? Config.getApprovalsSpreadsheetId() : Config.getTrainingSpreadsheetId();
+    },
+    sheetNameGetter: function () {
+      return Config.getApprovalsSheetName ? Config.getApprovalsSheetName() : 'approvals';
+    }
+  },
+  submissions: {
+    expectedVersion: 1,
+    optional: true,
+    requiredHeaders: ['submission_id', 'entity_type', 'entity_key', 'payload_json', 'approval_status', 'submitted_by', 'approved_by', 'trace_id', 'version', 'source', 'submitted_at', 'approved_at', 'created_at', 'updated_at'],
+    spreadsheetIdGetter: function () {
+      return Config.getSubmissionsSpreadsheetId ? Config.getSubmissionsSpreadsheetId() : Config.getTrainingSpreadsheetId();
+    },
+    sheetNameGetter: function () {
+      return Config.getSubmissionsSheetName ? Config.getSubmissionsSheetName() : 'submissions';
+    }
   }
 };
 
@@ -239,7 +283,11 @@ SheetClient.prototype.getDatasetConfig_ = function (datasetKey) {
     training: { spreadsheetId: Config.getTrainingSpreadsheetId(), sheetName: Config.getTrainingSheetName() },
     audit: { spreadsheetId: (Config.getAuditSpreadsheetId && Config.getAuditSpreadsheetId()) || Config.getTrainingSpreadsheetId(), sheetName: Config.getAuditSheetName() },
     checklist: { spreadsheetId: Config.getChecklistSpreadsheetId(), sheetName: Config.getChecklistSheetName() },
-    mapping: { spreadsheetId: Config.getTrainingSpreadsheetId(), sheetName: 'lessons' }
+    mapping: { spreadsheetId: Config.getTrainingSpreadsheetId(), sheetName: 'lessons' },
+    lessons: { spreadsheetId: Config.getTrainingSpreadsheetId(), sheetName: 'lessons' },
+    mappings: { spreadsheetId: Config.getTrainingSpreadsheetId(), sheetName: 'mappings' },
+    approvals: { spreadsheetId: Config.getTrainingSpreadsheetId(), sheetName: 'approvals' },
+    submissions: { spreadsheetId: Config.getTrainingSpreadsheetId(), sheetName: 'submissions' }
   };
   return legacy[datasetKey] || legacy.onboarding;
 };
@@ -373,9 +421,13 @@ SheetClient.prototype.ensureSchemaVersionMetadata = function () {
     var schemaKey = schemaKeys[i];
     var spec = SHEET_SCHEMA_SPECS[schemaKey];
     var spreadsheet = this.openSpreadsheetById_(spec.spreadsheetIdGetter());
+    var sheetName = spec.sheetNameGetter();
+    if (spec.optional && !spreadsheet.getSheetByName(sheetName)) {
+      continue;
+    }
     var configSheet = this.getConfigSheet_(spreadsheet);
     this.ensureLibrarySchemaVersion_(configSheet);
-    var key = spec.sheetNameGetter() + '.schema_version';
+    var key = sheetName + '.schema_version';
     var rowIndex = this.findRowIndexByValue_(configSheet, 1, key);
     var expectedVersion = String(spec.expectedVersion);
     if (rowIndex < 0) {
@@ -481,7 +533,14 @@ SheetClient.prototype.validateWorkbookSchemas = function () {
   var schemaKeys = Object.keys(SHEET_SCHEMA_SPECS);
   for (var i = 0; i < schemaKeys.length; i += 1) {
     var spec = SHEET_SCHEMA_SPECS[schemaKeys[i]];
-    var sheet = this.getSheetFromSpreadsheet_(spec.spreadsheetIdGetter(), spec.sheetNameGetter(), schemaKeys[i].toUpperCase() + '_SHEET_NAME');
+    var spreadsheet = this.openSpreadsheetById_(spec.spreadsheetIdGetter());
+    var sheet = spreadsheet.getSheetByName(spec.sheetNameGetter());
+    if (!sheet) {
+      if (spec.optional) {
+        continue;
+      }
+      throw new Error('Sheet not found: ' + spec.sheetNameGetter() + ' (configured by ' + schemaKeys[i].toUpperCase() + '_SHEET_NAME)');
+    }
     this.validateSheetSchema_(sheet, spec.expectedVersion, spec.requiredHeaders);
   }
   return true;
@@ -536,7 +595,7 @@ SheetClient.prototype.getChecklistSheet_ = function () {
 };
 
 SheetClient.prototype.resolveSheetByName_ = function (sheetName) {
-  var datasets = ['onboarding', 'training', 'audit', 'checklist', 'mapping'];
+  var datasets = ['onboarding', 'training', 'audit', 'checklist', 'mapping', 'lessons', 'mappings', 'approvals', 'submissions'];
   for (var i = 0; i < datasets.length; i += 1) {
     var config = this.getDatasetConfig_(datasets[i]);
     if (sheetName === config.sheetName) {
@@ -549,7 +608,7 @@ SheetClient.prototype.resolveSheetByName_ = function (sheetName) {
 };
 
 SheetClient.prototype.resolveSpreadsheetIdBySheetName_ = function (sheetName) {
-  var datasets = ['onboarding', 'training', 'audit', 'checklist', 'mapping'];
+  var datasets = ['onboarding', 'training', 'audit', 'checklist', 'mapping', 'lessons', 'mappings', 'approvals', 'submissions'];
   for (var i = 0; i < datasets.length; i += 1) {
     var config = this.getDatasetConfig_(datasets[i]);
     if (sheetName === config.sheetName) {

@@ -1,0 +1,120 @@
+{
+  "schemaName": "lessons",
+  "version": 1,
+  "sheetName": "lessons",
+  "columns": [
+    {
+      "index": 1,
+      "key": "lesson_id",
+      "header": "lesson_id",
+      "type": "string",
+      "required": true
+    },
+    {
+      "index": 2,
+      "key": "module_code",
+      "header": "module_code",
+      "type": "string",
+      "required": true
+    },
+    {
+      "index": 3,
+      "key": "lesson_title",
+      "header": "lesson_title",
+      "type": "string",
+      "required": true
+    },
+    {
+      "index": 4,
+      "key": "version",
+      "header": "version",
+      "type": "string",
+      "required": true
+    },
+    {
+      "index": 5,
+      "key": "source",
+      "header": "source",
+      "type": "string",
+      "required": true
+    },
+    {
+      "index": 6,
+      "key": "trace_id",
+      "header": "trace_id",
+      "type": "string",
+      "required": true
+    },
+    {
+      "index": 7,
+      "key": "approval_status",
+      "header": "approval_status",
+      "type": "enum",
+      "required": true,
+      "allowedValues": [
+        "PENDING",
+        "APPROVED",
+        "REJECTED"
+      ]
+    },
+    {
+      "index": 8,
+      "key": "submitted_by",
+      "header": "submitted_by",
+      "type": "string",
+      "required": true
+    },
+    {
+      "index": 9,
+      "key": "approved_by",
+      "header": "approved_by",
+      "type": "string",
+      "required": false
+    },
+    {
+      "index": 10,
+      "key": "submitted_at",
+      "header": "submitted_at",
+      "type": "datetime",
+      "required": true
+    },
+    {
+      "index": 11,
+      "key": "approved_at",
+      "header": "approved_at",
+      "type": "datetime",
+      "required": false
+    },
+    {
+      "index": 12,
+      "key": "created_at",
+      "header": "created_at",
+      "type": "datetime",
+      "required": true
+    },
+    {
+      "index": 13,
+      "key": "updated_at",
+      "header": "updated_at",
+      "type": "datetime",
+      "required": true
+    }
+  ],
+  "schemaConfigTab": "_sys_config",
+  "schemaVersionMetadataKey": "lessons.schema_version",
+  "requiredHeaders": [
+    "lesson_id",
+    "module_code",
+    "lesson_title",
+    "version",
+    "source",
+    "trace_id",
+    "approval_status",
+    "submitted_by",
+    "approved_by",
+    "submitted_at",
+    "approved_at",
+    "created_at",
+    "updated_at"
+  ]
+}

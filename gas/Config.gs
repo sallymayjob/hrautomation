@@ -15,6 +15,14 @@ var Config = (function () {
     AUDIT_SHEET_NAME: 'AUDIT_SHEET_NAME',
     CHECKLIST_SHEET_NAME: 'CHECKLIST_SHEET_NAME',
     MAPPING_SHEET_NAME: 'MAPPING_SHEET_NAME',
+    LESSONS_SPREADSHEET_ID: 'LESSONS_SPREADSHEET_ID',
+    MAPPINGS_SPREADSHEET_ID: 'MAPPINGS_SPREADSHEET_ID',
+    APPROVALS_SPREADSHEET_ID: 'APPROVALS_SPREADSHEET_ID',
+    SUBMISSIONS_SPREADSHEET_ID: 'SUBMISSIONS_SPREADSHEET_ID',
+    LESSONS_SHEET_NAME: 'LESSONS_SHEET_NAME',
+    MAPPINGS_SHEET_NAME: 'MAPPINGS_SHEET_NAME',
+    APPROVALS_SHEET_NAME: 'APPROVALS_SHEET_NAME',
+    SUBMISSIONS_SHEET_NAME: 'SUBMISSIONS_SHEET_NAME',
     HR_ALERT_EMAIL: 'HR_ALERT_EMAIL',
     APP_TIMEZONE: 'APP_TIMEZONE',
     RETRY_MAX_ATTEMPTS: 'RETRY_MAX_ATTEMPTS',
@@ -96,6 +104,30 @@ var Config = (function () {
       sheetNameKey: KEYS.MAPPING_SHEET_NAME,
       fallbackSpreadsheetIdKey: KEYS.TRAINING_SPREADSHEET_ID,
       fallbackSheetName: 'lessons'
+    },
+    lessons: {
+      spreadsheetIdKey: KEYS.LESSONS_SPREADSHEET_ID,
+      sheetNameKey: KEYS.LESSONS_SHEET_NAME,
+      fallbackSpreadsheetIdKey: KEYS.TRAINING_SPREADSHEET_ID,
+      fallbackSheetName: 'lessons'
+    },
+    mappings: {
+      spreadsheetIdKey: KEYS.MAPPINGS_SPREADSHEET_ID,
+      sheetNameKey: KEYS.MAPPINGS_SHEET_NAME,
+      fallbackSpreadsheetIdKey: KEYS.TRAINING_SPREADSHEET_ID,
+      fallbackSheetName: 'mappings'
+    },
+    approvals: {
+      spreadsheetIdKey: KEYS.APPROVALS_SPREADSHEET_ID,
+      sheetNameKey: KEYS.APPROVALS_SHEET_NAME,
+      fallbackSpreadsheetIdKey: KEYS.TRAINING_SPREADSHEET_ID,
+      fallbackSheetName: 'approvals'
+    },
+    submissions: {
+      spreadsheetIdKey: KEYS.SUBMISSIONS_SPREADSHEET_ID,
+      sheetNameKey: KEYS.SUBMISSIONS_SHEET_NAME,
+      fallbackSpreadsheetIdKey: KEYS.TRAINING_SPREADSHEET_ID,
+      fallbackSheetName: 'submissions'
     }
   };
 
@@ -220,6 +252,38 @@ var Config = (function () {
 
     getMappingSheetName: function () {
       return getDatasetSheetName_('mapping');
+    },
+
+    getLessonsSpreadsheetId: function () {
+      return getDatasetSpreadsheetId_('lessons');
+    },
+
+    getMappingsSpreadsheetId: function () {
+      return getDatasetSpreadsheetId_('mappings');
+    },
+
+    getApprovalsSpreadsheetId: function () {
+      return getDatasetSpreadsheetId_('approvals');
+    },
+
+    getSubmissionsSpreadsheetId: function () {
+      return getDatasetSpreadsheetId_('submissions');
+    },
+
+    getLessonsSheetName: function () {
+      return getDatasetSheetName_('lessons');
+    },
+
+    getMappingsSheetName: function () {
+      return getDatasetSheetName_('mappings');
+    },
+
+    getApprovalsSheetName: function () {
+      return getDatasetSheetName_('approvals');
+    },
+
+    getSubmissionsSheetName: function () {
+      return getDatasetSheetName_('submissions');
     },
 
     getHrAlertEmail: function () {

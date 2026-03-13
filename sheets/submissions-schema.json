@@ -1,0 +1,128 @@
+{
+  "schemaName": "submissions",
+  "version": 1,
+  "sheetName": "submissions",
+  "columns": [
+    {
+      "index": 1,
+      "key": "submission_id",
+      "header": "submission_id",
+      "type": "string",
+      "required": true
+    },
+    {
+      "index": 2,
+      "key": "entity_type",
+      "header": "entity_type",
+      "type": "string",
+      "required": true
+    },
+    {
+      "index": 3,
+      "key": "entity_key",
+      "header": "entity_key",
+      "type": "string",
+      "required": true
+    },
+    {
+      "index": 4,
+      "key": "payload_json",
+      "header": "payload_json",
+      "type": "string",
+      "required": true
+    },
+    {
+      "index": 5,
+      "key": "approval_status",
+      "header": "approval_status",
+      "type": "enum",
+      "required": true,
+      "allowedValues": [
+        "PENDING",
+        "APPROVED",
+        "REJECTED"
+      ]
+    },
+    {
+      "index": 6,
+      "key": "submitted_by",
+      "header": "submitted_by",
+      "type": "string",
+      "required": true
+    },
+    {
+      "index": 7,
+      "key": "approved_by",
+      "header": "approved_by",
+      "type": "string",
+      "required": false
+    },
+    {
+      "index": 8,
+      "key": "trace_id",
+      "header": "trace_id",
+      "type": "string",
+      "required": true
+    },
+    {
+      "index": 9,
+      "key": "version",
+      "header": "version",
+      "type": "string",
+      "required": true
+    },
+    {
+      "index": 10,
+      "key": "source",
+      "header": "source",
+      "type": "string",
+      "required": true
+    },
+    {
+      "index": 11,
+      "key": "submitted_at",
+      "header": "submitted_at",
+      "type": "datetime",
+      "required": true
+    },
+    {
+      "index": 12,
+      "key": "approved_at",
+      "header": "approved_at",
+      "type": "datetime",
+      "required": false
+    },
+    {
+      "index": 13,
+      "key": "created_at",
+      "header": "created_at",
+      "type": "datetime",
+      "required": true
+    },
+    {
+      "index": 14,
+      "key": "updated_at",
+      "header": "updated_at",
+      "type": "datetime",
+      "required": true
+    }
+  ],
+  "schemaConfigTab": "_sys_config",
+  "schemaVersionMetadataKey": "submissions.schema_version",
+  "requiredHeaders": [
+    "submission_id",
+    "entity_type",
+    "entity_key",
+    "payload_json",
+    "approval_status",
+    "submitted_by",
+    "approved_by",
+    "trace_id",
+    "version",
+    "source",
+    "submitted_at",
+    "approved_at",
+    "created_at",
+    "updated_at"
+  ]
+}
