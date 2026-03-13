@@ -91,6 +91,98 @@ var BlockKit = {
     ];
   },
 
+  proposalSummaryCard: function (data) {
+    return [
+      {
+        type: 'header',
+        text: {
+          type: 'plain_text',
+          text: 'Proposal summary'
+        }
+      },
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: '*Trace ID:* ' + (data.trace_id || 'N/A') +
+            '\n*Actor:* ' + (data.actor || 'N/A') +
+            '\n*Entity key:* ' + (data.entity_key || 'N/A') +
+            '\n*Proposed diff/version:* ' + (data.proposed_diff_version || 'N/A') +
+            '\n*Approval status:* ' + (data.approval_status || 'PENDING')
+        }
+      }
+    ];
+  },
+
+  approvalRequestCard: function (data) {
+    return [
+      {
+        type: 'header',
+        text: {
+          type: 'plain_text',
+          text: 'Approval request'
+        }
+      },
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: '*Trace ID:* ' + (data.trace_id || 'N/A') +
+            '\n*Actor:* ' + (data.actor || 'N/A') +
+            '\n*Entity key:* ' + (data.entity_key || 'N/A') +
+            '\n*Proposed diff/version:* ' + (data.proposed_diff_version || 'N/A') +
+            '\n*Approval status:* ' + (data.approval_status || 'REQUESTED')
+        }
+      }
+    ];
+  },
+
+  approvalDecisionCard: function (data) {
+    return [
+      {
+        type: 'header',
+        text: {
+          type: 'plain_text',
+          text: 'Approval decision'
+        }
+      },
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: '*Trace ID:* ' + (data.trace_id || 'N/A') +
+            '\n*Actor:* ' + (data.actor || 'N/A') +
+            '\n*Entity key:* ' + (data.entity_key || 'N/A') +
+            '\n*Proposed diff/version:* ' + (data.proposed_diff_version || 'N/A') +
+            '\n*Approval status:* ' + (data.approval_status || 'DECIDED')
+        }
+      }
+    ];
+  },
+
+  clarificationPromptCard: function (data) {
+    return [
+      {
+        type: 'header',
+        text: {
+          type: 'plain_text',
+          text: 'Clarification needed'
+        }
+      },
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: '*Trace ID:* ' + (data.trace_id || 'N/A') +
+            '\n*Actor:* ' + (data.actor || 'N/A') +
+            '\n*Entity key:* ' + (data.entity_key || 'N/A') +
+            '\n*Proposed diff/version:* ' + (data.proposed_diff_version || 'N/A') +
+            '\n*Approval status:* ' + (data.approval_status || 'NEEDS_CLARIFICATION')
+        }
+      }
+    ];
+  },
+
   recognitionPost: function (data) {
     return [
       {
