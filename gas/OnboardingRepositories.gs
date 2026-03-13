@@ -7,6 +7,26 @@ function OnboardingRepository(sheetClient) {
   this.sheetClient = sheetClient;
 }
 
+OnboardingRepository.prototype.getRows = function () {
+  return this.sheetClient.getOnboardingRows();
+};
+
+OnboardingRepository.prototype.findByEmployeeId = function (employeeId) {
+  return this.sheetClient.findOnboardingByEmployeeId(employeeId);
+};
+
+OnboardingRepository.prototype.getRowsWithHeaders = function () {
+  var onboardingSheet = this.sheetClient.getOnboardingSheet_();
+  if (!onboardingSheet || onboardingSheet.getLastRow() < 2) {
+    return { headers: [], rows: [] };
+  }
+
+  return {
+    headers: onboardingSheet.getRange(1, 1, 1, onboardingSheet.getLastColumn()).getValues()[0],
+    rows: onboardingSheet.getRange(2, 1, onboardingSheet.getLastRow() - 1, onboardingSheet.getLastColumn()).getValues()
+  };
+};
+
 OnboardingRepository.prototype.getHeaderMap = function (sheet) {
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   var map = {};
@@ -74,6 +94,14 @@ function TrainingRepository(sheetClient) {
   this.sheetClient = sheetClient;
 }
 
+TrainingRepository.prototype.getRows = function () {
+  return this.sheetClient.getTrainingRows();
+};
+
+TrainingRepository.prototype.updateReminderMetadata = function (employeeId, moduleCode, reminderCount, lastReminderAt) {
+  return this.sheetClient.updateTrainingReminderMetadata(employeeId, moduleCode, reminderCount, lastReminderAt);
+};
+
 TrainingRepository.prototype.appendAssignment = function (rowValues) {
   return this.sheetClient.appendTrainingRow(rowValues);
 };
@@ -107,6 +135,10 @@ AuditRepository.prototype.logLifecycle = function (eventPayload) {
 
 AuditRepository.prototype.logOnce = function (eventHash, rowValues) {
   return this.sheetClient.appendAuditIfNotExists(eventHash, rowValues);
+};
+
+AuditRepository.prototype.checkDuplicate = function (eventHash) {
+  return this.sheetClient.checkDuplicate(Config.getAuditSheetName(), 'event_hash', eventHash) > -1;
 };
 
 AuditRepository.prototype.isDuplicateEvent = function (eventHash) {
