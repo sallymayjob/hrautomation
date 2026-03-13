@@ -1,4 +1,4 @@
-/* global ContentService, AuditLogger, SheetClient, Utilities */
+/* global ContentService, AuditLogger, SheetClient, Utilities, Config */
 /**
  * @fileoverview LMS webhook entrypoint for Slack Workflow Builder initiated handshakes.
  */
@@ -15,11 +15,11 @@ var LMS_ACTIONS = {
   BULK_UNENROLL: 'bulk_unenroll',
   ASSIGN_COHORT: 'assign_cohort',
   MARK_COMPLETION: 'mark_completion',
-  LESSON_CREATE: 'lesson_create',
-  LESSON_EDIT: 'lesson_edit',
-  LESSON_OVERWRITE: 'lesson_overwrite',
-  LESSON_VERSION: 'lesson_version',
-  LESSON_MAPPING_CHANGE: 'lesson_mapping_change'
+  LESSON_CREATE: (typeof Config !== 'undefined' && Config && Config.GOVERNED_ACTION_TYPES ? Config.GOVERNED_ACTION_TYPES.LESSON_CREATE : 'lesson_create'),
+  LESSON_EDIT: (typeof Config !== 'undefined' && Config && Config.GOVERNED_ACTION_TYPES ? Config.GOVERNED_ACTION_TYPES.LESSON_EDIT : 'lesson_edit'),
+  LESSON_OVERWRITE: (typeof Config !== 'undefined' && Config && Config.GOVERNED_ACTION_TYPES ? Config.GOVERNED_ACTION_TYPES.LESSON_OVERWRITE : 'lesson_overwrite'),
+  LESSON_VERSION: (typeof Config !== 'undefined' && Config && Config.GOVERNED_ACTION_TYPES ? Config.GOVERNED_ACTION_TYPES.LESSON_VERSION : 'lesson_version'),
+  LESSON_MAPPING_CHANGE: (typeof Config !== 'undefined' && Config && Config.GOVERNED_ACTION_TYPES ? Config.GOVERNED_ACTION_TYPES.LESSON_MAPPING_CHANGE : 'lesson_mapping_change')
 };
 
 function doPostLms(e) {
@@ -142,11 +142,11 @@ function getLmsHandlers_() {
     'bulk_unenroll',
     'assign_cohort',
     'mark_completion',
-    'lesson_create',
-    'lesson_edit',
-    'lesson_overwrite',
-    'lesson_version',
-    'lesson_mapping_change'
+    LMS_ACTIONS.LESSON_CREATE,
+    LMS_ACTIONS.LESSON_EDIT,
+    LMS_ACTIONS.LESSON_OVERWRITE,
+    LMS_ACTIONS.LESSON_VERSION,
+    LMS_ACTIONS.LESSON_MAPPING_CHANGE
   ];
 }
 
@@ -181,7 +181,7 @@ function submitLmsProposal_(payload, action) {
   proposal.approval_status = 'PENDING';
 
   var clarification = null;
-  if (typeof GeminiService !== 'undefined' && GeminiService && typeof GeminiService.validateAndClarify === 'function') {
+  if (isGeminiValidationEnabled_() && typeof GeminiService !== 'undefined' && GeminiService && typeof GeminiService.validateAndClarify === 'function') {
     clarification = GeminiService.validateAndClarify(proposal);
   }
 
@@ -206,7 +206,8 @@ function resolveEntityType_(payload, action) {
   if (explicitType) {
     return explicitType;
   }
-  return String(action || '').indexOf('lesson') > -1 ? 'lesson' : 'lms_action';
+  var entityNames = (typeof Config !== 'undefined' && Config && Config.ENTITY_NAMES) ? Config.ENTITY_NAMES : { LESSON: 'lesson', LMS_ACTION: 'lms_action' };
+  return String(action || '').indexOf('lesson') > -1 ? entityNames.LESSON : entityNames.LMS_ACTION;
 }
 
 function resolveEntityKey_(payload, action) {
@@ -227,6 +228,14 @@ function resolveEntityKey_(payload, action) {
     }
   }
   return normalized.join(':');
+}
+
+
+function isGeminiValidationEnabled_() {
+  if (typeof Config === 'undefined' || !Config || typeof Config.isGeminiEnabled !== 'function') {
+    return true;
+  }
+  return Config.isGeminiEnabled();
 }
 
 function writeLmsAuditLog_(payload, action, status, details) {

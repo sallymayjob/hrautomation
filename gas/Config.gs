@@ -9,10 +9,12 @@ var Config = (function () {
     TRAINING_SPREADSHEET_ID: 'TRAINING_SPREADSHEET_ID',
     AUDIT_SPREADSHEET_ID: 'AUDIT_SPREADSHEET_ID',
     CHECKLIST_SPREADSHEET_ID: 'CHECKLIST_SPREADSHEET_ID',
+    MAPPING_SPREADSHEET_ID: 'MAPPING_SPREADSHEET_ID',
     ONBOARDING_SHEET_NAME: 'ONBOARDING_SHEET_NAME',
     TRAINING_SHEET_NAME: 'TRAINING_SHEET_NAME',
     AUDIT_SHEET_NAME: 'AUDIT_SHEET_NAME',
     CHECKLIST_SHEET_NAME: 'CHECKLIST_SHEET_NAME',
+    MAPPING_SHEET_NAME: 'MAPPING_SHEET_NAME',
     HR_ALERT_EMAIL: 'HR_ALERT_EMAIL',
     APP_TIMEZONE: 'APP_TIMEZONE',
     RETRY_MAX_ATTEMPTS: 'RETRY_MAX_ATTEMPTS',
@@ -25,7 +27,76 @@ var Config = (function () {
     LEGAL_TEAM_CHANNEL_ID: 'LEGAL_TEAM_CHANNEL_ID',
     OPERATIONS_TEAM_CHANNEL_ID: 'OPERATIONS_TEAM_CHANNEL_ID',
     PEOPLE_TEAM_CHANNEL_ID: 'PEOPLE_TEAM_CHANNEL_ID',
-    DEFAULT_ASSIGNMENTS_CHANNEL_ID: 'DEFAULT_ASSIGNMENTS_CHANNEL_ID'
+    DEFAULT_ASSIGNMENTS_CHANNEL_ID: 'DEFAULT_ASSIGNMENTS_CHANNEL_ID',
+    GEMINI_API_KEY: 'GEMINI_API_KEY',
+    GEMINI_MODEL: 'GEMINI_MODEL',
+    GEMINI_ENABLED: 'GEMINI_ENABLED',
+    GOVERNANCE_ENABLED: 'GOVERNANCE_ENABLED',
+    GOVERNANCE_APPROVAL_REQUIRED: 'GOVERNANCE_APPROVAL_REQUIRED'
+  };
+
+  var GOVERNED_ACTION_TYPES = {
+    LESSON_CREATE: 'lesson_create',
+    LESSON_EDIT: 'lesson_edit',
+    LESSON_OVERWRITE: 'lesson_overwrite',
+    LESSON_VERSION: 'lesson_version',
+    LESSON_MAPPING_CHANGE: 'lesson_mapping_change'
+  };
+
+  var APPROVAL_REQUIRED_ACTIONS = {
+    lesson_create: true,
+    lesson_edit: true,
+    lesson_overwrite: true,
+    lesson_version: true,
+    lesson_mapping_change: true,
+    create_lesson: true,
+    edit_lesson: true,
+    overwrite_lesson: true,
+    version_lesson: true,
+    update_lesson_mapping: true
+  };
+
+  var ENTITY_NAMES = {
+    LESSON: 'lesson',
+    LMS_ACTION: 'lms_action',
+    PROPOSAL: 'proposal'
+  };
+
+  var CHANNEL_ROUTING = {
+    ADMIN: 'getAdminTeamChannelId',
+    FINANCE: 'getFinanceTeamChannelId',
+    HR: 'getHrTeamChannelId',
+    IT: 'getItTeamChannelId',
+    LEGAL: 'getLegalTeamChannelId',
+    OPERATIONS: 'getOperationsTeamChannelId',
+    PEOPLE: 'getPeopleTeamChannelId',
+    'PEOPLE OPS': 'getPeopleTeamChannelId'
+  };
+
+  var DATASETS = {
+    onboarding: {
+      spreadsheetIdKey: KEYS.ONBOARDING_SPREADSHEET_ID,
+      sheetNameKey: KEYS.ONBOARDING_SHEET_NAME
+    },
+    training: {
+      spreadsheetIdKey: KEYS.TRAINING_SPREADSHEET_ID,
+      sheetNameKey: KEYS.TRAINING_SHEET_NAME
+    },
+    audit: {
+      spreadsheetIdKey: KEYS.AUDIT_SPREADSHEET_ID,
+      sheetNameKey: KEYS.AUDIT_SHEET_NAME,
+      fallbackSpreadsheetIdKey: KEYS.TRAINING_SPREADSHEET_ID
+    },
+    checklist: {
+      spreadsheetIdKey: KEYS.CHECKLIST_SPREADSHEET_ID,
+      sheetNameKey: KEYS.CHECKLIST_SHEET_NAME
+    },
+    mapping: {
+      spreadsheetIdKey: KEYS.MAPPING_SPREADSHEET_ID,
+      sheetNameKey: KEYS.MAPPING_SHEET_NAME,
+      fallbackSpreadsheetIdKey: KEYS.TRAINING_SPREADSHEET_ID,
+      fallbackSheetName: 'lessons'
+    }
   };
 
   function getRaw_(key) {
@@ -48,6 +119,15 @@ var Config = (function () {
     return String(value);
   }
 
+  function getBoolean_(key, fallback) {
+    var value = getOptionalString_(key);
+    if (!value) {
+      return Boolean(fallback);
+    }
+    var normalized = value.trim().toLowerCase();
+    return normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on';
+  }
+
   function getNumber_(key) {
     var value = Number(getRaw_(key));
     if (isNaN(value)) {
@@ -56,43 +136,90 @@ var Config = (function () {
     return value;
   }
 
+  function getDatasetSheetName_(datasetKey) {
+    var dataset = DATASETS[datasetKey];
+    if (!dataset) {
+      throw new Error('Unknown dataset key: ' + datasetKey);
+    }
+    var value = getOptionalString_(dataset.sheetNameKey);
+    if (value) {
+      return value;
+    }
+    if (dataset.fallbackSheetName) {
+      return dataset.fallbackSheetName;
+    }
+    return getString_(dataset.sheetNameKey);
+  }
+
+  function getDatasetSpreadsheetId_(datasetKey) {
+    var dataset = DATASETS[datasetKey];
+    if (!dataset) {
+      throw new Error('Unknown dataset key: ' + datasetKey);
+    }
+    var value = getOptionalString_(dataset.spreadsheetIdKey);
+    if (value) {
+      return value;
+    }
+    if (dataset.fallbackSpreadsheetIdKey) {
+      return getString_(dataset.fallbackSpreadsheetIdKey);
+    }
+    return getString_(dataset.spreadsheetIdKey);
+  }
+
   return {
     KEYS: KEYS,
+    GOVERNED_ACTION_TYPES: GOVERNED_ACTION_TYPES,
+    APPROVAL_REQUIRED_ACTIONS: APPROVAL_REQUIRED_ACTIONS,
+    ENTITY_NAMES: ENTITY_NAMES,
+    CHANNEL_ROUTING: CHANNEL_ROUTING,
+    DATASETS: DATASETS,
+
+    getDatasetSpreadsheetId: function (datasetKey) {
+      return getDatasetSpreadsheetId_(datasetKey);
+    },
+
+    getDatasetSheetName: function (datasetKey) {
+      return getDatasetSheetName_(datasetKey);
+    },
 
     getOnboardingSpreadsheetId: function () {
-      return getString_(KEYS.ONBOARDING_SPREADSHEET_ID);
+      return getDatasetSpreadsheetId_('onboarding');
     },
 
     getTrainingSpreadsheetId: function () {
-      return getString_(KEYS.TRAINING_SPREADSHEET_ID);
+      return getDatasetSpreadsheetId_('training');
     },
 
     getAuditSpreadsheetId: function () {
-      var auditSpreadsheetId = getOptionalString_(KEYS.AUDIT_SPREADSHEET_ID);
-      if (auditSpreadsheetId) {
-        return auditSpreadsheetId;
-      }
-      return getString_(KEYS.TRAINING_SPREADSHEET_ID);
+      return getDatasetSpreadsheetId_('audit');
     },
 
     getChecklistSpreadsheetId: function () {
-      return getString_(KEYS.CHECKLIST_SPREADSHEET_ID);
+      return getDatasetSpreadsheetId_('checklist');
+    },
+
+    getMappingSpreadsheetId: function () {
+      return getDatasetSpreadsheetId_('mapping');
     },
 
     getOnboardingSheetName: function () {
-      return getString_(KEYS.ONBOARDING_SHEET_NAME);
+      return getDatasetSheetName_('onboarding');
     },
 
     getTrainingSheetName: function () {
-      return getString_(KEYS.TRAINING_SHEET_NAME);
+      return getDatasetSheetName_('training');
     },
 
     getAuditSheetName: function () {
-      return getString_(KEYS.AUDIT_SHEET_NAME);
+      return getDatasetSheetName_('audit');
     },
 
     getChecklistSheetName: function () {
-      return getString_(KEYS.CHECKLIST_SHEET_NAME);
+      return getDatasetSheetName_('checklist');
+    },
+
+    getMappingSheetName: function () {
+      return getDatasetSheetName_('mapping');
     },
 
     getHrAlertEmail: function () {
@@ -113,6 +240,26 @@ var Config = (function () {
 
     getSlackBotToken: function () {
       return getString_(KEYS.SLACK_BOT_TOKEN);
+    },
+
+    getGeminiApiKey: function () {
+      return getOptionalString_(KEYS.GEMINI_API_KEY);
+    },
+
+    getGeminiModel: function () {
+      return getOptionalString_(KEYS.GEMINI_MODEL) || 'gemini-1.5-flash';
+    },
+
+    isGeminiEnabled: function () {
+      return getBoolean_(KEYS.GEMINI_ENABLED, false);
+    },
+
+    isGovernanceEnabled: function () {
+      return getBoolean_(KEYS.GOVERNANCE_ENABLED, true);
+    },
+
+    isGovernanceApprovalRequired: function () {
+      return getBoolean_(KEYS.GOVERNANCE_APPROVAL_REQUIRED, true);
     },
 
     getAdminTeamChannelId: function () {
