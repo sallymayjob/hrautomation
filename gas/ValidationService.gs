@@ -148,6 +148,54 @@ function validateTrainingCompletionRow_(row, index) {
   return errors;
 }
 
+function normalizeTemplateMappingSources_(mappingValue) {
+  if (Array.isArray(mappingValue)) {
+    return mappingValue;
+  }
+  if (mappingValue === null || typeof mappingValue === 'undefined') {
+    return [];
+  }
+  return [mappingValue];
+}
+
+function validateTemplateToChecklistMapping_(templateRow, index, fieldMapping, requiredChecklistFields) {
+  var errors = [];
+  var sourceRow = templateRow || {};
+  var mapping = fieldMapping || {};
+  var requiredFields = requiredChecklistFields || [];
+
+  for (var i = 0; i < requiredFields.length; i += 1) {
+    var checklistField = requiredFields[i];
+    var sourceCandidates = normalizeTemplateMappingSources_(mapping[checklistField]);
+
+    if (sourceCandidates.length === 0) {
+      errors.push(buildOperatorError_('CHECKLIST_MAPPING_FIELD_MISSING', index,
+        'Checklist mapping is missing required field "' + checklistField + '". Add the field mapping before generating checklist rows.'));
+      continue;
+    }
+
+    var hasMappedSource = false;
+    for (var c = 0; c < sourceCandidates.length; c += 1) {
+      var sourceKey = String(sourceCandidates[c] || '').trim();
+      if (!sourceKey) {
+        continue;
+      }
+
+      if (Object.prototype.hasOwnProperty.call(sourceRow, sourceKey) && sourceRow[sourceKey] !== '' && sourceRow[sourceKey] !== null) {
+        hasMappedSource = true;
+        break;
+      }
+    }
+
+    if (!hasMappedSource) {
+      errors.push(buildOperatorError_('CHECKLIST_TEMPLATE_SOURCE_MISSING', index,
+        'Template row ' + (index + 1) + ' is missing source values for checklist field "' + checklistField + '". Review mapping and template columns.'));
+    }
+  }
+
+  return errors;
+}
+
 var ValidationService = {
   buildOperatorError_: buildOperatorError_,
   isValidDate_: isValidDate_,
@@ -155,7 +203,8 @@ var ValidationService = {
   validateAuditRow_: validateAuditRow_,
   validateTrainingAssignmentRow_: validateTrainingAssignmentRow_,
   validateTrainingReminderRow_: validateTrainingReminderRow_,
-  validateTrainingCompletionRow_: validateTrainingCompletionRow_
+  validateTrainingCompletionRow_: validateTrainingCompletionRow_,
+  validateTemplateToChecklistMapping_: validateTemplateToChecklistMapping_
 };
 
 if (typeof module !== 'undefined') module.exports = ValidationService;
