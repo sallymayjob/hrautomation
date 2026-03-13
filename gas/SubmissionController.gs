@@ -3,6 +3,15 @@
  * @fileoverview Proposal lifecycle controller for governed LMS lesson mutations.
  */
 
+var SubmissionControllerBindings_ = null;
+if (typeof module !== 'undefined') {
+  SubmissionControllerBindings_ = {
+    VersioningService: require('./VersioningService.gs'),
+    MappingService: require('./MappingService.gs'),
+    DuplicateDetector: require('./DuplicateDetector.gs')
+  };
+}
+
 var ProposalStore_ = {
   proposals: {}
 };
@@ -125,6 +134,7 @@ function commitApprovedProposal(proposalId, options) {
   var opts = options || {};
   var proposal = getProposal(proposalId);
   revalidateProposalForCommit(proposal);
+  runCommitGates_(proposal, opts);
 
   var repository = opts.repository;
   if (!repository || typeof repository.commitProposal !== 'function') {
@@ -145,6 +155,51 @@ function commitApprovedProposal(proposalId, options) {
   proposal.approval_status = String(proposal.approval_status || '').toUpperCase() || 'APPROVED';
   ProposalStore_.proposals[proposal.id] = proposal;
   return proposal;
+}
+
+function getVersioningService_(opts) {
+  if (opts.versioningService) return opts.versioningService;
+  if (typeof VersioningService !== 'undefined' && VersioningService) return VersioningService;
+  return SubmissionControllerBindings_ ? SubmissionControllerBindings_.VersioningService : null;
+}
+
+function getMappingService_(opts) {
+  if (opts.mappingService) return opts.mappingService;
+  if (typeof MappingService !== 'undefined' && MappingService) return MappingService;
+  return SubmissionControllerBindings_ ? SubmissionControllerBindings_.MappingService : null;
+}
+
+function getDuplicateDetector_(opts) {
+  if (opts.duplicateDetector) return opts.duplicateDetector;
+  if (typeof DuplicateDetector !== 'undefined' && DuplicateDetector) return DuplicateDetector;
+  return SubmissionControllerBindings_ ? SubmissionControllerBindings_.DuplicateDetector : null;
+}
+
+function runCommitGates_(proposal, opts) {
+  var gateContext = opts.gateContext || {};
+  var versioning = getVersioningService_(opts);
+  var mapping = getMappingService_(opts);
+  var duplicateDetector = getDuplicateDetector_(opts);
+
+  if (!versioning || !mapping || !duplicateDetector) {
+    throw new Error('Commit gates are not fully configured.');
+  }
+
+  var existingRows = gateContext.existingRows || [];
+  var keyField = gateContext.keyField || 'entity_key';
+  var versionField = gateContext.versionField || 'version';
+  var entityKey = proposal.entity_key;
+  var nextVersion = versioning.calculateNextVersion_(existingRows, keyField, entityKey, versionField);
+  versioning.assertImmutableHistoricalRows_(existingRows, keyField, entityKey, nextVersion, versionField);
+
+  mapping.validateMappingConstraints_(proposal.payload || {}, gateContext.mapping || {});
+
+  var duplicateCheck = duplicateDetector.detectDuplicate_(proposal, gateContext.existingRecords || [], gateContext.duplicate || {});
+  if (duplicateCheck.duplicate) {
+    throw new Error('Duplicate gate failed: ' + duplicateCheck.reason);
+  }
+
+  proposal.proposal_version = Number(nextVersion || proposal.proposal_version || 1);
 }
 
 function computeProposalHash_(proposal) {
@@ -220,6 +275,7 @@ if (typeof module !== 'undefined') {
     updateProposalState: updateProposalState,
     revalidateProposalForCommit: revalidateProposalForCommit,
     commitApprovedProposal: commitApprovedProposal,
+    runCommitGates_: runCommitGates_,
     computeProposalHash_: computeProposalHash_,
     requiresApprovalForAction_: requiresApprovalForAction_,
     ProposalStore_: ProposalStore_

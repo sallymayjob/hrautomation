@@ -1,0 +1,69 @@
+describe('SubmissionController commit gates', () => {
+  beforeEach(() => {
+    jest.resetModules();
+    global.Utilities = {
+      DigestAlgorithm: { SHA_256: 'SHA_256' },
+      Charset: { UTF_8: 'UTF_8' },
+      computeDigest: jest.fn(() => [1, 2, 3]),
+      getUuid: jest.fn(() => '12345678-abcd-efgh-ijkl-1234567890ab'),
+      formatDate: jest.fn(() => '20260101T000000Z')
+    };
+  });
+
+  test('commitApprovedProposal enforces gates before repository commit', () => {
+    const utils = require('../../gas/Utils.gs');
+    global.computeHash = utils.computeHash;
+    const controller = require('../../gas/SubmissionController.gs');
+
+    const proposal = controller.createProposal({
+      id: 'PROP-1',
+      entity_type: 'lesson',
+      entity_key: 'lesson:1',
+      action: 'lesson_edit',
+      approval_status: 'APPROVED',
+      payload: { course_id: 'c1', module_code: 'm1', lesson_id: 'l1' }
+    });
+
+    const repository = { commitProposal: jest.fn() };
+    controller.commitApprovedProposal(proposal.id, {
+      repository,
+      gateContext: {
+        existingRows: [{ entity_key: 'lesson:1', version: 1 }],
+        existingRecords: [{ entity_type: 'lesson', entity_key: 'lesson:other', action: 'lesson_edit', payload: {}, active: true }],
+        mapping: {
+          courses: [{ course_id: 'c1' }],
+          modules: [{ module_code: 'm1', module_order: 1 }],
+          lessons: [{ lesson_id: 'l1', module_code: 'm1', lesson_order: 1 }]
+        }
+      }
+    });
+
+    expect(repository.commitProposal).toHaveBeenCalledTimes(1);
+    expect(controller.getProposal(proposal.id).proposal_version).toBe(2);
+  });
+
+  test('commitApprovedProposal blocks duplicate gate failures', () => {
+    const controller = require('../../gas/SubmissionController.gs');
+    const proposal = controller.createProposal({
+      id: 'PROP-2',
+      entity_type: 'lesson',
+      entity_key: 'lesson:1',
+      action: 'lesson_edit',
+      approval_status: 'APPROVED',
+      payload: { course_id: 'c1', module_code: 'm1', lesson_id: 'l1' }
+    });
+
+    expect(() => controller.commitApprovedProposal(proposal.id, {
+      repository: { commitProposal: jest.fn() },
+      gateContext: {
+        existingRows: [],
+        existingRecords: [{ entity_type: 'lesson', entity_key: 'lesson:1', action: 'lesson_edit', payload: { course_id: 'c1', module_code: 'm1', lesson_id: 'l1' }, active: true }],
+        mapping: {
+          courses: [{ course_id: 'c1' }],
+          modules: [{ module_code: 'm1', module_order: 1 }],
+          lessons: [{ lesson_id: 'l1', module_code: 'm1', lesson_order: 1 }]
+        }
+      }
+    })).toThrow('Duplicate gate failed');
+  });
+});
