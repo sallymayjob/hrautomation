@@ -1,4 +1,4 @@
-/* global SheetClient, COL, notifyHrAlerts, getDaysUntilDue, Utils, Config, SlackClient, AuditLogger */
+/* global SheetClient, COL, getDaysUntilDue, Utils, AuditRepository, AuditLogger, generateId */
 /**
  * @fileoverview Weekly reporting for HR alerting.
  */
@@ -17,6 +17,7 @@ function appendWorkflowLifecycleRow_(sheetClient, event) {
 
 function postWeeklyMetrics() {
   var sheetClient = new SheetClient();
+  var auditRepository = new AuditRepository(sheetClient, new AuditLogger(sheetClient));
   var trainingRows = sheetClient.getTrainingRows();
   var onboardingRows = sheetClient.getOnboardingRows();
   var checklistRows = sheetClient.getChecklistRows();
@@ -34,11 +35,15 @@ function postWeeklyMetrics() {
     'Overdue: ' + trainingMetrics.overdue,
     'Due in next 7 days: ' + trainingMetrics.dueThisWeek
   ].join('\n');
+  auditRepository.log({
+    auditId: typeof generateId === 'function' ? generateId('AUD') : '',
+    entityType: 'Reporting',
+    entityId: 'weekly_metrics',
+    action: 'SUMMARY_REFRESH',
+    details: message
+  });
 
-  notifyHrAlerts(message);
-
-  var digest = generateWeeklyDigestMessage_(trainingMetrics, onboardingMetrics);
-  postWeeklyDigestToHrApprovals_(sheetClient, digest);
+  logWeeklyDigestSummary_(auditRepository, trainingMetrics, onboardingMetrics);
 
   return {
     training: trainingMetrics,
@@ -325,20 +330,15 @@ function generateWeeklyDigestMessage_(trainingMetrics, onboardingMetrics) {
   ].join('\n');
 }
 
-function postWeeklyDigestToHrApprovals_(sheetClient, digestMessage) {
-  var auditLogger = new AuditLogger(sheetClient);
-  var slackClient = new SlackClient(auditLogger);
-  var channelId = Config.getHrTeamChannelId();
-
-  slackClient.postMessage(channelId, [
-    {
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: digestMessage
-      }
-    }
-  ]);
+function logWeeklyDigestSummary_(auditRepository, trainingMetrics, onboardingMetrics) {
+  var digestMessage = generateWeeklyDigestMessage_(trainingMetrics, onboardingMetrics);
+  auditRepository.log({
+    auditId: typeof generateId === 'function' ? generateId('AUD') : '',
+    entityType: 'Reporting',
+    entityId: 'weekly_digest',
+    action: 'SUMMARY_DIGEST',
+    details: digestMessage
+  });
 }
 
 function getDaysUntilViaUtilsForReporting_(dateValue) {
