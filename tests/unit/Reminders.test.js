@@ -21,6 +21,19 @@ describe('Reminders', () => {
     global.generateId = jest.fn(() => 'AUD_1');
     global.getDaysUntilDue = jest.fn(() => 3);
     global.BlockKit = { reminderDM: jest.fn(() => []), birthdayDM: jest.fn(() => []), anniversaryDM: jest.fn(() => []) };
+    global.TrainingRepository = jest.fn((sheetClient) => ({
+      getRows: jest.fn(() => sheetClient.getTrainingRows()),
+      updateReminderMetadata: jest.fn((employeeId, moduleCode, reminderCount, lastReminderAt) => sheetClient.updateTrainingReminderMetadata && sheetClient.updateTrainingReminderMetadata(employeeId, moduleCode, reminderCount, lastReminderAt))
+    }));
+    global.OnboardingRepository = jest.fn((sheetClient) => ({
+      findByEmployeeId: jest.fn((employeeId) => sheetClient.findOnboardingByEmployeeId(employeeId)),
+      getRowsWithHeaders: jest.fn(() => ({ headers: [], rows: [] }))
+    }));
+    global.AuditRepository = jest.fn((sheetClient) => ({
+      checkDuplicate: jest.fn((eventHash) => sheetClient.checkDuplicate('Audit', 8, eventHash) > -1),
+      logOnce: jest.fn((eventHash, rowValues) => sheetClient.appendAuditIfNotExists(eventHash, rowValues)),
+      newAuditRow: jest.fn((entityType, entityId, action, details, eventHash) => ['AUD_1', new Date(), 'system', entityType, entityId, action, details, eventHash])
+    }));
   });
 
   test('sendReminderDM posts message and logs audit when not duplicate', () => {

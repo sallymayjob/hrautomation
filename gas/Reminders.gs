@@ -1,4 +1,4 @@
-/* global SheetClient, SlackClient, AuditLogger, BlockKit, COL, Config, computeHash, generateId, getDaysUntilDue, Utils, SpreadsheetApp */
+/* global SheetClient, SlackClient, AuditLogger, BlockKit, COL, Config, computeHash, generateId, getDaysUntilDue, Utils, TrainingRepository, OnboardingRepository, AuditRepository */
 /**
  * @fileoverview Daily reminder, escalation, and celebration reminder flows.
  */
@@ -10,12 +10,15 @@ var REMINDER_THRESHOLDS = {
 
 function runDailyReminders() {
   var sheetClient = new SheetClient();
-  processTrainingReminders_(sheetClient);
-  processChecklistReminders_(sheetClient);
+  var trainingRepository = new TrainingRepository(sheetClient);
+  var onboardingRepository = new OnboardingRepository(sheetClient);
+  var auditRepository = new AuditRepository(sheetClient);
+  processTrainingReminders_(sheetClient, trainingRepository, onboardingRepository, auditRepository);
+  processChecklistReminders_(sheetClient, auditRepository);
 }
 
-function processTrainingReminders_(sheetClient) {
-  var trainingRows = sheetClient.getTrainingRows();
+function processTrainingReminders_(sheetClient, trainingRepository, onboardingRepository, auditRepository) {
+  var trainingRows = trainingRepository.getRows();
   for (var i = 0; i < trainingRows.length; i += 1) {
     var row = trainingRows[i];
     var status = String(row[COL.TRAINING.TRAINING_STATUS - 1] || '').toUpperCase();
@@ -29,16 +32,16 @@ function processTrainingReminders_(sheetClient) {
     }
 
     if (REMINDER_THRESHOLDS.REMINDER_DAYS.indexOf(daysUntil) > -1 || daysUntil < 0) {
-      sendTrainingReminderDM_(sheetClient, row, daysUntil);
+      sendTrainingReminderDM_(sheetClient, trainingRepository, onboardingRepository, auditRepository, row, daysUntil);
     }
 
     if (daysUntil <= -REMINDER_THRESHOLDS.ESCALATE_AFTER_OVERDUE_DAYS) {
-      escalateTrainingToManager_(sheetClient, row);
+      escalateTrainingToManager_(sheetClient, auditRepository, row);
     }
   }
 }
 
-function processChecklistReminders_(sheetClient) {
+function processChecklistReminders_(sheetClient, auditRepository) {
   var checklistRows = sheetClient.getChecklistRows();
   for (var i = 0; i < checklistRows.length; i += 1) {
     var row = checklistRows[i];
@@ -53,21 +56,21 @@ function processChecklistReminders_(sheetClient) {
     }
 
     if (REMINDER_THRESHOLDS.REMINDER_DAYS.indexOf(daysUntil) > -1 || daysUntil < 0) {
-      sendChecklistReminderDM_(sheetClient, row, daysUntil);
+      sendChecklistReminderDM_(sheetClient, auditRepository, row, daysUntil);
     }
 
     if (daysUntil <= -REMINDER_THRESHOLDS.ESCALATE_AFTER_OVERDUE_DAYS) {
-      escalateChecklistTask_(sheetClient, row, daysUntil);
+      escalateChecklistTask_(sheetClient, auditRepository, row, daysUntil);
     }
   }
 }
 
-function sendTrainingReminderDM_(sheetClient, row, daysUntil) {
+function sendTrainingReminderDM_(sheetClient, trainingRepository, onboardingRepository, auditRepository, row, daysUntil) {
   var auditLogger = new AuditLogger(sheetClient);
   var slackClient = new SlackClient(auditLogger);
   var employeeId = row[COL.TRAINING.EMPLOYEE_ID - 1];
   var moduleCode = row[COL.TRAINING.MODULE_CODE - 1];
-  var onboarding = sheetClient.findOnboardingByEmployeeId(employeeId);
+  var onboarding = onboardingRepository.findByEmployeeId(employeeId);
   if (!onboarding) {
     return;
   }
@@ -81,7 +84,7 @@ function sendTrainingReminderDM_(sheetClient, row, daysUntil) {
 
   var reminderDateKey = new Date().toISOString().slice(0, 10);
   var reminderHash = computeHash(['reminder', 'training', employeeId, moduleCode, reminderDateKey, daysUntil]);
-  if (sheetClient.checkDuplicate(Config.getAuditSheetName(), COL.AUDIT.EVENT_HASH, reminderHash) > -1) {
+  if (auditRepository.checkDuplicate(reminderHash)) {
     return;
   }
 
@@ -92,8 +95,8 @@ function sendTrainingReminderDM_(sheetClient, row, daysUntil) {
   }));
 
   var nextCount = Number(row[COL.TRAINING.REMINDER_COUNT - 1] || 0) + 1;
-  if (sheetClient.updateTrainingReminderMetadata) {
-    sheetClient.updateTrainingReminderMetadata(employeeId, moduleCode, nextCount, new Date());
+  if (trainingRepository.updateReminderMetadata) {
+    trainingRepository.updateReminderMetadata(employeeId, moduleCode, nextCount, new Date());
   }
 
   auditLogger.log({
@@ -105,7 +108,7 @@ function sendTrainingReminderDM_(sheetClient, row, daysUntil) {
   });
 }
 
-function escalateTrainingToManager_(sheetClient, row) {
+function escalateTrainingToManager_(sheetClient, auditRepository, row) {
   var auditLogger = new AuditLogger(sheetClient);
   var slackClient = new SlackClient(auditLogger);
   var employeeId = row[COL.TRAINING.EMPLOYEE_ID - 1];
@@ -117,7 +120,7 @@ function escalateTrainingToManager_(sheetClient, row) {
 
   var escalationDateKey = new Date().toISOString().slice(0, 10);
   var escalationHash = computeHash(['escalation', 'training', employeeId, moduleCode, escalationDateKey]);
-  if (sheetClient.checkDuplicate(Config.getAuditSheetName(), COL.AUDIT.EVENT_HASH, escalationHash) > -1) {
+  if (auditRepository.checkDuplicate(escalationHash)) {
     return;
   }
 
@@ -135,9 +138,7 @@ function escalateTrainingToManager_(sheetClient, row) {
     { type: 'section', text: { type: 'mrkdwn', text: '*Employee ID:* ' + employeeId + '\n*Module:* ' + row[COL.TRAINING.MODULE_NAME - 1] } }
   ]);
 
-  sheetClient.appendAuditIfNotExists(escalationHash, [
-    generateId('AUD'), new Date(), 'system', 'Training', String(employeeId) + ':' + String(moduleCode), 'UPDATE', 'Escalation DM sent to manager', escalationHash
-  ]);
+  auditRepository.logOnce(escalationHash, auditRepository.newAuditRow('Training', String(employeeId) + ':' + String(moduleCode), 'UPDATE', 'Escalation DM sent to manager', escalationHash));
 }
 
 function parseReminderCountFromUpdatedBy_(value) {
@@ -146,7 +147,7 @@ function parseReminderCountFromUpdatedBy_(value) {
   return match ? Number(match[1]) : 0;
 }
 
-function sendChecklistReminderDM_(sheetClient, row, daysUntil) {
+function sendChecklistReminderDM_(sheetClient, auditRepository, row, daysUntil) {
   var auditLogger = new AuditLogger(sheetClient);
   var slackClient = new SlackClient(auditLogger);
   var onboardingId = row[COL.CHECKLIST.ONBOARDING_ID - 1];
@@ -159,7 +160,7 @@ function sendChecklistReminderDM_(sheetClient, row, daysUntil) {
 
   var reminderDateKey = new Date().toISOString().slice(0, 10);
   var reminderHash = computeHash(['reminder', 'checklist', onboardingId, taskId, reminderDateKey, daysUntil]);
-  if (sheetClient.checkDuplicate(Config.getAuditSheetName(), COL.AUDIT.EVENT_HASH, reminderHash) > -1) {
+  if (auditRepository.checkDuplicate(reminderHash)) {
     return;
   }
 
@@ -175,13 +176,10 @@ function sendChecklistReminderDM_(sheetClient, row, daysUntil) {
     sheetClient.updateChecklistReminderMetadata(taskId, onboardingId, nextCount, new Date());
   }
 
-  sheetClient.appendAuditIfNotExists(reminderHash, [
-    generateId('AUD'), new Date(), 'system', 'ChecklistTask', String(onboardingId) + ':' + String(taskId), 'UPDATE',
-    'Checklist reminder sent to ' + destination.channelId + ' (' + daysUntil + ' days)', reminderHash
-  ]);
+  auditRepository.logOnce(reminderHash, auditRepository.newAuditRow('ChecklistTask', String(onboardingId) + ':' + String(taskId), 'UPDATE', 'Checklist reminder sent to ' + destination.channelId + ' (' + daysUntil + ' days)', reminderHash));
 }
 
-function escalateChecklistTask_(sheetClient, row, daysUntil) {
+function escalateChecklistTask_(sheetClient, auditRepository, row, daysUntil) {
   var auditLogger = new AuditLogger(sheetClient);
   var slackClient = new SlackClient(auditLogger);
   var onboardingId = row[COL.CHECKLIST.ONBOARDING_ID - 1];
@@ -191,7 +189,7 @@ function escalateChecklistTask_(sheetClient, row, daysUntil) {
 
   var escalationDateKey = new Date().toISOString().slice(0, 10);
   var escalationHash = computeHash(['escalation', 'checklist', onboardingId, taskId, escalationDateKey]);
-  if (sheetClient.checkDuplicate(Config.getAuditSheetName(), COL.AUDIT.EVENT_HASH, escalationHash) > -1) {
+  if (auditRepository.checkDuplicate(escalationHash)) {
     return;
   }
 
@@ -213,10 +211,7 @@ function escalateChecklistTask_(sheetClient, row, daysUntil) {
     }
   }
 
-  sheetClient.appendAuditIfNotExists(escalationHash, [
-    generateId('AUD'), new Date(), 'system', 'ChecklistTask', String(onboardingId) + ':' + String(taskId), 'UPDATE',
-    'Checklist escalation sent (criticality=' + criticality + ')', escalationHash
-  ]);
+  auditRepository.logOnce(escalationHash, auditRepository.newAuditRow('ChecklistTask', String(onboardingId) + ':' + String(taskId), 'UPDATE', 'Checklist escalation sent (criticality=' + criticality + ')', escalationHash));
 }
 
 function resolveChecklistOwnerDestination_(ownerTeam, ownerSlackId) {
@@ -238,25 +233,31 @@ function resolveChecklistOwnerDestination_(ownerTeam, ownerSlackId) {
 
 function sendReminderDM(row, daysUntil) {
   var sheetClient = new SheetClient();
-  return sendTrainingReminderDM_(sheetClient, row, daysUntil);
+  var trainingRepository = new TrainingRepository(sheetClient);
+  var onboardingRepository = new OnboardingRepository(sheetClient);
+  var auditRepository = new AuditRepository(sheetClient);
+  return sendTrainingReminderDM_(sheetClient, trainingRepository, onboardingRepository, auditRepository, row, daysUntil);
 }
 
 function escalateToManager(row) {
   var sheetClient = new SheetClient();
-  return escalateTrainingToManager_(sheetClient, row);
+  var auditRepository = new AuditRepository(sheetClient);
+  return escalateTrainingToManager_(sheetClient, auditRepository, row);
 }
 
 function checkBirthdaysAndAnniversaries() {
   var sheetClient = new SheetClient();
+  var onboardingRepository = new OnboardingRepository(sheetClient);
+  var auditRepository = new AuditRepository(sheetClient);
   var auditLogger = new AuditLogger(sheetClient);
   var slackClient = new SlackClient(auditLogger);
-  var onboardingSheet = SpreadsheetApp.openById(Config.getOnboardingSpreadsheetId()).getSheetByName(Config.getOnboardingSheetName());
-  if (!onboardingSheet || onboardingSheet.getLastRow() < 2) {
+  var onboardingData = onboardingRepository.getRowsWithHeaders();
+  if (!onboardingData.rows.length) {
     return;
   }
 
-  var headers = onboardingSheet.getRange(1, 1, 1, onboardingSheet.getLastColumn()).getValues()[0];
-  var rows = onboardingSheet.getRange(2, 1, onboardingSheet.getLastRow() - 1, onboardingSheet.getLastColumn()).getValues();
+  var headers = onboardingData.headers;
+  var rows = onboardingData.rows;
   var birthdayColumn = resolveBirthdayColumn_(headers);
   var today = new Date();
 
@@ -277,7 +278,7 @@ function checkBirthdaysAndAnniversaries() {
     var birthdayValue = birthdayColumn > -1 ? row[birthdayColumn] : null;
     var birthdayForYear = birthdayValue ? getDateForCurrentYear_(birthdayValue) : null;
     if (birthdayForYear && getDaysUntilViaUtils_(birthdayForYear) === 0) {
-      maybeSendCelebration_(sheetClient, slackClient, employeeId, 'birthday', BlockKit.birthdayDM({ firstName: getFirstNameSafe_(row[COL.ONBOARDING.FULL_NAME - 1]) }), userId);
+      maybeSendCelebration_(auditRepository, slackClient, employeeId, 'birthday', BlockKit.birthdayDM({ firstName: getFirstNameSafe_(row[COL.ONBOARDING.FULL_NAME - 1]) }), userId);
     }
 
     var startDateValue = row[COL.ONBOARDING.START_DATE - 1];
@@ -285,7 +286,7 @@ function checkBirthdaysAndAnniversaries() {
     if (anniversaryForYear && getDaysUntilViaUtils_(anniversaryForYear) === 0) {
       var years = Math.max(today.getFullYear() - new Date(startDateValue).getFullYear(), 1);
       maybeSendCelebration_(
-        sheetClient,
+        auditRepository,
         slackClient,
         employeeId,
         'anniversary',
@@ -296,26 +297,16 @@ function checkBirthdaysAndAnniversaries() {
   }
 }
 
-function maybeSendCelebration_(sheetClient, slackClient, employeeId, eventType, blocks, userId) {
+function maybeSendCelebration_(auditRepository, slackClient, employeeId, eventType, blocks, userId) {
   var dateKey = new Date().toISOString().slice(0, 10);
   var eventHash = computeHash([eventType, employeeId, dateKey]);
-  var duplicate = sheetClient.checkDuplicate(Config.getAuditSheetName(), COL.AUDIT.EVENT_HASH, eventHash);
-  if (duplicate > -1) {
+  if (auditRepository.checkDuplicate(eventHash)) {
     return;
   }
 
   slackClient.postMessage(userId, blocks);
 
-  sheetClient.appendAuditIfNotExists(eventHash, [
-    generateId('AUD'),
-    new Date(),
-    'system',
-    'Employee',
-    String(employeeId),
-    'UPDATE',
-    eventType + ' DM sent',
-    eventHash
-  ]);
+  auditRepository.logOnce(eventHash, auditRepository.newAuditRow('Employee', String(employeeId), 'UPDATE', eventType + ' DM sent', eventHash));
 }
 
 function getDaysUntilViaUtils_(dateValue) {
