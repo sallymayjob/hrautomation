@@ -168,7 +168,9 @@ function submitLmsProposal_(payload, action) {
   };
 
   var proposal = null;
-  if (typeof SubmissionController.createDraft === 'function') {
+  if (typeof SubmissionController.persistIngressDraft === 'function') {
+    proposal = SubmissionController.persistIngressDraft(proposalInput, { repository: payload.repository });
+  } else if (typeof SubmissionController.createDraft === 'function') {
     proposal = SubmissionController.createDraft(proposalInput);
   } else if (typeof SubmissionController.createProposal === 'function') {
     proposal = SubmissionController.createProposal(proposalInput);
@@ -183,14 +185,32 @@ function submitLmsProposal_(payload, action) {
   var clarification = null;
   if (isGeminiValidationEnabled_() && typeof GeminiService !== 'undefined' && GeminiService && typeof GeminiService.validateAndClarify === 'function') {
     clarification = GeminiService.validateAndClarify(proposal);
+    if (clarification && clarification.status === 'rejected') {
+      proposal.approval_status = 'REJECTED';
+      return {
+        proposal_id: proposal.id || '',
+        approval_status: 'REJECTED',
+        commit_blocked: true,
+        clarification: clarification,
+        message: 'Proposal rejected by Gemini validation.'
+      };
+    }
   }
 
-  if (typeof ApprovalController !== 'undefined' && ApprovalController && typeof ApprovalController.requestApproval === 'function') {
-    ApprovalController.requestApproval({
-      proposal: proposal,
-      clarification: clarification,
-      approval_status: 'PENDING'
-    });
+  if (typeof ApprovalController !== 'undefined' && ApprovalController) {
+    if (proposal.requires_approval && typeof ApprovalController.requestLiamApproval === 'function') {
+      ApprovalController.requestLiamApproval({
+        proposal: proposal,
+        clarification: clarification,
+        approval_status: 'PENDING'
+      });
+    } else if (typeof ApprovalController.requestApproval === 'function') {
+      ApprovalController.requestApproval({
+        proposal: proposal,
+        clarification: clarification,
+        approval_status: 'PENDING'
+      });
+    }
   }
 
   return {

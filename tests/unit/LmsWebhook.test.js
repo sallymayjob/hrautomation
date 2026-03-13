@@ -17,13 +17,15 @@ describe('LmsWebhook', () => {
     global.AuditLogger = jest.fn(() => ({ log: jest.fn() }));
     global.SheetClient = jest.fn(() => ({}));
     global.SubmissionController = {
-      createProposal: jest.fn(() => ({ id: 'PROP-1' }))
+      createProposal: jest.fn(() => ({ id: 'PROP-1' })),
+      persistIngressDraft: jest.fn(() => ({ id: 'PROP-1', approval_status: 'PENDING', requires_approval: false }))
     };
     global.ApprovalController = {
-      requestApproval: jest.fn(() => ({ ok: true }))
+      requestApproval: jest.fn(() => ({ ok: true })),
+      requestLiamApproval: jest.fn(() => ({ ok: true }))
     };
     global.GeminiService = {
-      validateAndClarify: jest.fn(() => ({ valid: true, summary: 'Looks good' }))
+      validateAndClarify: jest.fn(() => ({ status: 'valid_proposal', summary: 'Looks good' }))
     };
   });
 
@@ -67,15 +69,34 @@ describe('LmsWebhook', () => {
       actor_slack_id: 'UHR1'
     });
 
-    expect(global.SubmissionController.createProposal).toHaveBeenCalledTimes(1);
+    expect(global.SubmissionController.persistIngressDraft).toHaveBeenCalledTimes(1);
     expect(global.GeminiService.validateAndClarify).toHaveBeenCalledWith(expect.objectContaining({ id: 'PROP-1' }));
     expect(global.ApprovalController.requestApproval).toHaveBeenCalledWith(expect.objectContaining({
       proposal: expect.objectContaining({ id: 'PROP-1', approval_status: 'PENDING' }),
-      clarification: expect.objectContaining({ valid: true }),
+      clarification: expect.objectContaining({ status: 'valid_proposal' }),
       approval_status: 'PENDING'
     }));
     expect(result.ok).toBe(true);
     expect(result.data.approval_status).toBe('PENDING');
     expect(result.data.commit_blocked).toBe(true);
+  });
+
+  test('routeLmsAction_ sends governed requests to Liam approval', () => {
+    const { routeLmsAction_ } = require('../../gas/LmsWebhook.gs');
+    global.SubmissionController.persistIngressDraft.mockReturnValue({
+      id: 'PROP-2',
+      approval_status: 'PENDING',
+      requires_approval: true
+    });
+
+    const result = routeLmsAction_({
+      source: 'slack_workflow_builder',
+      action: 'lesson_create',
+      actor_slack_id: 'UHR1',
+      lesson_id: 'L1'
+    });
+
+    expect(global.ApprovalController.requestLiamApproval).toHaveBeenCalledTimes(1);
+    expect(result.ok).toBe(true);
   });
 });

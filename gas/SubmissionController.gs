@@ -1,4 +1,4 @@
-/* global generateId, Config */
+/* global generateId, Config, computeHash */
 /**
  * @fileoverview Proposal lifecycle controller for governed LMS lesson mutations.
  */
@@ -49,8 +49,14 @@ function createProposal(input) {
     entity_type: entityType || getGovernanceConfig_().ENTITY_NAMES.PROPOSAL,
     entity_key: String(proposalInput.entity_key || inferEntityKey_(proposalInput)),
     requires_approval: requiresApprovalForAction_(entityType, normalizedAction),
+    proposal_version: Number(proposalInput.proposal_version || 1),
+    proposal_hash: String(proposalInput.proposal_hash || ''),
     committed_at: ''
   };
+
+  if (!proposal.proposal_hash) {
+    proposal.proposal_hash = computeProposalHash_(proposal);
+  }
 
   ProposalStore_.proposals[proposal.id] = proposal;
   return proposal;
@@ -58,6 +64,20 @@ function createProposal(input) {
 
 function createDraft(input) {
   return createProposal(input);
+}
+
+function persistIngressDraft(input, options) {
+  var proposal = createDraft(input);
+  var opts = options || {};
+  var repository = opts.repository;
+  if (repository && typeof repository.writeDraftProposal === 'function') {
+    repository.writeDraftProposal(proposal, opts);
+  } else if (repository && typeof repository.writeProposalDraft === 'function') {
+    repository.writeProposalDraft(proposal, opts);
+  } else if (repository && typeof repository.writeProposal === 'function') {
+    repository.writeProposal(proposal, opts);
+  }
+  return proposal;
 }
 
 function getProposal(proposalId) {
@@ -89,6 +109,15 @@ function revalidateProposalForCommit(proposal) {
   if (proposal.requires_approval && String(proposal.approval_status || '').toUpperCase() !== 'APPROVED') {
     throw new Error('Governed action cannot commit without APPROVED state.');
   }
+
+  var currentHash = computeProposalHash_(proposal);
+  if (proposal.approval_hash && String(proposal.approval_hash) !== currentHash) {
+    throw new Error('Governed action cannot commit because proposal hash changed after approval.');
+  }
+  if (proposal.approval_version !== undefined && Number(proposal.approval_version) !== Number(proposal.proposal_version || 1)) {
+    throw new Error('Governed action cannot commit because proposal version changed after approval.');
+  }
+
   return true;
 }
 
@@ -98,15 +127,38 @@ function commitApprovedProposal(proposalId, options) {
   revalidateProposalForCommit(proposal);
 
   var repository = opts.repository;
-  if (!repository || typeof repository.writeProposal !== 'function') {
-    throw new Error('Repository with writeProposal is required for commit.');
+  if (!repository || typeof repository.commitProposal !== 'function') {
+    throw new Error('Repository with commitProposal is required for final commit.');
   }
 
-  repository.writeProposal(proposal, opts);
+  repository.commitProposal(proposal, opts);
+  if (opts.auditService && typeof opts.auditService.logEvent === 'function') {
+    opts.auditService.logEvent({
+      actorEmail: String(opts.actor || proposal.approved_by || proposal.actor || 'system'),
+      entityType: String(proposal.entity_type || 'proposal'),
+      entityId: String(proposal.entity_key || proposal.id),
+      action: 'COMMIT',
+      details: 'Proposal committed via repository; trace_id=' + String(proposal.trace_id || '') + '; proposal_id=' + String(proposal.id || '') + '; version=' + String(proposal.proposal_version || 1) + '; hash=' + String(proposal.proposal_hash || '')
+    });
+  }
   proposal.committed_at = new Date().toISOString();
   proposal.approval_status = String(proposal.approval_status || '').toUpperCase() || 'APPROVED';
   ProposalStore_.proposals[proposal.id] = proposal;
   return proposal;
+}
+
+function computeProposalHash_(proposal) {
+  if (typeof computeHash !== 'function') {
+    return String(proposal.id || '');
+  }
+  return computeHash([
+    proposal.action,
+    proposal.entity_type,
+    proposal.entity_key,
+    JSON.stringify(proposal.payload || {}),
+    proposal.request_id,
+    proposal.trace_id
+  ]);
 }
 
 function requiresApprovalForAction_(entityType, action) {
@@ -163,10 +215,12 @@ if (typeof module !== 'undefined') {
   module.exports = {
     createProposal: createProposal,
     createDraft: createDraft,
+    persistIngressDraft: persistIngressDraft,
     getProposal: getProposal,
     updateProposalState: updateProposalState,
     revalidateProposalForCommit: revalidateProposalForCommit,
     commitApprovedProposal: commitApprovedProposal,
+    computeProposalHash_: computeProposalHash_,
     requiresApprovalForAction_: requiresApprovalForAction_,
     ProposalStore_: ProposalStore_
   };
