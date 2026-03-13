@@ -1,4 +1,4 @@
-/* global Config, SpreadsheetApp, MailApp, Session, HRLib, console, LockService */
+/* global Config, SpreadsheetApp, MailApp, Session, HRLib, console, LockService, WorkflowSheetRepository, runWorkflowController_ */
 /**
  * @fileoverview Thin spreadsheet wrappers around shared HR library entry points.
  */
@@ -12,6 +12,28 @@ var HANDOFF_SLA_DAYS = {
   onboarding_to_training: 2,
   training_to_audit: 7
 };
+
+var WorkflowRunBindings_ = null;
+if (typeof require === 'function') {
+  WorkflowRunBindings_ = {
+    repository: require('./WorkflowSheetRepository.gs'),
+    controller: require('./WorkflowRunController.gs')
+  };
+}
+
+function getWorkflowSheetRepositoryCtor_() {
+  if (typeof WorkflowSheetRepository !== 'undefined') {
+    return WorkflowSheetRepository;
+  }
+  return WorkflowRunBindings_ && WorkflowRunBindings_.repository && WorkflowRunBindings_.repository.WorkflowSheetRepository;
+}
+
+function getWorkflowControllerFn_() {
+  if (typeof runWorkflowController_ !== 'undefined') {
+    return runWorkflowController_;
+  }
+  return WorkflowRunBindings_ && WorkflowRunBindings_.controller && WorkflowRunBindings_.controller.runWorkflowController_;
+}
 
 function runOnboarding() {
   return runLibraryWorkflow_({
@@ -99,47 +121,55 @@ function runLibraryWorkflow_(options) {
   var opts = options || {};
   assertLibraryAvailable_();
   var runId = createRunId_();
+  var runContext = {
+    trace_id: runId,
+    run_id: runId,
+    source: String(opts.workflowName || 'unknown')
+  };
   var startedAtMs = new Date().getTime();
   var lock = acquireWorkflowLock_(opts.workflowName, runId, opts.lockWaitMs || DEFAULT_LOCK_WAIT_MS);
 
   try {
     var spreadsheet = SpreadsheetApp.openById(opts.spreadsheetId);
+    var WorkflowSheetRepositoryCtor = getWorkflowSheetRepositoryCtor_();
+    var workflowRepository = new WorkflowSheetRepositoryCtor(spreadsheet);
+    var workflowController = getWorkflowControllerFn_();
     var sheet = spreadsheet.getSheetByName(opts.sheetName);
     if (!sheet) {
       throw new Error('Sheet not found: ' + opts.sheetName);
     }
 
     var rowPayload = readSheetRows_(sheet, opts.batchLimit || DEFAULT_BATCH_LIMIT);
-    var handoffOutcome = applyHandoffChecks_(opts, rowPayload, spreadsheet, runId);
-    var executionPayload = handoffOutcome.payload;
     var dateWindow = createDateWindow_(opts.dateWindowMinutes, new Date());
-    applyIdempotencyKeys_(executionPayload.rows, dateWindow);
-    writeWorkflowExecutionLog_(spreadsheet, opts, runId, 'STARTED', {
-      rowCount: executionPayload.rows.length,
-      result: null,
-      errors: []
-    });
-    logWorkflowEvent_(opts.workflowName, runId, 'STARTED', 'rows=' + executionPayload.rows.length);
-
     enforceRuntimeBudget_(opts.workflowName, startedAtMs, opts.maxRuntimeMs || DEFAULT_MAX_RUNTIME_MS);
-    var result = HRLib[opts.libraryMethodName](executionPayload.rows, {
-      sourceSheet: opts.sheetName,
-      sourceWorkflow: opts.workflowName,
-      runId: runId,
-      runMode: opts.runMode || 'standard',
-      dateWindowStartIso: dateWindow.startIso,
-      dateWindowEndIso: dateWindow.endIso
+    var executionResult = workflowController({
+      workflowName: opts.workflowName,
+      sheetName: opts.sheetName,
+      libraryMethodName: opts.libraryMethodName,
+      runMode: opts.runMode,
+      runContext: runContext,
+      rowPayload: rowPayload,
+      dateWindow: dateWindow,
+      handoffSlaDays: HANDOFF_SLA_DAYS,
+      statusWriterOptions: {
+        repository: workflowRepository,
+        sheet: sheet,
+        statusColumnName: opts.statusColumnName
+      },
+      appendException: function (entry) {
+        appendExceptionLog_(workflowRepository, entry);
+      },
+      writeHandoffDashboard: function (stage, rows) {
+        writeHandoffDashboard_(workflowRepository, stage, rows);
+      },
+      writeExecutionLog: function (phase, details) {
+        writeWorkflowExecutionLog_(spreadsheet, opts, runId, phase, details);
+      }
     });
     enforceRuntimeBudget_(opts.workflowName, startedAtMs, opts.maxRuntimeMs || DEFAULT_MAX_RUNTIME_MS);
-    result = mergeHandoffFailuresIntoResult_(result, handoffOutcome.failures, runId);
-
-    writeRowStatuses_(sheet, executionPayload, result, opts.statusColumnName);
-    writeWorkflowExecutionLog_(spreadsheet, opts, runId, 'COMPLETED', {
-      rowCount: executionPayload.rows.length,
-      result: result,
-      errors: []
-    });
-    appendRunSummaryToLogsTab_(spreadsheet, opts, runId, executionPayload.rows.length, result, 'COMPLETED');
+    var result = executionResult.result;
+    var executionPayload = executionResult.executionPayload;
+    appendRunSummaryToLogsTab_(workflowRepository, opts, runId, executionPayload.rows.length, result, 'COMPLETED');
     logWorkflowEvent_(opts.workflowName, runId, 'COMPLETED', 'success=' + Number(result.successCount || 0) + ', errors=' + Number(result.errorCount || 0));
     sendWorkflowSummaryEmail_(opts.workflowName, executionPayload.rows.length, result, runId);
 
@@ -152,7 +182,8 @@ function runLibraryWorkflow_(options) {
         result: null,
         errors: [{ code: 'WORKFLOW_FAILED', rowIndex: 0, message: String(err && err.message ? err.message : err), technicalDetails: '' }]
       });
-      appendRunSummaryToLogsTab_(failedSpreadsheet, opts, runId, 0, null, 'FAILED');
+      var FailedRepoCtor = getWorkflowSheetRepositoryCtor_();
+      appendRunSummaryToLogsTab_(new FailedRepoCtor(failedSpreadsheet), opts, runId, 0, null, 'FAILED');
     }
     logWorkflowEvent_(opts.workflowName, runId, 'FAILED', String(err && err.message ? err.message : err));
     throw err;
@@ -163,73 +194,6 @@ function runLibraryWorkflow_(options) {
   }
 }
 
-function applyHandoffChecks_(workflowOptions, rowPayload, spreadsheet, runId) {
-  var opts = workflowOptions || {};
-  var rows = (rowPayload && rowPayload.rows) || [];
-  var rowIndexes = (rowPayload && rowPayload.rowIndexes) || [];
-  var failures = [];
-  var filteredRows = [];
-  var filteredIndexes = [];
-  var dashboardRows = [];
-  var stage = '';
-
-  for (var i = 0; i < rows.length; i += 1) {
-    var row = rows[i] || {};
-    var failureReason = '';
-    if (opts.workflowName === 'Onboarding') {
-      stage = 'Onboarding -> Training';
-      var hasWorkEmail = !isMissingCellValue_(row.workemail) || !isMissingCellValue_(row.work_email) || !isMissingCellValue_(row.email);
-      var hasStartDate = !isMissingCellValue_(row.startdate) || !isMissingCellValue_(row.start_date);
-      if (!hasWorkEmail || !hasStartDate) {
-        failureReason = 'Onboarding -> Training requires WorkEmail and StartDate.';
-      }
-    } else if (opts.workflowName === 'Training Sync') {
-      stage = 'Training -> Audit';
-      if (String(row.trainingstatus || row.training_status || '').toUpperCase() !== 'COMPLETE') {
-        failureReason = 'Training -> Audit requires TrainingStatus = COMPLETE.';
-      }
-    }
-
-    if (failureReason) {
-      var employeeId = resolveEmployeeId_(row);
-      failures.push({
-        code: 'HANDOFF_CHECK_FAILED',
-        rowIndex: filteredRows.length,
-        employeeId: employeeId,
-        message: failureReason
-      });
-      appendExceptionLog_(spreadsheet, {
-        traceId: runId,
-        sheet: opts.sheetName,
-        employeeId: employeeId,
-        reason: failureReason
-      });
-      var ageDays = getDaysSince_(row.startdate || row.start_date || row.assigned_date || row.trainingassigneddate || row.last_updated_at);
-      var slaDays = stage === 'Onboarding -> Training' ? HANDOFF_SLA_DAYS.onboarding_to_training : HANDOFF_SLA_DAYS.training_to_audit;
-      if (ageDays !== null && ageDays > slaDays) {
-        dashboardRows.push([stage, employeeId, ageDays, slaDays, failureReason]);
-      }
-      continue;
-    }
-
-    filteredRows.push(row);
-    filteredIndexes.push(rowIndexes[i]);
-  }
-
-  if (stage) {
-    writeHandoffDashboard_(spreadsheet, stage, dashboardRows);
-  }
-
-  return {
-    failures: failures,
-    payload: {
-      headers: rowPayload.headers,
-      rows: filteredRows,
-      rowIndexes: filteredIndexes
-    }
-  };
-}
-
 function mergeHandoffFailuresIntoResult_(result, handoffFailures, fallbackTraceId) {
   var merged = result || {};
   merged.errors = (merged.errors || []).concat(handoffFailures || []);
@@ -238,18 +202,11 @@ function mergeHandoffFailuresIntoResult_(result, handoffFailures, fallbackTraceI
   return merged;
 }
 
-function appendExceptionLog_(spreadsheet, exceptionEntry) {
-  var sheet = spreadsheet.getSheetByName(EXCEPTIONS_SHEET_NAME);
-  if (!sheet && spreadsheet && typeof spreadsheet.insertSheet === 'function') {
-    sheet = spreadsheet.insertSheet(EXCEPTIONS_SHEET_NAME);
+function appendExceptionLog_(repository, exceptionEntry) {
+  if (repository.getLastRow(EXCEPTIONS_SHEET_NAME) === 0) {
+    repository.appendRow(EXCEPTIONS_SHEET_NAME, ['timestamp', 'traceId', 'sheet', 'employeeId', 'reason']);
   }
-  if (!sheet || typeof sheet.appendRow !== 'function') {
-    return;
-  }
-  if (sheet.getLastRow && sheet.getLastRow() === 0) {
-    sheet.appendRow(['timestamp', 'traceId', 'sheet', 'employeeId', 'reason']);
-  }
-  sheet.appendRow([
+  repository.appendRow(EXCEPTIONS_SHEET_NAME, [
     new Date(),
     String(exceptionEntry.traceId || ''),
     String(exceptionEntry.sheet || ''),
@@ -258,25 +215,17 @@ function appendExceptionLog_(spreadsheet, exceptionEntry) {
   ]);
 }
 
-function writeHandoffDashboard_(spreadsheet, stage, rows) {
-  var sheet = spreadsheet.getSheetByName(HANDOFF_DASHBOARD_SHEET_NAME);
-  if (!sheet && spreadsheet && typeof spreadsheet.insertSheet === 'function') {
-    sheet = spreadsheet.insertSheet(HANDOFF_DASHBOARD_SHEET_NAME);
-  }
-  if (!sheet || typeof sheet.clear !== 'function') {
-    return;
-  }
-
-  sheet.clear();
-  sheet.appendRow(['stage', 'employee_id', 'days_stuck', 'sla_days', 'reason']);
+function writeHandoffDashboard_(repository, stage, rows) {
+  repository.clearSheet(HANDOFF_DASHBOARD_SHEET_NAME);
+  repository.appendRow(HANDOFF_DASHBOARD_SHEET_NAME, ['stage', 'employee_id', 'days_stuck', 'sla_days', 'reason']);
 
   if (!rows || rows.length === 0) {
-    sheet.appendRow([String(stage || ''), '', 0, 0, 'No employees currently above SLA threshold']);
+    repository.appendRow(HANDOFF_DASHBOARD_SHEET_NAME, [String(stage || ''), '', 0, 0, 'No employees currently above SLA threshold']);
     return;
   }
 
   for (var i = 0; i < rows.length; i += 1) {
-    sheet.appendRow(rows[i]);
+    repository.appendRow(HANDOFF_DASHBOARD_SHEET_NAME, rows[i]);
   }
 }
 
@@ -300,22 +249,15 @@ function getDaysSince_(value) {
   return Math.floor(elapsedMs / (24 * 60 * 60 * 1000));
 }
 
-function appendRunSummaryToLogsTab_(spreadsheet, workflowOptions, runId, rowCount, result, phase) {
+function appendRunSummaryToLogsTab_(repository, workflowOptions, runId, rowCount, result, phase) {
   var opts = workflowOptions || {};
   var sheetName = String(opts.logSheetName || 'Logs');
-  var sheet = spreadsheet.getSheetByName(sheetName);
-  if (!sheet && spreadsheet && typeof spreadsheet.insertSheet === 'function') {
-    sheet = spreadsheet.insertSheet(sheetName);
-  }
-  if (!sheet || typeof sheet.appendRow !== 'function') {
-    return;
-  }
-  if (sheet.getLastRow && sheet.getLastRow() === 0) {
-    sheet.appendRow(['timestamp', 'workflow', 'function', 'run_id', 'trace_id', 'rows_read', 'success_count', 'error_count', 'status']);
+  if (repository.getLastRow(sheetName) === 0) {
+    repository.appendRow(sheetName, ['timestamp', 'workflow', 'function', 'run_id', 'trace_id', 'rows_read', 'success_count', 'error_count', 'status']);
   }
 
   var normalizedResult = result || {};
-  sheet.appendRow([
+  repository.appendRow(sheetName, [
     new Date(),
     String(opts.workflowName || 'Unknown'),
     String(opts.libraryMethodName || 'unknown'),
@@ -396,31 +338,6 @@ function isBlankRow_(rowValues) {
     }
   }
   return true;
-}
-
-function writeRowStatuses_(sheet, rowPayload, result, statusColumnName) {
-  var headerMap = buildHeaderMap_(rowPayload.headers);
-  var statusColumnIndex = headerMap[normalizeHeaderKey_(statusColumnName)] || 0;
-  var traceColumnIndex = headerMap.trace_id || 0;
-  if (!statusColumnIndex && !traceColumnIndex) {
-    return;
-  }
-
-  var rowIndexes = rowPayload.rowIndexes;
-  var successCount = Number(result.successCount || 0);
-  var errorByRow = indexErrorsByRow_(result.errors || []);
-  for (var i = 0; i < rowIndexes.length; i += 1) {
-    var rowNumber = rowIndexes[i];
-    var rowError = errorByRow[i];
-
-    if (statusColumnIndex) {
-      var status = rowError ? 'BLOCKED' : (i < successCount ? 'COMPLETE' : 'PENDING');
-      sheet.getRange(rowNumber, statusColumnIndex).setValue(status);
-    }
-    if (traceColumnIndex) {
-      sheet.getRange(rowNumber, traceColumnIndex).setValue(result.traceId || '');
-    }
-  }
 }
 
 function writeWorkflowExecutionLog_(spreadsheet, workflowOptions, runId, phase, details) {
@@ -592,11 +509,9 @@ if (typeof module !== 'undefined') module.exports = {
   readSheetRows_: readSheetRows_,
   mapRowToObject_: mapRowToObject_,
   normalizeHeaderKey_: normalizeHeaderKey_,
-  writeRowStatuses_: writeRowStatuses_,
   buildIdempotencyKey_: buildIdempotencyKey_,
   writeWorkflowExecutionLog_: writeWorkflowExecutionLog_,
   appendRunSummaryToLogsTab_: appendRunSummaryToLogsTab_,
-  applyHandoffChecks_: applyHandoffChecks_,
   mergeHandoffFailuresIntoResult_: mergeHandoffFailuresIntoResult_,
   appendExceptionLog_: appendExceptionLog_,
   writeHandoffDashboard_: writeHandoffDashboard_,
