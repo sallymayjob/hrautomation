@@ -1,10 +1,9 @@
-/* global UrlFetchApp, Utilities, Config, AuditLogger */
+/* global UrlFetchApp, Utilities, Config */
 /**
  * @fileoverview Slack API client with rate-limit aware retries.
  */
 
-function SlackClient(auditLogger) {
-  this.auditLogger = auditLogger || new AuditLogger();
+function SlackClient() {
   this.baseUrl_ = 'https://slack.com/api/';
   this.maxAttempts_ = 3;
 }
@@ -29,7 +28,7 @@ SlackClient.prototype.callApi_ = function (method, payload) {
     var response = UrlFetchApp.fetch(url, options);
     var statusCode = response.getResponseCode();
     var bodyText = response.getContentText();
-    var body = bodyText ? JSON.parse(bodyText) : {};
+    var body = parseSlackApiBody_(bodyText);
     var isRateLimited = statusCode === 429 || body.error === 'ratelimited';
 
     if (statusCode >= 200 && statusCode < 300 && body.ok) {
@@ -42,22 +41,22 @@ SlackClient.prototype.callApi_ = function (method, payload) {
     }
 
     var reason = body.error || ('HTTP_' + statusCode);
-    var error = new Error('Slack API request failed for ' + method + ': ' + reason);
-
-    if (!isRateLimited) {
-      this.auditLogger.error({
-        entityType: 'Slack',
-        entityId: method,
-        action: 'UPDATE',
-        details: 'Slack API error for ' + method + ' with payload keys: ' + Object.keys(payload || {}).join(',')
-      }, error);
-    }
-
-    throw error;
+    throw new Error('Slack API request failed for ' + method + ': ' + reason);
   }
 
   throw new Error('Slack API call failed after retries for ' + method);
 };
+
+function parseSlackApiBody_(bodyText) {
+  if (!bodyText) {
+    return {};
+  }
+  try {
+    return JSON.parse(bodyText);
+  } catch (err) {
+    return {};
+  }
+}
 
 SlackClient.prototype.postMessage = function (channelOrUserId, blocks) {
   if (!Array.isArray(blocks)) {

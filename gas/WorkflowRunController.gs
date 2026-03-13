@@ -34,10 +34,28 @@ function runWorkflowController_(controllerOptions) {
     errors: []
   });
 
-  return {
+  return buildWorkflowControllerResponse_('completed', {
     result: result,
     executionPayload: executionPayload
+  });
+}
+
+function buildWorkflowControllerResponse_(status, data, error) {
+  var response = {
+    ok: !error,
+    status: String(status || ''),
+    data: data || {},
+    error: error || null
   };
+
+  if (response.data && response.data.result) {
+    response.result = response.data.result;
+  }
+  if (response.data && response.data.executionPayload) {
+    response.executionPayload = response.data.executionPayload;
+  }
+
+  return response;
 }
 
 function applyWorkflowHandoffChecks_(options) {

@@ -516,7 +516,12 @@ function runOnboardingBusinessHours_(onboardingRunner, nowProvider) {
   var isBusinessDay = day >= 1 && day <= 5;
   var isBusinessHour = hour >= 8 && hour < 18;
   if (!isBusinessDay || !isBusinessHour) {
-    return { skipped: true, reason: 'outside_business_hours' };
+    return {
+      ok: true,
+      status: 'skipped',
+      data: { skipped: true, reason: 'outside_business_hours' },
+      error: null
+    };
   }
   return onboardingRunner();
 }
