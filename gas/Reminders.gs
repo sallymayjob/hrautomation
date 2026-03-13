@@ -1,7 +1,14 @@
-/* global SheetClient, SlackClient, AuditLogger, BlockKit, COL, Config, computeHash, generateId, getDaysUntilDue, Utils, TrainingRepository, OnboardingRepository, AuditRepository */
+/* global SheetClient, SlackClient, AuditLogger, BlockKit, COL, Config, computeHash, generateId, getDaysUntilDue, Utils, TrainingRepository, OnboardingRepository, AuditRepository, LessonRepository */
 /**
  * @fileoverview Daily reminder, escalation, and celebration reminder flows.
  */
+
+var ReminderBindings_ = null;
+if (typeof module !== "undefined") {
+  ReminderBindings_ = {
+    LessonRepository: require('./LessonRepository.gs').LessonRepository
+  };
+}
 
 var REMINDER_THRESHOLDS = {
   REMINDER_DAYS: [3, 0],
@@ -13,8 +20,10 @@ function runDailyReminders() {
   var trainingRepository = new TrainingRepository(sheetClient);
   var onboardingRepository = new OnboardingRepository(sheetClient);
   var auditRepository = new AuditRepository(sheetClient);
+  var LessonRepoCtor = (typeof LessonRepository !== "undefined" && LessonRepository) ? LessonRepository : (ReminderBindings_ && ReminderBindings_.LessonRepository);
+  var lessonRepository = new LessonRepoCtor(sheetClient);
   processTrainingReminders_(sheetClient, trainingRepository, onboardingRepository, auditRepository);
-  processChecklistReminders_(sheetClient, auditRepository);
+  processChecklistReminders_(sheetClient, lessonRepository, onboardingRepository, auditRepository);
 }
 
 function processTrainingReminders_(sheetClient, trainingRepository, onboardingRepository, auditRepository) {
@@ -41,8 +50,8 @@ function processTrainingReminders_(sheetClient, trainingRepository, onboardingRe
   }
 }
 
-function processChecklistReminders_(sheetClient, auditRepository) {
-  var checklistRows = sheetClient.getChecklistRows();
+function processChecklistReminders_(sheetClient, lessonRepository, onboardingRepository, auditRepository) {
+  var checklistRows = lessonRepository.getRows();
   for (var i = 0; i < checklistRows.length; i += 1) {
     var row = checklistRows[i];
     var status = String(row[COL.CHECKLIST.STATUS - 1] || '').toUpperCase();
@@ -56,11 +65,11 @@ function processChecklistReminders_(sheetClient, auditRepository) {
     }
 
     if (REMINDER_THRESHOLDS.REMINDER_DAYS.indexOf(daysUntil) > -1 || daysUntil < 0) {
-      sendChecklistReminderDM_(sheetClient, auditRepository, row, daysUntil);
+      sendChecklistReminderDM_(sheetClient, lessonRepository, auditRepository, row, daysUntil);
     }
 
     if (daysUntil <= -REMINDER_THRESHOLDS.ESCALATE_AFTER_OVERDUE_DAYS) {
-      escalateChecklistTask_(sheetClient, auditRepository, row, daysUntil);
+      escalateChecklistTask_(sheetClient, onboardingRepository, auditRepository, row, daysUntil);
     }
   }
 }
@@ -147,7 +156,7 @@ function parseReminderCountFromUpdatedBy_(value) {
   return match ? Number(match[1]) : 0;
 }
 
-function sendChecklistReminderDM_(sheetClient, auditRepository, row, daysUntil) {
+function sendChecklistReminderDM_(sheetClient, lessonRepository, auditRepository, row, daysUntil) {
   var auditLogger = new AuditLogger(sheetClient);
   var slackClient = new SlackClient(auditLogger);
   var onboardingId = row[COL.CHECKLIST.ONBOARDING_ID - 1];
@@ -172,14 +181,12 @@ function sendChecklistReminderDM_(sheetClient, auditRepository, row, daysUntil) 
   }));
 
   var nextCount = parseReminderCountFromUpdatedBy_(row[COL.CHECKLIST.UPDATED_BY - 1]) + 1;
-  if (sheetClient.updateChecklistReminderMetadata) {
-    sheetClient.updateChecklistReminderMetadata(taskId, onboardingId, nextCount, new Date());
-  }
+  lessonRepository.updateReminderMetadata(taskId, onboardingId, nextCount, new Date());
 
   auditRepository.logOnce(reminderHash, auditRepository.newAuditRow('ChecklistTask', String(onboardingId) + ':' + String(taskId), 'UPDATE', 'Checklist reminder sent to ' + destination.channelId + ' (' + daysUntil + ' days)', reminderHash));
 }
 
-function escalateChecklistTask_(sheetClient, auditRepository, row, daysUntil) {
+function escalateChecklistTask_(sheetClient, onboardingRepository, auditRepository, row, daysUntil) {
   var auditLogger = new AuditLogger(sheetClient);
   var slackClient = new SlackClient(auditLogger);
   var onboardingId = row[COL.CHECKLIST.ONBOARDING_ID - 1];
@@ -201,7 +208,7 @@ function escalateChecklistTask_(sheetClient, auditRepository, row, daysUntil) {
   // Checklist model no longer stores criticality; escalate overdue checklist tasks to HR ops consistently.
   slackClient.postMessage('#hr-ops-alerts', blocks);
 
-  var onboarding = sheetClient.findOnboardingByEmployeeId(onboardingId);
+  var onboarding = onboardingRepository.findByEmployeeId(onboardingId);
   var managerEmail = onboarding && onboarding.values ? onboarding.values[COL.ONBOARDING.MANAGER_EMAIL - 1] : '';
   if (managerEmail) {
     var managerLookup = slackClient.lookupUserByEmail(managerEmail);

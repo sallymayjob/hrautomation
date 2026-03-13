@@ -176,6 +176,21 @@ var SHEET_SCHEMA_SPECS = {
   }
 };
 
+
+var SheetClientRepoBindings_ = null;
+if (typeof module !== 'undefined') {
+  SheetClientRepoBindings_ = {
+    OnboardingRepository: require('./OnboardingRepository.gs').OnboardingRepository,
+    TrainingRepository: require('./TrainingRepository.gs').TrainingRepository,
+    LessonRepository: require('./LessonRepository.gs').LessonRepository,
+    AuditRepository: require('./AuditRepository.gs').AuditRepository
+  };
+}
+
+function getSheetClientRepoCtor_(name, fallback) {
+  if (typeof fallback !== 'undefined' && fallback) return fallback;
+  return SheetClientRepoBindings_ ? SheetClientRepoBindings_[name] : null;
+}
 var DASHBOARD_SCHEMAS = {
   onboarding: {
     spreadsheetIdGetter: function () {
@@ -698,352 +713,38 @@ SheetClient.prototype.checkDuplicate = function (sheetName, columnKeyOrIndex, va
   return -1;
 };
 
-SheetClient.prototype.getOnboardingRows = function () {
-  var sheet = this.getOnboardingSheet_();
-  return this.getDataRows_(sheet);
-};
-
-SheetClient.prototype.findOnboardingByEmployeeId = function (employeeId) {
-  var sheet = this.getOnboardingSheet_();
-  var idColumn = this.getColumnIndexByHeaderKey_(sheet, 'onboarding_id', true);
-  var rowIndex = this.findRowIndexByValue_(sheet, idColumn, employeeId);
-  if (rowIndex < 0) {
-    return null;
-  }
-  return { rowIndex: rowIndex, values: sheet.getRange(rowIndex, 1, 1, sheet.getLastColumn()).getValues()[0] };
-};
-
-SheetClient.prototype.appendOnboardingRow = function (rowValues) {
-  var self = this;
-  return this.safeWrite_(Config.getOnboardingSheetName(), function () {
-    var sheet = self.getOnboardingSheet_();
-    var idColumn = self.getColumnIndexByHeaderKey_(sheet, 'onboarding_id', true);
-    var existing = self.findRowIndexByValue_(sheet, idColumn, rowValues[idColumn - 1]);
-    if (existing > -1) {
-      self.writeRow_(sheet, existing, rowValues);
-      return existing;
-    }
-    return self.appendRow_(sheet, rowValues);
-  }, { operation: 'appendOnboardingRow' });
-};
-
-SheetClient.prototype.upsertOnboardingRow = function (employeeId, rowValues) {
-  var self = this;
-  return this.safeWrite_(Config.getOnboardingSheetName(), function () {
-    var sheet = self.getOnboardingSheet_();
-    var idColumn = self.getColumnIndexByHeaderKey_(sheet, 'onboarding_id', true);
-    var rowIndex = self.findRowIndexByValue_(sheet, idColumn, employeeId);
-    if (rowIndex < 0) {
-      return self.appendRow_(sheet, rowValues);
-    }
-    self.writeRow_(sheet, rowIndex, rowValues);
-    return rowIndex;
-  }, { operation: 'upsertOnboardingRow', employeeId: employeeId });
-};
-
-SheetClient.prototype.updateOnboardingStatus = function (employeeId, status) {
-  var self = this;
-  return this.safeWrite_(Config.getOnboardingSheetName(), function () {
-    var sheet = self.getOnboardingSheet_();
-    var idColumn = self.getColumnIndexByHeaderKey_(sheet, 'onboarding_id', true);
-    var statusColumn = self.getColumnIndexByHeaderKey_(sheet, 'status', true);
-    var blockedReasonColumn = self.getColumnIndexByHeaderKey_(sheet, 'blocked_reason', false);
-    var rowIndex = self.findRowIndexByValue_(sheet, idColumn, employeeId);
-    if (rowIndex < 0) {
-      return false;
-    }
-
-    var nextStatus = String(status || '').trim().toUpperCase();
-    if (nextStatus === 'COMPLETE') {
-      var gateResult = self.evaluateOnboardingCompletionGate(employeeId);
-      if (!gateResult.canComplete) {
-        sheet.getRange(rowIndex, statusColumn).setValue('BLOCKED');
-        if (blockedReasonColumn > 0) {
-          sheet.getRange(rowIndex, blockedReasonColumn).setValue(gateResult.blockedReason);
-        }
-        return false;
-      }
-    }
-
-    sheet.getRange(rowIndex, statusColumn).setValue(status);
-    if (blockedReasonColumn > 0 && nextStatus !== 'BLOCKED') {
-      sheet.getRange(rowIndex, blockedReasonColumn).setValue('');
-    }
-    return true;
-  }, { operation: 'updateOnboardingStatus', employeeId: employeeId });
-};
-
-SheetClient.prototype.evaluateOnboardingCompletionGate = function (employeeId) {
-  var checklist = this.getChecklistSheet_();
-  var rows = this.getDataRows_(checklist);
-  var blockedByPhase = {};
-
-  for (var i = 0; i < rows.length; i += 1) {
-    var row = rows[i];
-    if (String(row[COL.CHECKLIST.ONBOARDING_ID - 1]) !== String(employeeId)) {
-      continue;
-    }
-
-    var status = String(row[COL.CHECKLIST.STATUS - 1] || '').trim().toUpperCase();
-    if (status === 'COMPLETE' || status === 'DONE') {
-      continue;
-    }
-
-    var phase = String(row[COL.CHECKLIST.PHASE - 1] || 'Unassigned').trim() || 'Unassigned';
-    if (!blockedByPhase[phase]) {
-      blockedByPhase[phase] = [];
-    }
-    blockedByPhase[phase].push(String(row[COL.CHECKLIST.TASK_NAME - 1] || 'Unnamed task'));
-  }
-
-  var phases = Object.keys(blockedByPhase);
-  if (phases.length === 0) {
-    return { canComplete: true, blockedReason: '' };
-  }
-
-  var message = phases.map(function (phase) {
-    return phase + ': ' + blockedByPhase[phase].join(', ');
-  }).join(' | ');
-
-  return {
-    canComplete: false,
-    blockedReason: 'Cannot mark onboarding COMPLETE. Missing required tasks by phase -> ' + message
-  };
-};
-
-SheetClient.prototype.getTrainingRows = function () {
-  var sheet = this.getTrainingSheet_();
-  return this.getDataRows_(sheet);
-};
-
-SheetClient.prototype.findTrainingByEmployeeAndModule = function (employeeId, moduleCode) {
-  var sheet = this.getTrainingSheet_();
-  var rowIndex = this.findRowIndexByValues_(
-    sheet,
-    COL.TRAINING.EMPLOYEE_ID,
-    employeeId,
-    COL.TRAINING.MODULE_CODE,
-    moduleCode
-  );
-  if (rowIndex < 0) {
-    return null;
-  }
-  return { rowIndex: rowIndex, values: sheet.getRange(rowIndex, 1, 1, sheet.getLastColumn()).getValues()[0] };
-};
-
-SheetClient.prototype.appendTrainingRow = function (rowValues) {
-  var self = this;
-  return this.safeWrite_(Config.getTrainingSheetName(), function () {
-    var sheet = self.getTrainingSheet_();
-    var existing = self.findRowIndexByValues_(
-      sheet,
-      COL.TRAINING.EMPLOYEE_ID,
-      rowValues[COL.TRAINING.EMPLOYEE_ID - 1],
-      COL.TRAINING.MODULE_CODE,
-      rowValues[COL.TRAINING.MODULE_CODE - 1]
-    );
-    if (existing > -1) {
-      self.writeRow_(sheet, existing, rowValues);
-      return existing;
-    }
-    return self.appendRow_(sheet, rowValues);
-  }, { operation: 'appendTrainingRow' });
-};
-
-SheetClient.prototype.upsertTrainingRow = function (employeeId, moduleCode, rowValues) {
-  var self = this;
-  return this.safeWrite_(Config.getTrainingSheetName(), function () {
-    var sheet = self.getTrainingSheet_();
-    var rowIndex = self.findRowIndexByValues_(sheet, COL.TRAINING.EMPLOYEE_ID, employeeId, COL.TRAINING.MODULE_CODE, moduleCode);
-    if (rowIndex < 0) {
-      return self.appendRow_(sheet, rowValues);
-    }
-    self.writeRow_(sheet, rowIndex, rowValues);
-    return rowIndex;
-  }, { operation: 'upsertTrainingRow', employeeId: employeeId, moduleCode: moduleCode });
-};
-
-SheetClient.prototype.updateTrainingStatus = function (employeeId, moduleCode, status) {
-  var self = this;
-  return this.safeWrite_(Config.getTrainingSheetName(), function () {
-    var sheet = self.getTrainingSheet_();
-    var rowIndex = self.findRowIndexByValues_(sheet, COL.TRAINING.EMPLOYEE_ID, employeeId, COL.TRAINING.MODULE_CODE, moduleCode);
-    if (rowIndex < 0) {
-      return false;
-    }
-    sheet.getRange(rowIndex, COL.TRAINING.TRAINING_STATUS).setValue(status);
-    return true;
-  }, { operation: 'updateTrainingStatus', employeeId: employeeId, moduleCode: moduleCode });
-};
-
-
-SheetClient.prototype.updateTrainingReminderMetadata = function (employeeId, moduleCode, reminderCount, lastReminderAt) {
-  var sheet = this.getTrainingSheet_();
-  var rowIndex = this.findRowIndexByValues_(sheet, COL.TRAINING.EMPLOYEE_ID, employeeId, COL.TRAINING.MODULE_CODE, moduleCode);
-  if (rowIndex < 0) {
-    return false;
-  }
-  sheet.getRange(rowIndex, COL.TRAINING.REMINDER_COUNT).setValue(Number(reminderCount || 0));
-  sheet.getRange(rowIndex, COL.TRAINING.LAST_REMINDER_AT).setValue(lastReminderAt || new Date());
-  return true;
-};
-
-SheetClient.prototype.markCelebrationPosted = function (employeeId, moduleCode, posted) {
-  var sheet = this.getTrainingSheet_();
-  var rowIndex = this.findRowIndexByValues_(sheet, COL.TRAINING.EMPLOYEE_ID, employeeId, COL.TRAINING.MODULE_CODE, moduleCode);
-  if (rowIndex < 0) {
-    return false;
-  }
-  sheet.getRange(rowIndex, COL.TRAINING.CELEBRATION_POSTED).setValue(Boolean(posted));
-  return true;
-};
-
-SheetClient.prototype.updateTrainingRecognitionMetadata = function (employeeId, moduleCode, celebrationPosted, lastUpdatedAt) {
-  var sheet = this.getTrainingSheet_();
-  var rowIndex = this.findRowIndexByValues_(sheet, COL.TRAINING.EMPLOYEE_ID, employeeId, COL.TRAINING.MODULE_CODE, moduleCode);
-  if (rowIndex < 0) {
-    return false;
-  }
-  sheet.getRange(rowIndex, COL.TRAINING.CELEBRATION_POSTED).setValue(Boolean(celebrationPosted));
-  if (COL.TRAINING.LAST_UPDATED_AT) {
-    sheet.getRange(rowIndex, COL.TRAINING.LAST_UPDATED_AT).setValue(lastUpdatedAt || new Date());
-  }
-  return true;
-};
-
-SheetClient.prototype.getChecklistRows = function () {
-  var sheet = this.getChecklistSheet_();
-  return this.getDataRows_(sheet);
-};
-
-SheetClient.prototype.findChecklistTask = function (taskId, onboardingId) {
-  var sheet = this.getChecklistSheet_();
-  var rowIndex = this.findRowIndexByValues_(sheet, COL.CHECKLIST.TASK_ID, taskId, COL.CHECKLIST.ONBOARDING_ID, onboardingId);
-  if (rowIndex < 0) {
-    return null;
-  }
-  return { rowIndex: rowIndex, values: sheet.getRange(rowIndex, 1, 1, sheet.getLastColumn()).getValues()[0] };
-};
-
-SheetClient.prototype.appendChecklistTask = function (rowValues) {
-  var sheet = this.getChecklistSheet_();
-  var existing = this.findRowIndexByValues_(
-    sheet,
-    COL.CHECKLIST.TASK_ID,
-    rowValues[COL.CHECKLIST.TASK_ID - 1],
-    COL.CHECKLIST.ONBOARDING_ID,
-    rowValues[COL.CHECKLIST.ONBOARDING_ID - 1]
-  );
-  if (existing > -1) {
-    var existingValues = sheet.getRange(existing, 1, 1, sheet.getLastColumn()).getValues()[0];
-    rowValues[COL.CHECKLIST.STATUS - 1] = existingValues[COL.CHECKLIST.STATUS - 1];
-    rowValues[COL.CHECKLIST.UPDATED_AT - 1] = existingValues[COL.CHECKLIST.UPDATED_AT - 1];
-    rowValues[COL.CHECKLIST.UPDATED_BY - 1] = existingValues[COL.CHECKLIST.UPDATED_BY - 1];
-    rowValues[COL.CHECKLIST.NOTES - 1] = existingValues[COL.CHECKLIST.NOTES - 1];
-    this.writeRow_(sheet, existing, rowValues);
-    return existing;
-  }
-  return this.appendRow_(sheet, rowValues);
-};
-
-SheetClient.prototype.updateChecklistTask = function (taskId, onboardingId, updates) {
-  var sheet = this.getChecklistSheet_();
-  var rowIndex = this.findRowIndexByValues_(sheet, COL.CHECKLIST.TASK_ID, taskId, COL.CHECKLIST.ONBOARDING_ID, onboardingId);
-  if (rowIndex < 0) {
-    return false;
-  }
-
-  var headerMap = this.getHeaderMap_(sheet);
-  var updateKeys = Object.keys(updates || {});
-  for (var i = 0; i < updateKeys.length; i += 1) {
-    var key = this.normalizeKey_(updateKeys[i]);
-    var columnIndex = headerMap[key];
-    if (columnIndex) {
-      sheet.getRange(rowIndex, columnIndex).setValue(updates[updateKeys[i]]);
-    }
-  }
-
-  return true;
-};
-
-
-
-SheetClient.prototype.updateChecklistReminderMetadata = function (taskId, onboardingId, reminderCount, lastReminderAt) {
-  var sheet = this.getChecklistSheet_();
-  var rowIndex = this.findRowIndexByValues_(sheet, COL.CHECKLIST.TASK_ID, taskId, COL.CHECKLIST.ONBOARDING_ID, onboardingId);
-  if (rowIndex < 0) {
-    return false;
-  }
-
-  var timestamp = lastReminderAt || new Date();
-  sheet.getRange(rowIndex, COL.CHECKLIST.UPDATED_AT).setValue(timestamp);
-  sheet.getRange(rowIndex, COL.CHECKLIST.UPDATED_BY).setValue('system:reminder#' + Number(reminderCount || 0));
-  return true;
-};
-
 SheetClient.prototype.getSheetRowLink = function (sheetName, rowIndex) {
   var sheet = this.resolveSheetByName_(sheetName);
   var spreadsheetId = this.resolveSpreadsheetIdBySheetName_(sheetName);
   return 'https://docs.google.com/spreadsheets/d/' + spreadsheetId + '/edit#gid=' + sheet.getSheetId() + '&range=A' + rowIndex;
 };
 
-SheetClient.prototype.getAuditRows = function () {
-  var sheet = this.getAuditSheet_();
-  return this.getDataRows_(sheet);
-};
+// Repository-backed compatibility shims for legacy call sites.
+SheetClient.prototype.getOnboardingRows = function () { return new (getSheetClientRepoCtor_('OnboardingRepository', typeof OnboardingRepository !== 'undefined' ? OnboardingRepository : null))(this).getRows(); };
+SheetClient.prototype.findOnboardingByEmployeeId = function (employeeId) { return new (getSheetClientRepoCtor_('OnboardingRepository', typeof OnboardingRepository !== 'undefined' ? OnboardingRepository : null))(this).findByEmployeeId(employeeId); };
+SheetClient.prototype.appendOnboardingRow = function (rowValues) { return new (getSheetClientRepoCtor_('OnboardingRepository', typeof OnboardingRepository !== 'undefined' ? OnboardingRepository : null))(this).appendRow(rowValues); };
+SheetClient.prototype.upsertOnboardingRow = function (employeeId, rowValues) { return new (getSheetClientRepoCtor_('OnboardingRepository', typeof OnboardingRepository !== 'undefined' ? OnboardingRepository : null))(this).upsertRow(employeeId, rowValues); };
+SheetClient.prototype.updateOnboardingStatus = function (employeeId, status) { return new (getSheetClientRepoCtor_('OnboardingRepository', typeof OnboardingRepository !== 'undefined' ? OnboardingRepository : null))(this).updateStatus(employeeId, status); };
+SheetClient.prototype.evaluateOnboardingCompletionGate = function (employeeId) { return new (getSheetClientRepoCtor_('OnboardingRepository', typeof OnboardingRepository !== 'undefined' ? OnboardingRepository : null))(this).evaluateCompletionGate(employeeId); };
 
-SheetClient.prototype.appendAuditRow = function (rowValues) {
-  var self = this;
-  return this.safeWrite_(Config.getAuditSheetName(), function () {
-    var sheet = self.getAuditSheet_();
-    var auditId = rowValues[COL.AUDIT.AUDIT_ID - 1];
-    if (auditId) {
-      var existing = self.findRowIndexByValue_(sheet, COL.AUDIT.AUDIT_ID, auditId);
-      if (existing > -1) {
-        self.writeRow_(sheet, existing, rowValues);
-        return existing;
-      }
-    }
-    return self.appendRow_(sheet, rowValues);
-  }, { operation: 'appendAuditRow' });
-};
+SheetClient.prototype.getTrainingRows = function () { return new (getSheetClientRepoCtor_('TrainingRepository', typeof TrainingRepository !== 'undefined' ? TrainingRepository : null))(this).getRows(); };
+SheetClient.prototype.findTrainingByEmployeeAndModule = function (employeeId, moduleCode) { return new (getSheetClientRepoCtor_('TrainingRepository', typeof TrainingRepository !== 'undefined' ? TrainingRepository : null))(this).findByEmployeeAndModule(employeeId, moduleCode); };
+SheetClient.prototype.appendTrainingRow = function (rowValues) { return new (getSheetClientRepoCtor_('TrainingRepository', typeof TrainingRepository !== 'undefined' ? TrainingRepository : null))(this).appendAssignment(rowValues); };
+SheetClient.prototype.upsertTrainingRow = function (employeeId, moduleCode, rowValues) { return new (getSheetClientRepoCtor_('TrainingRepository', typeof TrainingRepository !== 'undefined' ? TrainingRepository : null))(this).upsertRow(employeeId, moduleCode, rowValues); };
+SheetClient.prototype.updateTrainingStatus = function (employeeId, moduleCode, status) { return new (getSheetClientRepoCtor_('TrainingRepository', typeof TrainingRepository !== 'undefined' ? TrainingRepository : null))(this).updateStatus(employeeId, moduleCode, status); };
+SheetClient.prototype.updateTrainingReminderMetadata = function (employeeId, moduleCode, reminderCount, lastReminderAt) { return new (getSheetClientRepoCtor_('TrainingRepository', typeof TrainingRepository !== 'undefined' ? TrainingRepository : null))(this).updateReminderMetadata(employeeId, moduleCode, reminderCount, lastReminderAt); };
+SheetClient.prototype.markCelebrationPosted = function (employeeId, moduleCode, posted) { return new (getSheetClientRepoCtor_('TrainingRepository', typeof TrainingRepository !== 'undefined' ? TrainingRepository : null))(this).updateRecognitionMetadata(employeeId, moduleCode, posted, new Date()); };
+SheetClient.prototype.updateTrainingRecognitionMetadata = function (employeeId, moduleCode, celebrationPosted, lastUpdatedAt) { return new (getSheetClientRepoCtor_('TrainingRepository', typeof TrainingRepository !== 'undefined' ? TrainingRepository : null))(this).updateRecognitionMetadata(employeeId, moduleCode, celebrationPosted, lastUpdatedAt); };
 
-SheetClient.prototype.appendAuditIfNotExists = function (eventHash, rowValues) {
-  var sheet = this.getAuditSheet_();
-  var rowIndex = this.findRowIndexByValue_(sheet, COL.AUDIT.EVENT_HASH, eventHash);
-  if (rowIndex > -1) {
-    return rowIndex;
-  }
-  return this.appendRow_(sheet, rowValues);
-};
+SheetClient.prototype.getChecklistRows = function () { return new (getSheetClientRepoCtor_('LessonRepository', typeof LessonRepository !== 'undefined' ? LessonRepository : null))(this).getRows(); };
+SheetClient.prototype.findChecklistTask = function (taskId, onboardingId) { return new (getSheetClientRepoCtor_('LessonRepository', typeof LessonRepository !== 'undefined' ? LessonRepository : null))(this).findTask(taskId, onboardingId); };
+SheetClient.prototype.appendChecklistTask = function (rowValues) { return new (getSheetClientRepoCtor_('LessonRepository', typeof LessonRepository !== 'undefined' ? LessonRepository : null))(this).appendTask(rowValues); };
+SheetClient.prototype.updateChecklistTask = function (taskId, onboardingId, updates) { return new (getSheetClientRepoCtor_('LessonRepository', typeof LessonRepository !== 'undefined' ? LessonRepository : null))(this).updateTask(taskId, onboardingId, updates); };
+SheetClient.prototype.updateChecklistReminderMetadata = function (taskId, onboardingId, reminderCount, lastReminderAt) { return new (getSheetClientRepoCtor_('LessonRepository', typeof LessonRepository !== 'undefined' ? LessonRepository : null))(this).updateReminderMetadata(taskId, onboardingId, reminderCount, lastReminderAt); };
 
-SheetClient.prototype.appendWorkflowLifecycleEvent = function (event) {
-  var eventHash = computeHash([
-    event.workflow_run_key,
-    event.event_type,
-    event.onboarding_id
-  ]);
-  var immutableDetails = JSON.stringify({
-    event_id: event.event_id,
-    workflow_name: event.workflow_name,
-    workflow_run_key: event.workflow_run_key,
-    event_type: event.event_type,
-    event_ts: event.event_ts,
-    actor: event.actor,
-    source_trigger: event.source_trigger,
-    onboarding_id: event.onboarding_id
-  });
-
-  return this.appendAuditIfNotExists(eventHash, [
-    event.event_id,
-    event.event_ts,
-    event.actor,
-    'WorkflowLifecycle',
-    event.onboarding_id || event.workflow_run_key,
-    event.event_type,
-    immutableDetails,
-    eventHash
-  ]);
-};
+SheetClient.prototype.getAuditRows = function () { return new (getSheetClientRepoCtor_('AuditRepository', typeof AuditRepository !== 'undefined' ? AuditRepository : null))(this).getRows(); };
+SheetClient.prototype.appendAuditRow = function (rowValues) { return new (getSheetClientRepoCtor_('AuditRepository', typeof AuditRepository !== 'undefined' ? AuditRepository : null))(this).appendRow(rowValues); };
+SheetClient.prototype.appendAuditIfNotExists = function (eventHash, rowValues) { return new (getSheetClientRepoCtor_('AuditRepository', typeof AuditRepository !== 'undefined' ? AuditRepository : null))(this).logOnce(eventHash, rowValues); };
+SheetClient.prototype.appendWorkflowLifecycleEvent = function (event) { return new (getSheetClientRepoCtor_('AuditRepository', typeof AuditRepository !== 'undefined' ? AuditRepository : null))(this).appendWorkflowLifecycleEvent(event); };
 
 if (typeof module !== 'undefined') module.exports = { SheetClient: SheetClient, COL: COL };

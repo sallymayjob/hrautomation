@@ -1,11 +1,15 @@
-/* global SheetClient, SlackClient, BlockKit, COL, AuditService, LessonController, ReminderController */
+/* global SheetClient, SlackClient, BlockKit, COL, AuditService, LessonController, ReminderController, TrainingRepository, OnboardingRepository */
 /**
  * @fileoverview Recognition workflow for completed training.
  */
 
 var RecognitionBindings_ = null;
 if (typeof module !== 'undefined') {
-  RecognitionBindings_ = require('./AuditService.gs');
+  RecognitionBindings_ = {
+    AuditService: require('./AuditService.gs').AuditService,
+    TrainingRepository: require('./TrainingRepository.gs').TrainingRepository,
+    OnboardingRepository: require('./OnboardingRepository.gs').OnboardingRepository
+  };
 }
 
 function getAuditServiceCtor_() {
@@ -16,7 +20,10 @@ function getAuditServiceCtor_() {
 }
 
 function TrainingRecognitionRepository(sheetClient) {
-  this.sheetClient = sheetClient;
+  var TrainingRepoCtor = (typeof TrainingRepository !== "undefined" && TrainingRepository) ? TrainingRepository : RecognitionBindings_.TrainingRepository;
+  this.trainingRepository = new TrainingRepoCtor(sheetClient);
+  var OnboardingRepoCtor = (typeof OnboardingRepository !== "undefined" && OnboardingRepository) ? OnboardingRepository : RecognitionBindings_.OnboardingRepository;
+  this.onboardingRepository = new OnboardingRepoCtor(sheetClient);
 }
 
 TrainingRecognitionRepository.prototype.findTrainingById = function (trainingId) {
@@ -24,7 +31,7 @@ TrainingRecognitionRepository.prototype.findTrainingById = function (trainingId)
   if (parts.length !== 2) {
     return null;
   }
-  var found = this.sheetClient.findTrainingByEmployeeAndModule(parts[0], parts[1]);
+  var found = this.trainingRepository.findByEmployeeAndModule(parts[0], parts[1]);
   if (!found) {
     return null;
   }
@@ -36,11 +43,11 @@ TrainingRecognitionRepository.prototype.findTrainingById = function (trainingId)
 };
 
 TrainingRecognitionRepository.prototype.findOnboardingByEmployeeId = function (employeeId) {
-  return this.sheetClient.findOnboardingByEmployeeId(employeeId);
+  return this.onboardingRepository.findByEmployeeId(employeeId);
 };
 
 TrainingRecognitionRepository.prototype.markRecognitionPosted = function (employeeId, moduleCode) {
-  return this.sheetClient.updateTrainingRecognitionMetadata(employeeId, moduleCode, true, new Date());
+  return this.trainingRepository.updateRecognitionMetadata(employeeId, moduleCode, true, new Date());
 };
 
 function handleTrainingComplete(trainingId) {
