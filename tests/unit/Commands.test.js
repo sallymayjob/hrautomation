@@ -14,6 +14,7 @@ describe('Commands', () => {
     jest.resetModules();
     mockGasGlobals();
     global.Config = {
+      getSlackVerificationToken: jest.fn(() => 'verif-token-123'),
       getItTeamChannelId: jest.fn(() => 'CITTEAM'),
       getFinanceTeamChannelId: jest.fn(() => 'CFINTEAM'),
       getHrTeamChannelId: jest.fn(() => 'CHRTEAM'),
@@ -121,7 +122,7 @@ describe('Commands', () => {
 
     doPost({
       parameter: {
-        payload: JSON.stringify({ type: 'block_actions', user: { id: 'U123' } })
+        payload: JSON.stringify({ type: 'block_actions', token: 'verif-token-123', user: { id: 'U123' } })
       }
     });
 
@@ -130,6 +131,27 @@ describe('Commands', () => {
     expect(payload.response_type).toBe('ephemeral');
     expect(payload.text).toContain('read-only');
     expect(payload.text).toContain('Google Sheets');
+  });
+
+  test('doPost rejects missing verification token', () => {
+    const { doPost } = require('../../gas/Commands.gs');
+    doPost({ parameter: { command: '/onboarding-status', text: 'Jamie' } });
+    const payload = JSON.parse(global.ContentService.createTextOutput.mock.calls[0][0]);
+    expect(payload.text).toContain('MISSING_TOKEN');
+  });
+
+  test('doPost rejects wrong verification token', () => {
+    const { doPost } = require('../../gas/Commands.gs');
+    doPost({ parameter: { token: 'bad-token', command: '/onboarding-status', text: 'Jamie' } });
+    const payload = JSON.parse(global.ContentService.createTextOutput.mock.calls[0][0]);
+    expect(payload.text).toContain('INVALID_TOKEN');
+  });
+
+  test('doPost rejects malformed interactive payload JSON', () => {
+    const { doPost } = require('../../gas/Commands.gs');
+    doPost({ parameter: { payload: '{bad-json' } });
+    const payload = JSON.parse(global.ContentService.createTextOutput.mock.calls[0][0]);
+    expect(payload.text).toContain('MALFORMED_PAYLOAD');
   });
 
   test('parseStatusCommandInput_ supports optional share flag', () => {

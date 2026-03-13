@@ -1,4 +1,4 @@
-/* global AuditRepository, generateId, computeHash */
+/* global AuditRepository, generateId, computeHash, sanitizeTextForLog, sanitizeErrorForLog */
 /**
  * @fileoverview Service wrapper for structured audit event composition.
  */
@@ -33,12 +33,14 @@ AuditService.prototype.logEvent = function (payload) {
     entityType: String(payload.entityType || 'System'),
     entityId: String(payload.entityId || ''),
     action: String(payload.action || 'UPDATE'),
-    details: String(payload.details || '')
+    details: typeof sanitizeTextForLog === 'function' ? sanitizeTextForLog(payload.details || '') : String(payload.details || '')
   });
 };
 
 AuditService.prototype.logError = function (payload, error) {
-  var errorText = error && error.message ? error.message : String(error);
+  var errorText = typeof sanitizeErrorForLog === 'function'
+    ? sanitizeErrorForLog(error)
+    : (error && error.message ? error.message : String(error));
   this.logEvent({
     auditId: payload && payload.auditId,
     timestamp: payload && payload.timestamp,

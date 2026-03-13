@@ -1,4 +1,4 @@
-/* global SheetClient, SlackClient, BlockKit, COL, Config, computeHash, generateId, getDaysUntilDue, Utils, TrainingRepository, OnboardingRepository, AuditRepository, LessonRepository */
+/* global SheetClient, SlackClient, BlockKit, COL, Config, computeHash, generateId, getDaysUntilDue, Utils, TrainingRepository, OnboardingRepository, AuditRepository, LessonRepository, sanitizeTextForLog */
 /**
  * @fileoverview Daily reminder, escalation, and celebration reminder flows.
  */
@@ -205,7 +205,8 @@ function escalateChecklistTask_(sheetClient, onboardingRepository, auditReposito
   ];
 
   // Checklist model no longer stores criticality; escalate overdue checklist tasks to HR ops consistently.
-  slackClient.postMessage('#hr-ops-alerts', blocks);
+  var escalationChannel = Config.getHrOpsAlertsChannelId();
+  slackClient.postMessage(escalationChannel, blocks);
 
   var onboarding = onboardingRepository.findByEmployeeId(onboardingId);
   var managerEmail = onboarding && onboarding.values ? onboarding.values[COL.ONBOARDING.MANAGER_EMAIL - 1] : '';
@@ -217,7 +218,7 @@ function escalateChecklistTask_(sheetClient, onboardingRepository, auditReposito
     }
   }
 
-  auditRepository.logOnce(escalationHash, auditRepository.newAuditRow('ChecklistTask', String(onboardingId) + ':' + String(taskId), 'UPDATE', 'Checklist escalation sent (criticality=' + criticality + ')', escalationHash));
+  auditRepository.logOnce(escalationHash, auditRepository.newAuditRow('ChecklistTask', String(onboardingId) + ':' + String(taskId), 'UPDATE', (typeof sanitizeTextForLog === 'function' ? sanitizeTextForLog('Checklist escalation sent (criticality=' + criticality + ')') : 'Checklist escalation sent (criticality=' + criticality + ')'), escalationHash));
 }
 
 function resolveChecklistOwnerDestination_(ownerTeam, ownerSlackId) {

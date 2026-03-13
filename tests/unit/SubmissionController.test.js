@@ -66,4 +66,31 @@ describe('SubmissionController commit gates', () => {
       }
     })).toThrow('Duplicate gate failed');
   });
+
+  test('proposal persistence survives controller reload via repository', () => {
+    const persisted = {};
+    const mockRepository = {
+      saveProposal: jest.fn((proposal) => { persisted[proposal.id] = JSON.parse(JSON.stringify(proposal)); }),
+      getProposalById: jest.fn((id) => persisted[id] || null)
+    };
+
+    let controller = require('../../gas/SubmissionController.gs');
+    controller.setSubmissionRepositoryForTests_(mockRepository);
+    const created = controller.createProposal({
+      id: 'PROP-PERSIST-1',
+      entity_type: 'lesson',
+      entity_key: 'lesson:persist',
+      action: 'lesson_edit',
+      approval_status: 'PENDING'
+    });
+    expect(created.id).toBe('PROP-PERSIST-1');
+
+    jest.resetModules();
+    controller = require('../../gas/SubmissionController.gs');
+    controller.setSubmissionRepositoryForTests_(mockRepository);
+
+    const loaded = controller.getProposal('PROP-PERSIST-1');
+    expect(loaded).toBeTruthy();
+    expect(loaded.entity_key).toBe('lesson:persist');
+  });
 });

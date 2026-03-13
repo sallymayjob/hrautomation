@@ -38,6 +38,11 @@ function routeIngressEvent_(ingressEvent) {
   validateOnboardingSchema_(sheet, headerMap);
 
   var auditRepository = new AuditRepository(sheetClient);
+  var dependencies = {
+    onboardingRepository: onboardingRepository,
+    auditRepository: auditRepository,
+    duplicateIndex: buildDuplicateIndex_(sheet, headerMap)
+  };
   emitIngressLifecycle_(auditRepository, ingressEvent.workflowContext, WORKFLOW_EVENT_TYPES.WORKFLOW_CALLED, '');
 
   var lastRow = sheet.getLastRow();
@@ -49,10 +54,38 @@ function routeIngressEvent_(ingressEvent) {
     var onboardingId = String(sheet.getRange(rowIndex, headerMap.onboarding_id).getValue() || '').trim();
     var rowWorkflowContext = cloneWorkflowContext_(ingressEvent.workflowContext);
     rowWorkflowContext.onboardingId = onboardingId;
-    processOnboardingRow_(sheet, rowIndex, rowWorkflowContext);
+    processOnboardingRow_(sheet, rowIndex, rowWorkflowContext, dependencies);
   }
 
   return buildControllerResponse_(ingressEvent.traceId, 'processed', { processed: true });
+}
+
+function buildDuplicateIndex_(sheet, headerMap) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) {
+    return {};
+  }
+
+  var rowValues = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues();
+  var index = {};
+  for (var i = 0; i < rowValues.length; i += 1) {
+    var rowIndex = i + 2;
+    var row = rowValues[i];
+    var emailValue = headerMap.email ? row[headerMap.email - 1] : '';
+    var startDateValue = headerMap.start_date ? row[headerMap.start_date - 1] : '';
+    var roleValue = headerMap.role ? row[headerMap.role - 1] : '';
+    var managerValue = headerMap.manager_email ? row[headerMap.manager_email - 1] : '';
+    var hash = computeHash([
+      String(emailValue || '').trim().toLowerCase(),
+      String(startDateValue || '').trim(),
+      String(roleValue || '').trim().toUpperCase(),
+      String(managerValue || '').trim().toLowerCase()
+    ]);
+    if (!index[hash]) {
+      index[hash] = rowIndex;
+    }
+  }
+  return index;
 }
 
 
@@ -166,6 +199,7 @@ if (typeof module !== 'undefined') {
     templateMatchesOnboarding_: controller.templateMatchesOnboarding_,
     resolveTaskOwnerDestination_: controller.resolveTaskOwnerDestination_,
     notifyOnboardingAssignment_: controller.notifyOnboardingAssignment_,
-    WORKFLOW_EVENT_TYPES: WORKFLOW_EVENT_TYPES
+    WORKFLOW_EVENT_TYPES: WORKFLOW_EVENT_TYPES,
+    buildDuplicateIndex_: buildDuplicateIndex_
   };
 }

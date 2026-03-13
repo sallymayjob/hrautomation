@@ -1,84 +1,83 @@
-/* global SheetClient, SlackClient, AuditService, BlockKit, COL */
+/* global SubmissionController, ApprovalController */
 /**
- * @fileoverview Approval workflow posting and response handling.
+ * @fileoverview Legacy approval helpers now constrained to governed proposal commit flow only.
  */
 
-function postApprovalRequest(trainingId, managerEmail, requestSummary) {
-  var sheetClient = new SheetClient();
-  var auditService = new AuditService(sheetClient);
-  var slackClient = new SlackClient();
-  var managerLookup = slackClient.lookupUserByEmail(managerEmail);
-  var managerSlackId = managerLookup && managerLookup.user ? managerLookup.user.id : '';
-  if (!managerSlackId) {
-    throw new Error('Could not resolve manager Slack user for email: ' + managerEmail);
+function postApprovalRequest(proposalId, approver, context) {
+  if (!proposalId) {
+    throw new Error('proposalId is required for governed approval request.');
   }
-
-  var response = slackClient.postMessage(managerSlackId, BlockKit.approvalCard({
-    requestId: String(trainingId),
-    requestSummary: requestSummary || 'Please review this training decision.'
-  }));
-
-  auditService.logEvent({
-    entityType: 'Training',
-    entityId: String(trainingId),
-    action: 'UPDATE',
-    details: 'Approval request posted to manager'
-  });
-
-  return response;
+  var proposal = getSubmissionControllerForApprovals_().getProposal(proposalId);
+  if (!proposal) {
+    throw new Error('Proposal not found: ' + proposalId);
+  }
+  var payload = context || {};
+  payload.proposal = proposal;
+  if (approver) {
+    payload.approver = approver;
+  }
+  if (proposal.requires_approval && getApprovalControllerForApprovals_().requestLiamApproval) {
+    return getApprovalControllerForApprovals_().requestLiamApproval(payload);
+  }
+  return getApprovalControllerForApprovals_().requestApproval(payload);
 }
 
-function handleApprovalResponse(trainingId, decision) {
-  var sheetClient = new SheetClient();
-  var auditService = new AuditService(sheetClient);
-  var resolved = resolveTrainingFromId_(sheetClient, trainingId);
-  if (!resolved) {
-    throw new Error('Training record not found for ID: ' + trainingId);
+function handleApprovalResponse(proposalId, decision, options) {
+  var opts = options || {};
+  if (!proposalId) {
+    throw new Error('proposalId is required for approval response handling.');
   }
-
   var normalized = String(decision || '').trim().toUpperCase();
-  var nextStatus = normalized === 'APPROVE' || normalized === 'APPROVED' ? 'APPROVED' : 'DENIED';
-  resolved.row[COL.TRAINING.TRAINING_STATUS - 1] = nextStatus;
-  resolved.row[COL.TRAINING.LAST_UPDATED_AT - 1] = new Date();
+  if (normalized !== 'APPROVE' && normalized !== 'APPROVED' && normalized !== 'REJECT' && normalized !== 'REJECTED') {
+    throw new Error('Unsupported decision. Use APPROVE or REJECT.');
+  }
 
-  sheetClient.upsertTrainingRow(resolved.employeeId, resolved.moduleCode, resolved.row);
+  var approved;
+  if (normalized === 'APPROVE' || normalized === 'APPROVED') {
+    approved = getApprovalControllerForApprovals_().approveProposal({
+      proposal_id: proposalId,
+      actor: opts.actor,
+      allowed_actors: opts.allowed_actors
+    });
 
-  auditService.logEvent({
-    entityType: 'Training',
-    entityId: String(trainingId),
-    action: 'STATUS_CHANGE',
-    details: 'Approval response captured: ' + nextStatus
+    if (!opts.repository || typeof opts.repository.commitProposal !== 'function') {
+      throw new Error('Governed commit repository is required. Direct sheet writes are not allowed.');
+    }
+
+    return getSubmissionControllerForApprovals_().commitApprovedProposal(proposalId, {
+      repository: opts.repository,
+      auditService: opts.auditService,
+      actor: opts.actor,
+      gateContext: opts.gateContext || {}
+    });
+  }
+
+  return getApprovalControllerForApprovals_().rejectProposal({
+    proposal_id: proposalId,
+    actor: opts.actor,
+    allowed_actors: opts.allowed_actors,
+    reason: opts.reason
   });
-
-  return nextStatus;
 }
 
-function resolveTrainingFromId_(sheetClient, trainingId) {
-  var parts = String(trainingId || '').split(':');
-  if (parts.length === 2) {
-    var match = sheetClient.findTrainingByEmployeeAndModule(parts[0], parts[1]);
-    if (!match) {
-      return null;
-    }
-    return {
-      employeeId: parts[0],
-      moduleCode: parts[1],
-      row: match.values
-    };
+function getSubmissionControllerForApprovals_() {
+  if (typeof SubmissionController !== 'undefined' && SubmissionController) {
+    return SubmissionController;
   }
+  if (typeof require === 'function') {
+    return require('./SubmissionController.gs');
+  }
+  throw new Error('SubmissionController is required.');
+}
 
-  var rows = sheetClient.getTrainingRows();
-  for (var i = 0; i < rows.length; i += 1) {
-    var candidateId = rows[i][COL.TRAINING.EMPLOYEE_ID - 1] + ':' + rows[i][COL.TRAINING.MODULE_CODE - 1];
-    if (candidateId === String(trainingId)) {
-      return {
-        employeeId: rows[i][COL.TRAINING.EMPLOYEE_ID - 1],
-        moduleCode: rows[i][COL.TRAINING.MODULE_CODE - 1],
-        row: rows[i]
-      };
-    }
+function getApprovalControllerForApprovals_() {
+  if (typeof ApprovalController !== 'undefined' && ApprovalController) {
+    return ApprovalController;
   }
-  return null;
+  if (typeof require === 'function') {
+    return require('./ApprovalController.gs');
+  }
+  throw new Error('ApprovalController is required.');
 }
 
 if (typeof module !== 'undefined') {

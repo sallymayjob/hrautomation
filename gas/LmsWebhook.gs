@@ -1,9 +1,28 @@
-/* global ContentService, AuditService, SheetClient, Utilities, Config */
+/* global ContentService, AuditService, SheetClient, Utilities, Config, verifySlackIngressRequest_, sanitizeTextForLog */
 /**
  * @fileoverview LMS webhook entrypoint for Slack Workflow Builder initiated handshakes.
  */
 
 var LMS_HANDSHAKE_SOURCE = 'slack_workflow_builder';
+
+var LmsSecurityBindings_ = null;
+if (typeof module !== 'undefined') {
+  LmsSecurityBindings_ = require('./SecurityUtils.gs');
+}
+
+function verifySlackRequestForLms_(event) {
+  if (typeof verifySlackIngressRequest_ === 'function') {
+    return verifySlackIngressRequest_(event, { route: 'lms' });
+  }
+  return LmsSecurityBindings_.verifySlackIngressRequest_(event, { route: 'lms' });
+}
+
+function sanitizeForLmsLog_(value) {
+  if (typeof sanitizeTextForLog === 'function') return sanitizeTextForLog(value);
+  return LmsSecurityBindings_ && LmsSecurityBindings_.sanitizeTextForLog
+    ? LmsSecurityBindings_.sanitizeTextForLog(value)
+    : String(value || '');
+}
 
 var LMS_ACTIONS = {
   CREATE_COURSE: 'create_course',
@@ -23,7 +42,18 @@ var LMS_ACTIONS = {
 };
 
 function doPostLms(e) {
-  var payload = parseLmsEnvelope_(e);
+  var verification = verifySlackRequestForLms_(e);
+  if (!verification.ok) {
+    console.warn('LMS ingress rejected: ' + sanitizeForLmsLog_(verification.errorCode + ' ' + verification.reason));
+    return toLmsJsonOutput_({
+      ok: false,
+      code: verification.errorCode,
+      message: verification.reason,
+      status: verification.httpStatus
+    });
+  }
+
+  var payload = verification.parsedPayload || parseLmsEnvelope_(e);
   var validation = validateLmsHandshake_(payload);
 
   if (!validation.ok) {

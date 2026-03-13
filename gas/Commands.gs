@@ -1,4 +1,4 @@
-/* global SheetClient, AuditService, ContentService, SlackClient, Config, SubmissionController, GeminiService, ApprovalController */
+/* global SheetClient, AuditService, ContentService, SlackClient, Config, SubmissionController, GeminiService, ApprovalController, verifySlackIngressRequest_, sanitizeTextForLog, sanitizePayloadForLog */
 /**
  * @fileoverview Slack slash command handlers for read-only onboarding lookups.
  */
@@ -19,6 +19,32 @@ var READ_ONLY_COMMANDS = [
 ];
 var MAX_DISAMBIGUATION_RESULTS = 5;
 var MAX_DUE_ITEMS = 3;
+
+var CommandSecurityBindings_ = null;
+if (typeof module !== 'undefined') {
+  CommandSecurityBindings_ = require('./SecurityUtils.gs');
+}
+
+function verifySlackRequestForCommands_(event) {
+  if (typeof verifySlackIngressRequest_ === 'function') {
+    return verifySlackIngressRequest_(event, { route: 'commands' });
+  }
+  return CommandSecurityBindings_.verifySlackIngressRequest_(event, { route: 'commands' });
+}
+
+function sanitizeForCommandLog_(value) {
+  if (typeof sanitizeTextForLog === 'function') return sanitizeTextForLog(value);
+  return CommandSecurityBindings_ && CommandSecurityBindings_.sanitizeTextForLog
+    ? CommandSecurityBindings_.sanitizeTextForLog(value)
+    : String(value || '');
+}
+
+function sanitizePayloadForCommandLog_(payload) {
+  if (typeof sanitizePayloadForLog === 'function') return sanitizePayloadForLog(payload);
+  return CommandSecurityBindings_ && CommandSecurityBindings_.sanitizePayloadForLog
+    ? CommandSecurityBindings_.sanitizePayloadForLog(payload)
+    : payload;
+}
 
 
 function createCommandAuditService_(sheetClient) {
@@ -82,8 +108,18 @@ var TEAM_VIEW_CONFIG = {
 };
 
 function doPost(e) {
-  var envelope = (e && e.parameter) || {};
-  var payload = parseSlackPayloadEnvelope_(envelope);
+  var verification = verifySlackRequestForCommands_(e);
+  if (!verification.ok) {
+    console.warn('Slack ingress rejected: ' + sanitizeForCommandLog_(verification.errorCode + ' ' + verification.reason));
+    return toSlackTextOutput_({
+      ok: false,
+      code: verification.errorCode,
+      response_type: 'ephemeral',
+      text: 'Unauthorized Slack request (' + verification.errorCode + ').'
+    });
+  }
+
+  var payload = verification.parsedPayload || {};
   var response = payload && payload.directResponse
     ? payload.directResponse
     : (payload && payload.type
@@ -126,6 +162,7 @@ function routeSlackCommand_(payload) {
   }
 
   if (READ_ONLY_COMMANDS.indexOf(commandName) === -1) {
+    console.info('Unsupported Slack command payload=' + JSON.stringify(sanitizePayloadForCommandLog_({ command: commandName, user_name: payload.user_name })));
     return formatCommandOutput_({
       responseType: 'ephemeral',
       text: 'Unsupported slash command: ' + (commandName || '(empty)')

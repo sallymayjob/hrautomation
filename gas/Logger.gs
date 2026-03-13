@@ -1,4 +1,4 @@
-/* global Session, MailApp, Config, SheetClient, generateId, computeHash, console */
+/* global Session, MailApp, Config, SheetClient, generateId, computeHash, console, sanitizeTextForLog, sanitizeErrorForLog */
 /**
  * @fileoverview Logging helpers and alert notifications.
  */
@@ -26,7 +26,7 @@ AuditLogger.prototype.log = function (event) {
   var auditId = event.auditId || loggerGenerateId_('AUD');
   var timestamp = event.timestamp || new Date();
   var actor = event.actorEmail || Session.getActiveUser().getEmail() || 'system';
-  var details = event.details || '';
+  var details = typeof sanitizeTextForLog === 'function' ? sanitizeTextForLog(event.details || '') : (event.details || '');
   var eventHash = loggerComputeHash_([event.entityType, event.entityId, event.action, details]);
 
   return this.sheetClient.appendAuditRow([
@@ -42,7 +42,8 @@ AuditLogger.prototype.log = function (event) {
 };
 
 AuditLogger.prototype.error = function (event, error) {
-  var details = (event.details || '') + ' | ERROR: ' + (error && error.message ? error.message : String(error));
+  var errorText = typeof sanitizeErrorForLog === 'function' ? sanitizeErrorForLog(error) : (error && error.message ? error.message : String(error));
+  var details = (event.details || '') + ' | ERROR: ' + errorText;
   return this.log({
     auditId: event.auditId,
     timestamp: event.timestamp,
