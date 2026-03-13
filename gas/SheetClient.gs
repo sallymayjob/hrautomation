@@ -1,4 +1,4 @@
-/* global SpreadsheetApp, Config, Utilities, computeHash */
+/* global SpreadsheetApp, Config, Utilities, computeHash, ValidationService */
 /**
  * @fileoverview Spreadsheet data access helpers.
  */
@@ -227,13 +227,21 @@ if (typeof module !== 'undefined') {
     OnboardingRepository: require('./OnboardingRepository.gs').OnboardingRepository,
     TrainingRepository: require('./TrainingRepository.gs').TrainingRepository,
     LessonRepository: require('./LessonRepository.gs').LessonRepository,
-    AuditRepository: require('./AuditRepository.gs').AuditRepository
+    AuditRepository: require('./AuditRepository.gs').AuditRepository,
+    ValidationService: require('./ValidationService.gs')
   };
 }
 
 function getSheetClientRepoCtor_(name, fallback) {
   if (typeof fallback !== 'undefined' && fallback) return fallback;
   return SheetClientRepoBindings_ ? SheetClientRepoBindings_[name] : null;
+}
+
+function getValidationService_() {
+  if (typeof ValidationService !== 'undefined' && ValidationService) {
+    return ValidationService;
+  }
+  return SheetClientRepoBindings_ && SheetClientRepoBindings_.ValidationService;
 }
 var DASHBOARD_SCHEMAS = {
   onboarding: {
@@ -493,6 +501,22 @@ SheetClient.prototype.getSchemaVersionFromConfig_ = function (spreadsheet, sheet
 };
 
 SheetClient.prototype.validateSheetSchema_ = function (sheet, expectedVersion, requiredHeaders) {
+  var actualHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0] || [];
+  var spreadsheet = sheet.getParent();
+  var currentVersion = this.getSchemaVersionFromConfig_(spreadsheet, sheet.getName());
+  var validationService = getValidationService_();
+
+  if (validationService && typeof validationService.assertSchemaConformance === 'function') {
+    return validationService.assertSchemaConformance(sheet.getName(), {
+      requiredHeaders: requiredHeaders,
+      actualHeaders: actualHeaders,
+      requireOrder: true,
+      expectedVersion: expectedVersion,
+      configuredVersion: currentVersion,
+      configTabName: SCHEMA_CONFIG_TAB
+    });
+  }
+
   var headerMap = this.getHeaderMap_(sheet);
   var missing = [];
   for (var i = 0; i < requiredHeaders.length; i += 1) {
@@ -504,9 +528,6 @@ SheetClient.prototype.validateSheetSchema_ = function (sheet, expectedVersion, r
   if (missing.length > 0) {
     throw new Error('Schema mismatch on sheet "' + sheet.getName() + '". Missing required header(s): ' + missing.join(', '));
   }
-
-  var spreadsheet = sheet.getParent();
-  var currentVersion = this.getSchemaVersionFromConfig_(spreadsheet, sheet.getName());
   if (!currentVersion) {
     throw new Error('Schema version metadata missing for sheet "' + sheet.getName() + '". Expected version ' + expectedVersion + '.');
   }
@@ -515,6 +536,7 @@ SheetClient.prototype.validateSheetSchema_ = function (sheet, expectedVersion, r
   }
   return true;
 };
+
 
 SheetClient.prototype.validateSchemaForSheetName_ = function (sheetName) {
   var schemaKeys = Object.keys(SHEET_SCHEMA_SPECS);
@@ -552,10 +574,11 @@ SheetClient.prototype.safeWrite_ = function (sheetName, writeOperation, context)
     return writeOperation();
   } catch (err) {
     var details = JSON.stringify({
-      type: 'SCHEMA_WRITE_BLOCKED',
+      type: err && err.schemaDrift ? 'SCHEMA_DRIFT_DETECTED' : 'SCHEMA_WRITE_BLOCKED',
       sheet: sheetName,
       context: context || {},
-      error: String(err && err.message ? err.message : err)
+      error: String(err && err.message ? err.message : err),
+      auditEvent: err && err.auditEvent ? err.auditEvent : null
     });
     try {
       var auditSheet = this.getAuditSheet_();

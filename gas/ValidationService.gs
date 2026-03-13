@@ -196,6 +196,79 @@ function validateTemplateToChecklistMapping_(templateRow, index, fieldMapping, r
   return errors;
 }
 
+function buildSchemaConformanceError_(sheetName, details) {
+  var error = new Error('Schema drift detected for sheet "' + sheetName + '". ' + details.join(' '));
+  error.name = 'SchemaConformanceError';
+  error.code = 'SCHEMA_DRIFT_DETECTED';
+  error.schemaDrift = true;
+  error.auditEvent = {
+    type: 'SCHEMA_DRIFT_DETECTED',
+    sheet: sheetName,
+    details: details
+  };
+  return error;
+}
+
+function assertSchemaConformance(sheetName, schemaSpec) {
+  var spec = schemaSpec || {};
+  var requiredHeaders = spec.requiredHeaders || [];
+  var actualHeaders = spec.actualHeaders || [];
+  var requireOrder = spec.requireOrder !== false;
+  var details = [];
+  var normalizedActual = {};
+  var i;
+
+  for (i = 0; i < actualHeaders.length; i += 1) {
+    normalizedActual[String(actualHeaders[i] || '').trim().toLowerCase()] = i;
+  }
+
+  var missing = [];
+  for (i = 0; i < requiredHeaders.length; i += 1) {
+    var requiredHeader = String(requiredHeaders[i] || '').trim();
+    if (!Object.prototype.hasOwnProperty.call(normalizedActual, requiredHeader.toLowerCase())) {
+      missing.push(requiredHeader);
+    }
+  }
+  if (missing.length > 0) {
+    details.push('Missing required header(s): ' + missing.join(', ') + '.');
+  }
+
+  if (requireOrder) {
+    var previousIndex = -1;
+    var outOfOrder = false;
+    for (i = 0; i < requiredHeaders.length; i += 1) {
+      var requiredKey = String(requiredHeaders[i] || '').trim().toLowerCase();
+      if (!Object.prototype.hasOwnProperty.call(normalizedActual, requiredKey)) {
+        continue;
+      }
+      var actualIndex = normalizedActual[requiredKey];
+      if (actualIndex < previousIndex) {
+        outOfOrder = true;
+        break;
+      }
+      previousIndex = actualIndex;
+    }
+    if (outOfOrder) {
+      details.push('Header order mismatch. Expected sequence: [' + requiredHeaders.join(', ') + '] but found headers: [' + actualHeaders.join(', ') + '].');
+    }
+  }
+
+  if (spec.expectedVersion !== undefined && spec.expectedVersion !== null) {
+    var expectedVersion = String(spec.expectedVersion);
+    var configuredVersion = String(spec.configuredVersion || '').trim();
+    if (!configuredVersion) {
+      details.push('Config tab "' + String(spec.configTabName || '_sys_config') + '" is missing version marker for ' + sheetName + '.schema_version.');
+    } else if (configuredVersion !== expectedVersion) {
+      details.push('Version marker mismatch for ' + sheetName + '.schema_version: expected ' + expectedVersion + ' but found ' + configuredVersion + '.');
+    }
+  }
+
+  if (details.length > 0) {
+    throw buildSchemaConformanceError_(sheetName, details);
+  }
+  return true;
+}
+
 var ValidationService = {
   buildOperatorError_: buildOperatorError_,
   isValidDate_: isValidDate_,
@@ -204,7 +277,8 @@ var ValidationService = {
   validateTrainingAssignmentRow_: validateTrainingAssignmentRow_,
   validateTrainingReminderRow_: validateTrainingReminderRow_,
   validateTrainingCompletionRow_: validateTrainingCompletionRow_,
-  validateTemplateToChecklistMapping_: validateTemplateToChecklistMapping_
+  validateTemplateToChecklistMapping_: validateTemplateToChecklistMapping_,
+  assertSchemaConformance: assertSchemaConformance
 };
 
 if (typeof module !== 'undefined') module.exports = ValidationService;
