@@ -92,8 +92,7 @@
         "mpim:read",
         "triggers:read",
         "triggers:write",
-        "workflow.steps:execute",
-        "workflow.steps:manage"
+        "workflow.steps:execute"
       ]
     }
   },
