@@ -120,6 +120,10 @@ function doPost(e) {
   }
 
   var payload = verification.parsedPayload || {};
+  if (payload && payload.type === 'url_verification') {
+    return toSlackChallengeOutput_(payload);
+  }
+
   var response = payload && payload.directResponse
     ? payload.directResponse
     : (payload && payload.type
@@ -694,6 +698,18 @@ function toSlackTextOutput_(responsePayload) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
+function toSlackChallengeOutput_(payload) {
+  var challengePayload = {
+    challenge: String((payload && payload.challenge) || '')
+  };
+  if (typeof ContentService === 'undefined' || !ContentService.createTextOutput) {
+    return challengePayload;
+  }
+  return ContentService
+    .createTextOutput(JSON.stringify(challengePayload))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
 function formatCommandOutput_(responsePayload) {
   var payload = responsePayload || {};
   return {
@@ -722,6 +738,7 @@ if (typeof module !== 'undefined') {
     parseSlackUserIdFromQuery_: parseSlackUserIdFromQuery_,
     detectWriteIntent_: detectWriteIntent_,
     formatCommandOutput_: formatCommandOutput_,
+    toSlackChallengeOutput_: toSlackChallengeOutput_,
     READ_ONLY_COMMANDS: READ_ONLY_COMMANDS
   };
 }
