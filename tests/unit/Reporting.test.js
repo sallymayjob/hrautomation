@@ -19,7 +19,7 @@ describe('Reporting', () => {
     };
 
     global.getDaysUntilDue = jest.fn((value) => Number(value));
-    global.Config = { getHrTeamChannelId: jest.fn(() => 'CHR123') };
+    global.generateId = jest.fn(() => 'AUD-1');
   });
 
   test('buildOnboardingMetrics computes task totals and completion percentage', () => {
@@ -45,29 +45,50 @@ describe('Reporting', () => {
     expect(result.blocked[0].onboarding_id).toBe('OB-2');
   });
 
-  test('postWeeklyMetrics posts digest to HR approvals channel', () => {
+  test('postWeeklyMetrics only writes summary sheets and audit logs', () => {
     const ensureSheetWithHeaders = jest.fn(() => ({
       getLastRow: jest.fn(() => 1),
       getRange: jest.fn(() => ({ clearContent: jest.fn(), setValues: jest.fn() }))
     }));
 
+    const trainingRows = [['', '', '', '', 2, '', 'COMPLETED']];
+    const onboardingRows = [['OB-1', 'Alex', 'IN_PROGRESS', '']];
+    const checklistRows = [['DOC-1', 'OB-1', 'Documentation', 'Task', 'People Ops', '', 'DONE', 1]];
+
     const sheetClient = {
-      getTrainingRows: jest.fn(() => [['', '', '', '', 2, '', 'COMPLETED']]),
-      getOnboardingRows: jest.fn(() => [['OB-1', 'Alex', 'IN_PROGRESS', '']]),
-      getChecklistRows: jest.fn(() => [['DOC-1', 'OB-1', 'Documentation', 'Task', 'People Ops', '', 'DONE', 1]]),
+      getTrainingRows: jest.fn(() => trainingRows),
+      getOnboardingRows: jest.fn(() => onboardingRows),
+      getChecklistRows: jest.fn(() => checklistRows),
       ensureSheetWithHeaders
     };
 
-    const postMessage = jest.fn();
+    const auditLog = jest.fn();
     global.SheetClient = jest.fn(() => sheetClient);
-    global.notifyHrAlerts = jest.fn();
-    global.AuditLogger = jest.fn(() => ({}));
-    global.SlackClient = jest.fn(() => ({ postMessage }));
+    global.AuditLogger = jest.fn(() => ({ log: auditLog }));
+    global.AuditRepository = jest.fn(() => ({ log: auditLog }));
 
     const { postWeeklyMetrics } = require('../../gas/Reporting.gs');
+
+    const trainingBefore = JSON.stringify(trainingRows);
+    const onboardingBefore = JSON.stringify(onboardingRows);
+    const checklistBefore = JSON.stringify(checklistRows);
+
     postWeeklyMetrics();
 
-    expect(postMessage).toHaveBeenCalledWith('CHR123', expect.any(Array));
+    expect(auditLog).toHaveBeenCalledTimes(2);
+    expect(auditLog).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      entityType: 'Reporting',
+      entityId: 'weekly_metrics',
+      action: 'SUMMARY_REFRESH'
+    }));
+    expect(auditLog).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      entityType: 'Reporting',
+      entityId: 'weekly_digest',
+      action: 'SUMMARY_DIGEST'
+    }));
     expect(ensureSheetWithHeaders).toHaveBeenCalled();
+    expect(JSON.stringify(trainingRows)).toBe(trainingBefore);
+    expect(JSON.stringify(onboardingRows)).toBe(onboardingBefore);
+    expect(JSON.stringify(checklistRows)).toBe(checklistBefore);
   });
 });
