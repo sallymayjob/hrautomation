@@ -16,7 +16,15 @@ describe('LmsWebhook', () => {
     mockGasGlobals();
     global.AuditLogger = jest.fn(() => ({ log: jest.fn() }));
     global.SheetClient = jest.fn(() => ({}));
-    delete global.LmsRoutes;
+    global.SubmissionController = {
+      createProposal: jest.fn(() => ({ id: 'PROP-1' }))
+    };
+    global.ApprovalController = {
+      requestApproval: jest.fn(() => ({ ok: true }))
+    };
+    global.GeminiService = {
+      validateAndClarify: jest.fn(() => ({ valid: true, summary: 'Looks good' }))
+    };
   });
 
   test('validateLmsHandshake_ rejects non workflow-builder handshakes', () => {
@@ -28,7 +36,7 @@ describe('LmsWebhook', () => {
     expect(result.code).toBe('INVALID_HANDSHAKE_SOURCE');
   });
 
-  test('doPostLms accepts workflow builder payload and routes action', () => {
+  test('doPostLms accepts workflow builder payload and captures pending proposal', () => {
     const { doPostLms } = require('../../gas/LmsWebhook.gs');
 
     const output = doPostLms({
@@ -45,15 +53,13 @@ describe('LmsWebhook', () => {
     const payload = JSON.parse(output.value);
     expect(payload.ok).toBe(true);
     expect(payload.action).toBe('create_course');
-    expect(payload.data.queued).toBe(true);
+    expect(payload.data.proposal_id).toBe('PROP-1');
+    expect(payload.data.approval_status).toBe('PENDING');
+    expect(payload.data.commit_blocked).toBe(true);
   });
 
-  test('routeLmsAction_ uses LmsRoutes adapter when available', () => {
+  test('routeLmsAction_ validates with Gemini before approval request', () => {
     const { routeLmsAction_ } = require('../../gas/LmsWebhook.gs');
-
-    global.LmsRoutes = {
-      enrollLearner: jest.fn(() => ({ enrollment_id: 'ENR-1', status: 'active' }))
-    };
 
     const result = routeLmsAction_({
       source: 'slack_workflow_builder',
@@ -61,8 +67,15 @@ describe('LmsWebhook', () => {
       actor_slack_id: 'UHR1'
     });
 
-    expect(global.LmsRoutes.enrollLearner).toHaveBeenCalledTimes(1);
+    expect(global.SubmissionController.createProposal).toHaveBeenCalledTimes(1);
+    expect(global.GeminiService.validateAndClarify).toHaveBeenCalledWith(expect.objectContaining({ id: 'PROP-1' }));
+    expect(global.ApprovalController.requestApproval).toHaveBeenCalledWith(expect.objectContaining({
+      proposal: expect.objectContaining({ id: 'PROP-1', approval_status: 'PENDING' }),
+      clarification: expect.objectContaining({ valid: true }),
+      approval_status: 'PENDING'
+    }));
     expect(result.ok).toBe(true);
-    expect(result.data.enrollment_id).toBe('ENR-1');
+    expect(result.data.approval_status).toBe('PENDING');
+    expect(result.data.commit_blocked).toBe(true);
   });
 });

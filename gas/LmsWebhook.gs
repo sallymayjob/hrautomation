@@ -94,9 +94,7 @@ function validateLmsHandshake_(payload) {
 
 function routeLmsAction_(payload) {
   var action = String(payload.action || '').trim().toLowerCase();
-  var handlers = getLmsHandlers_();
-
-  if (!handlers[action]) {
+  if (!isSupportedLmsAction_(action)) {
     return {
       ok: false,
       code: 'UNSUPPORTED_ACTION',
@@ -105,8 +103,8 @@ function routeLmsAction_(payload) {
   }
 
   try {
-    var result = handlers[action](payload);
-    writeLmsAuditLog_(payload, action, 'SUCCESS', 'Action processed.');
+    var result = submitLmsProposal_(payload, action);
+    writeLmsAuditLog_(payload, action, 'SUCCESS', 'Proposal captured and blocked pending approval.');
     return {
       ok: true,
       action: action,
@@ -123,48 +121,71 @@ function routeLmsAction_(payload) {
   }
 }
 
-function getLmsHandlers_() {
-  return {
-    create_course: function (payload) {
-      return executeLmsAdapter_('createCourse', payload);
-    },
-    update_course: function (payload) {
-      return executeLmsAdapter_('updateCourse', payload);
-    },
-    archive_course: function (payload) {
-      return executeLmsAdapter_('archiveCourse', payload);
-    },
-    enroll_single: function (payload) {
-      return executeLmsAdapter_('enrollLearner', payload);
-    },
-    bulk_enroll: function (payload) {
-      return executeLmsAdapter_('bulkEnroll', payload);
-    },
-    unenroll_single: function (payload) {
-      return executeLmsAdapter_('unenrollLearner', payload);
-    },
-    bulk_unenroll: function (payload) {
-      return executeLmsAdapter_('bulkUnenroll', payload);
-    },
-    assign_cohort: function (payload) {
-      return executeLmsAdapter_('assignCohort', payload);
-    },
-    mark_completion: function (payload) {
-      return executeLmsAdapter_('markCompletion', payload);
-    }
-  };
+function isSupportedLmsAction_(action) {
+  var supported = getLmsHandlers_();
+  return supported.indexOf(action) > -1;
 }
 
-function executeLmsAdapter_(adapterFunctionName, payload) {
-  var adapter = (typeof globalThis !== 'undefined' && globalThis.LmsRoutes) ? globalThis.LmsRoutes : null;
-  if (!adapter || typeof adapter[adapterFunctionName] !== 'function') {
-    return {
-      queued: true,
-      adapter: adapterFunctionName,
-      message: 'No adapter implementation found. Request accepted for deferred processing.'
-    };
+function getLmsHandlers_() {
+  return [
+    'create_course',
+    'update_course',
+    'archive_course',
+    'enroll_single',
+    'bulk_enroll',
+    'unenroll_single',
+    'bulk_unenroll',
+    'assign_cohort',
+    'mark_completion'
+  ];
+}
+
+function submitLmsProposal_(payload, action) {
+  if (typeof SubmissionController === 'undefined' || !SubmissionController) {
+    throw new Error('SubmissionController is required for LMS proposal routing.');
   }
-  return adapter[adapterFunctionName](payload);
+
+  var proposalInput = {
+    source: LMS_HANDSHAKE_SOURCE,
+    action: action,
+    actor: String(payload.actor_slack_id || payload.user_id || 'workflow_builder'),
+    request_id: String(payload.request_id || payload.idempotency_key || ''),
+    payload: payload,
+    approval_status: 'PENDING'
+  };
+
+  var proposal = null;
+  if (typeof SubmissionController.createDraft === 'function') {
+    proposal = SubmissionController.createDraft(proposalInput);
+  } else if (typeof SubmissionController.createProposal === 'function') {
+    proposal = SubmissionController.createProposal(proposalInput);
+  }
+
+  if (!proposal) {
+    throw new Error('SubmissionController must provide createDraft or createProposal.');
+  }
+
+  proposal.approval_status = 'PENDING';
+
+  var clarification = null;
+  if (typeof GeminiService !== 'undefined' && GeminiService && typeof GeminiService.validateAndClarify === 'function') {
+    clarification = GeminiService.validateAndClarify(proposal);
+  }
+
+  if (typeof ApprovalController !== 'undefined' && ApprovalController && typeof ApprovalController.requestApproval === 'function') {
+    ApprovalController.requestApproval({
+      proposal: proposal,
+      clarification: clarification,
+      approval_status: 'PENDING'
+    });
+  }
+
+  return {
+    proposal_id: proposal.id || '',
+    approval_status: 'PENDING',
+    commit_blocked: true,
+    message: 'Proposal captured. Governed LMS content updates are blocked until ApprovalController marks this proposal approved.'
+  };
 }
 
 function writeLmsAuditLog_(payload, action, status, details) {
@@ -207,6 +228,7 @@ if (typeof module !== 'undefined') {
     validateLmsHandshake_: validateLmsHandshake_,
     routeLmsAction_: routeLmsAction_,
     getLmsHandlers_: getLmsHandlers_,
-    executeLmsAdapter_: executeLmsAdapter_
+    isSupportedLmsAction_: isSupportedLmsAction_,
+    submitLmsProposal_: submitLmsProposal_
   };
 }
