@@ -38,4 +38,34 @@ describe('BlockKit', () => {
     const managerNotification = BlockKit.assignmentNotificationDM({ recipientRole: 'Manager', employeeName: 'Alex Doe', teamLabel: 'Retail / NZ / Manager', buddyLabel: 'buddy@x.com' });
     expect(managerNotification[2].text.text).toContain('Retail / NZ / Manager');
   });
+
+  test('builds proposal and approval workflow cards with display fields', () => {
+    const { BlockKit } = require('../../gas/BlockKit.gs');
+    const payload = {
+      trace_id: 'TRACE-123',
+      actor: 'manager@example.com',
+      entity_key: 'employee:123:module:SEC101',
+      proposed_diff_version: 'v5',
+      approval_status: 'PENDING'
+    };
+
+    const proposalSummary = BlockKit.proposalSummaryCard(payload);
+    expect(proposalSummary[1].text.text).toContain('TRACE-123');
+    expect(proposalSummary[1].text.text).toContain('manager@example.com');
+    expect(proposalSummary[1].text.text).toContain('employee:123:module:SEC101');
+    expect(proposalSummary[1].text.text).toContain('v5');
+    expect(proposalSummary[1].text.text).toContain('PENDING');
+
+    const approvalRequest = BlockKit.approvalRequestCard(payload);
+    expect(approvalRequest[0].text.text).toContain('Approval request');
+    expect(approvalRequest[1].text.text).toContain('TRACE-123');
+
+    const approvalDecision = BlockKit.approvalDecisionCard(payload);
+    expect(approvalDecision[0].text.text).toContain('Approval decision');
+    expect(approvalDecision[1].text.text).toContain('employee:123:module:SEC101');
+
+    const clarificationPrompt = BlockKit.clarificationPromptCard(payload);
+    expect(clarificationPrompt[0].text.text).toContain('Clarification needed');
+    expect(clarificationPrompt[1].text.text).toContain('v5');
+  });
 });
