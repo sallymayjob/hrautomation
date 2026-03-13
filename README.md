@@ -1,69 +1,180 @@
-# RWR-HAF Overview
+# HR New-Starter Automation Helper
 
-## 1. What does this system do?
-RWR-HAF sends welcome, reminder, and celebration Slack messages for new employees. It supports RWR Health, Hospoworld, Retailworld, and RWR Construction in New Zealand and Australia. Think of it like a very organised colleague who never forgets a message and works all day, every day.
+## What is this?
+This project is a **helper system** for HR teams.
 
-You're done with this part.
+It uses:
+- **Slack** (for messages and quick checks)
+- **Google Sheets** (as the main record book)
+- **Google Apps Script** (the automation engine that runs on a schedule)
 
-## 2. How does it work?
-1. A new person joins the `#new-hires` Slack channel (a shared team chat room).
-2. HR approvals receive a direct message notification with a `Continue Workflow` button.
-3. HR clicks the button, then a form (a question page) appears asking for the new hire details, including required Buddy (peer) and Manager (trainer).
-4. The form saves their details into the Onboarding spreadsheet and the automation assigns an `onboarding_id` automatically.
-5. The system reads the spreadsheet and sends a welcome message with training links.
-6. Every morning, the system checks upcoming or overdue training.
-7. The system sends reminder messages to the right people.
-8. When training is finished, the system posts a celebration in `#general`.
+Think of it like a digital assistant that:
+- checks who is joining,
+- sends reminders,
+- tracks progress,
+- and records what happened.
 
-Think of the spreadsheet like a filing cabinet. The system checks that filing cabinet each morning for today's messages.
+---
 
-You're done with this part.
+## Who is this for?
+- HR team members
+- Team leaders (IT, Finance, People/Admin)
+- Operations staff
+- Anyone supporting onboarding and training progress
 
-## 3. Who does what?
+You do **not** need to be a developer to understand basic operation.
 
-| Person | What they do | How often |
-|---|---|---|
-| New hire | Receives messages and clicks training links | During onboarding period |
-| Manager (trainer) | Listed on each onboarding as the trainer and receives assignment notifications | Each new starter |
-| Buddy (peer) | Listed on each onboarding as the peer buddy and receives assignment notifications | Each new starter |
-| Admin team | Sets up computer, email, and Slack before day one | Each new starter |
-| HR manager | Checks progress in the spreadsheet and updates changed training links | Weekly |
-| Tech lead | Fixes issues when something breaks after setup | Rarely |
+---
 
-You're done with this part.
+## What this system does (in simple terms)
+1. Watches onboarding data in Google Sheets.
+2. Creates onboarding tasks/checklist items.
+3. Sends Slack reminders for upcoming or overdue training/tasks.
+4. Escalates overdue work to the right people.
+5. Writes audit/history logs so teams can review what happened.
+6. Builds weekly summary views for reporting.
 
-## 4. What you need before starting
-1. A Slack workspace (your RWR Group team chat account).
-2. A Google account with access to Sheets and Drive.
-3. A Slack app named "RWR HR Automation" created by the tech lead.
-4. Three empty Google Sheets named Onboarding, Training Log, and Audit Log (kept as separate spreadsheets, with Audit Log as the canonical compliance ledger).
-5. This file folder prepared by the tech lead.
+It also has a “proposal + approval” path for risky write-like actions so changes are reviewed before final commit.
 
-You're done with this part.
+---
 
+## Important rule: Slack is read-only for status edits
+In this project, Slack command responses are for **checking status**, not editing it.
 
-## Slack editing guardrail (important)
-Slack command responses and Slack message interactions are **read-only** for onboarding and checklist verification.
-- Use Slack to view onboarding/checklist progress.
-- Make all status edits in Google Sheets (Onboarding, Checklist Tasks, and Training Log as applicable).
-- Do not expect Slack buttons or interactive actions to update statuses.
+- ✅ Use Slack to **view** status
+- ✍️ Make actual status changes in **Google Sheets**
 
+---
 
-## LMS handshake guardrail (important)
-All LMS operational mutations must be initiated by **Slack Workflow Builder** handshakes.
-- Use Workflow Builder triggers (shortcut, link trigger, workflow button) to collect input.
-- Send payloads to the LMS Apps Script webhook endpoint (`doPostLms`).
-- Do not use slash-command initiated handshakes for LMS write operations.
+## Main workflows
 
-## 5. Where to go if something is not working
-- If a new hire did not receive a welcome message, tell the tech lead. They can fix it in under five minutes.
-- If a reminder went to the wrong person, tell the tech lead immediately.
-- If you are unsure the system is running, check the separate Audit Log spreadsheet (canonical ledger). If today's rows exist, it is working.
+### 1) Onboarding workflow
+- A new onboarding row appears in the Onboarding sheet.
+- The system checks required fields.
+- It generates checklist tasks and training assignments.
+- It sends assignment notifications.
+- It marks blockers if required tasks are missing.
 
-You're done with this part.
+### 2) Reminder workflow
+- Runs on a schedule.
+- Finds due-soon, due-today, and overdue items.
+- Sends reminder messages.
+- Sends escalations for overdue items.
 
-## Architecture and dataflow
-- See `docs/architecture-dataflow.md` for sheet connections, ownership boundaries, write rules, and failure behavior.
-- See `docs/library-entry-schema.md` for canonical library entry headers, data types, config-tab version marker, and schema guard behavior.
-- See `docs/id-map-formulas.md` for Google Sheets formulas that auto-generate onboarding/training IDs and build a live cross-sheet ID map.
+### 3) Reporting workflow
+- Builds weekly summaries in reporting tabs.
+- Helps HR and owners quickly see progress and blockers.
 
+### 4) Governed write workflow
+- Write-like requests are captured as proposals.
+- Proposal is validated.
+- Approval step is required (if configured).
+- Only approved proposals should be committed.
+
+---
+
+## How the system is built (simple architecture)
+- **Slack layer**: where people interact (commands/messages).
+- **Automation layer (Apps Script)**: runs business rules and scheduled jobs.
+- **Data layer (Google Sheets)**: stores onboarding, checklist, training, and audit records.
+- **Governance layer**: proposal, validation, approval controls for sensitive changes.
+
+---
+
+## Folder guide
+- `gas/` → automation code (Apps Script)
+- `sheets/` → sheet schema files and sample CSVs
+- `docs/` → operating docs, runbooks, architecture notes
+- `templates/` → message templates
+- `workflows/` → Slack workflow mapping files
+- `tests/` → automated tests
+
+---
+
+## Most important files
+- `gas/Commands.gs` → Slack command entry point (`doPost`)
+- `gas/LmsWebhook.gs` → LMS/workflow webhook entry point (`doPostLms`)
+- `gas/Code.gs` → onboarding event routing
+- `gas/OnboardingController.gs` → onboarding logic
+- `gas/Reminders.gs` → reminder and escalation logic
+- `gas/Reporting.gs` → weekly summaries
+- `gas/Triggers.gs` → scheduled trigger setup
+- `gas/Config.gs` → configuration values (Script Properties)
+- `DEPLOYMENT.md` → step-by-step deployment guide
+
+---
+
+## Data model (plain language)
+The system uses Sheets as tables:
+- **Onboarding**: starter info and onboarding status
+- **Checklist Tasks**: task list per onboarding record
+- **Training**: module assignments and completion status
+- **Audit**: history log of important actions/events
+
+IDs help connect records across sheets:
+- `onboarding_id`
+- `task_id`
+- `employee_id`
+- `module_code`
+
+---
+
+## Integrations in use
+- Slack (messaging + status commands)
+- Google Sheets (data storage)
+- Google Apps Script (automation runtime)
+- Slack Workflow Builder (required source for LMS webhook handshakes)
+- Gemini validation layer (used in governed proposal flow)
+
+---
+
+## What you need before using this
+- Google account with access to Sheets + Apps Script
+- Slack workspace with app setup permission
+- Required Sheets created with correct tabs/headers
+- Script Properties configured (IDs, names, tokens, channels)
+
+### Slack channel setup (required)
+Use `docs/slack-channels-guide.md` to set up channels correctly.
+
+How to use it:
+1. Create each required channel with the exact name listed.
+2. Follow the privacy/type guidance (public/private).
+3. Invite the bot to each required channel.
+4. Copy channel IDs and keep them for Script Properties setup.
+
+---
+
+## Configuration (where settings live)
+Settings are stored in Apps Script **Script Properties**.
+Examples:
+- spreadsheet IDs and sheet names
+- Slack bot token
+- Slack channel IDs
+- governance toggles
+
+See `DEPLOYMENT.md` for the full checklist and setup order.
+
+---
+
+## Local editing (for technical helpers)
+If a technical person is updating code:
+- Run tests: `npm test -- --runInBand`
+- Run lint: `npm run lint`
+
+If you are non-technical, you can ignore this section.
+
+---
+
+## Known limitations (important)
+- Slack request-signature verification is not clearly shown in current ingress code.
+- Proposal storage in `SubmissionController` appears in-memory by default (needs environment verification for durable storage).
+- Some behavior depends on manual environment setup outside this repo.
+- Some channels/settings are environment-specific.
+
+---
+
+## Where to go next
+- Setup instructions: `DEPLOYMENT.md`
+- Day-to-day operations: `docs/runbook.md`
+- Architecture details: `docs/repository-architecture-map.md`
