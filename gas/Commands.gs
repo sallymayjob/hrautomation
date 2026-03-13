@@ -1,4 +1,4 @@
-/* global SheetClient, AuditService, ContentService, SlackClient, Config */
+/* global SheetClient, AuditService, ContentService, SlackClient, Config, SubmissionController, GeminiService, ApprovalController */
 /**
  * @fileoverview Slack slash command handlers for read-only onboarding lookups.
  */
@@ -156,23 +156,66 @@ function routeSlackCommand_(payload) {
 }
 
 function routeWriteIntentToProposal_(payload, actor, writeIntent) {
-  if (typeof SubmissionController === 'undefined' || !SubmissionController || typeof SubmissionController.createProposal !== 'function') {
+  if (typeof SubmissionController === 'undefined' || !SubmissionController) {
     return formatCommandOutput_({
       responseType: 'ephemeral',
       text: 'Write-like requests are blocked in Slack commands. Submission proposals are currently unavailable; please use Google Sheets.'
     });
   }
 
-  var proposal = SubmissionController.createProposal({
+  var proposalInput = {
     actor: actor,
+    source: 'slack_command',
+    action: writeIntent.intent,
+    request_id: String(payload.trigger_id || payload.command_ts || ''),
+    trace_id: String(payload.trigger_id || payload.command_ts || ''),
     command: String(payload.command || ''),
     text: String(payload.text || ''),
-    intent: writeIntent.intent
-  });
+    intent: writeIntent.intent,
+    payload: payload,
+    approval_status: 'PENDING',
+    entity_type: 'slack_command',
+    entity_key: String(payload.command || '') + ':' + writeIntent.intent
+  };
+
+  var proposal = null;
+  if (typeof SubmissionController.persistIngressDraft === 'function') {
+    proposal = SubmissionController.persistIngressDraft(proposalInput);
+  } else if (typeof SubmissionController.createDraft === 'function') {
+    proposal = SubmissionController.createDraft(proposalInput);
+  } else if (typeof SubmissionController.createProposal === 'function') {
+    proposal = SubmissionController.createProposal(proposalInput);
+  }
+
+  if (!proposal) {
+    return formatCommandOutput_({
+      responseType: 'ephemeral',
+      text: 'Write-like requests are blocked in Slack commands. Submission proposals are currently unavailable; please use Google Sheets.'
+    });
+  }
+
+  var clarification = null;
+  if (typeof GeminiService !== 'undefined' && GeminiService && typeof GeminiService.validateAndClarify === 'function') {
+    clarification = GeminiService.validateAndClarify(proposal);
+    if (clarification && clarification.status === 'rejected') {
+      return formatCommandOutput_({
+        responseType: 'ephemeral',
+        text: 'Captured your request as proposal ' + proposal.id + ', but Gemini validation rejected it: ' + String(clarification.reason || 'insufficient detail')
+      });
+    }
+  }
+
+  if (typeof ApprovalController !== 'undefined' && ApprovalController) {
+    if (proposal.requires_approval && typeof ApprovalController.requestLiamApproval === 'function') {
+      ApprovalController.requestLiamApproval({ proposal: proposal, clarification: clarification, approval_status: 'PENDING' });
+    } else if (typeof ApprovalController.requestApproval === 'function') {
+      ApprovalController.requestApproval({ proposal: proposal, clarification: clarification, approval_status: 'PENDING' });
+    }
+  }
 
   return formatCommandOutput_({
     responseType: 'ephemeral',
-    text: 'Captured your request as a proposal' + (proposal && proposal.id ? ' (' + proposal.id + ')' : '') + '. A reviewer can apply it from the submission queue.'
+    text: 'Captured your request as a proposal' + (proposal && proposal.id ? ' (' + proposal.id + ')' : '') + '. It is now queued for Gemini + approval review before any write can happen.'
   });
 }
 

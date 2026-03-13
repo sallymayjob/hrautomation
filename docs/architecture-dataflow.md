@@ -15,7 +15,16 @@ Slack onboarding workflow
         +--(derive training assignments by employee/onboarding id)--> [Training sheet]
         |
         +--(all state changes/events)-------------------------------> [Audit sheet]
+
+Slack write-like intents + LMS webhook governed mutations
+        |
+        v
+[SubmissionController draft proposal] -> [GeminiService validate/clarify] -> [ApprovalController gate]
+        |
+        +-- if approved ------------------------------------------------------> [Repository commit only]
 ```
+
+Governed write operations are now funneled through proposal capture + Gemini validation + approval gating before repository commits. Direct writes outside repositories are blocked by runtime/unit guardrails.
 
 ## Sheet roles, ownership, and connection model
 
