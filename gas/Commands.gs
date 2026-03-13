@@ -108,6 +108,11 @@ var TEAM_VIEW_CONFIG = {
 };
 
 function doPost(e) {
+  var preflightPayload = extractSlackJsonBodyForChallenge_(e);
+  if (preflightPayload && preflightPayload.type === 'url_verification') {
+    return toSlackChallengeOutput_(preflightPayload);
+  }
+
   var verification = verifySlackRequestForCommands_(e);
   if (!verification.ok) {
     console.warn('Slack ingress rejected: ' + sanitizeForCommandLog_(verification.errorCode + ' ' + verification.reason));
@@ -120,12 +125,29 @@ function doPost(e) {
   }
 
   var payload = verification.parsedPayload || {};
+  if (payload && payload.type === 'url_verification') {
+    return toSlackChallengeOutput_(payload);
+  }
+
   var response = payload && payload.directResponse
     ? payload.directResponse
     : (payload && payload.type
       ? handleSlackInteractivePayload_(payload)
       : routeSlackCommand_(payload));
   return toSlackTextOutput_(response);
+}
+
+function extractSlackJsonBodyForChallenge_(event) {
+  var rawBody = event && event.postData && event.postData.contents;
+  if (!rawBody) {
+    return null;
+  }
+  try {
+    var parsed = JSON.parse(rawBody);
+    return parsed && parsed.type === 'url_verification' ? parsed : null;
+  } catch (err) {
+    return null;
+  }
 }
 
 function parseSlackPayloadEnvelope_(envelope) {
@@ -694,6 +716,14 @@ function toSlackTextOutput_(responsePayload) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
+function toSlackChallengeOutput_(payload) {
+  var challenge = String((payload && payload.challenge) || '');
+  if (typeof ContentService === 'undefined' || !ContentService.createTextOutput) {
+    return challenge;
+  }
+  return ContentService.createTextOutput(challenge);
+}
+
 function formatCommandOutput_(responsePayload) {
   var payload = responsePayload || {};
   return {
@@ -717,11 +747,13 @@ if (typeof module !== 'undefined') {
     scoreFuzzyNameMatch_: scoreFuzzyNameMatch_,
     normalizeForMatch_: normalizeForMatch_,
     logOnboardingStatusRead_: logOnboardingStatusRead_,
+    extractSlackJsonBodyForChallenge_: extractSlackJsonBodyForChallenge_,
     parseSlackPayloadEnvelope_: parseSlackPayloadEnvelope_,
     handleSlackInteractivePayload_: handleSlackInteractivePayload_,
     parseSlackUserIdFromQuery_: parseSlackUserIdFromQuery_,
     detectWriteIntent_: detectWriteIntent_,
     formatCommandOutput_: formatCommandOutput_,
+    toSlackChallengeOutput_: toSlackChallengeOutput_,
     READ_ONLY_COMMANDS: READ_ONLY_COMMANDS
   };
 }

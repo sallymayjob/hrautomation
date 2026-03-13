@@ -10,6 +10,23 @@ describe('SecurityUtils', () => {
     expect(result.ok).toBe(true);
   });
 
+
+  test('verifySlackIngressRequest_ accepts url_verification challenge without token', () => {
+    const { verifySlackIngressRequest_ } = require('../../gas/SecurityUtils.gs');
+    const result = verifySlackIngressRequest_(
+      {
+        postData: {
+          type: 'application/json',
+          contents: JSON.stringify({ type: 'url_verification', token: '', challenge: 'abc123' })
+        },
+        parameter: {}
+      },
+      { route: 'commands' }
+    );
+    expect(result.ok).toBe(true);
+    expect(result.parsedPayload.challenge).toBe('abc123');
+  });
+
   test('verifySlackIngressRequest_ rejects unsupported command shape', () => {
     const { verifySlackIngressRequest_ } = require('../../gas/SecurityUtils.gs');
     const result = verifySlackIngressRequest_({ parameter: { token: 'verif-token-123' } }, { route: 'commands' });

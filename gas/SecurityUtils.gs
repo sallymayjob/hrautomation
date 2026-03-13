@@ -112,6 +112,18 @@ function verifySlackIngressRequest_(event, options) {
     parsedPayload = envelope;
   }
 
+  if (parsedPayload && parsedPayload.type === 'url_verification' && String(parsedPayload.challenge || '').length > 0) {
+    return {
+      ok: true,
+      errorCode: '',
+      reason: 'url_verification_challenge',
+      httpStatus: 200,
+      parsedPayload: parsedPayload,
+      envelope: envelope,
+      token: ''
+    };
+  }
+
   var token = extractSlackToken_(parsedPayload, envelope);
   if (!token) {
     return { ok: false, errorCode: 'MISSING_TOKEN', reason: 'Slack verification token is required.', httpStatus: 401, parsedPayload: parsedPayload, envelope: envelope };

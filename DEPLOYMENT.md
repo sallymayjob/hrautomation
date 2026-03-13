@@ -49,10 +49,14 @@ If headers do not match expected schema, workflows can fail or skip rows.
 ## 5) Slack app setup (simple)
 Create a Slack app and install it to your workspace.
 
+If **OAuth Tokens** are blank in Slack, click **Install to Workspace** (or **Reinstall to Workspace** after scope changes).
+
 You will need:
 - Bot token (`xoxb-...`)
 - Slash commands for status checks
 - Callback URL(s) that point to your deployed Apps Script web app
+
+Slack app manifest source of truth: `manifest.json` at the repository root (the `workflows/manifest.json` duplicate was removed).
 
 Supported slash commands in this repo:
 - `/onboarding-status`
@@ -168,6 +172,7 @@ Expected results:
 
 ### Problem: Slack messages not sending
 - Check `SLACK_BOT_TOKEN`.
+- In Slack **OAuth & Permissions**, ensure the app is installed/reinstalled so a Bot User OAuth token exists.
 - Confirm app scopes and channel membership.
 
 ### Problem: Workflow does not run on schedule

@@ -117,6 +117,36 @@ describe('Commands', () => {
     expect(auditLogger.log).toHaveBeenCalledWith(expect.objectContaining({ action: 'READ' }));
   });
 
+  test('extractSlackJsonBodyForChallenge_ only returns url_verification payloads', () => {
+    const { extractSlackJsonBodyForChallenge_ } = require('../../gas/Commands.gs');
+
+    const challengePayload = extractSlackJsonBodyForChallenge_({
+      postData: { contents: JSON.stringify({ type: 'url_verification', challenge: 'abc123' }) }
+    });
+    const nonChallengePayload = extractSlackJsonBodyForChallenge_({
+      postData: { contents: JSON.stringify({ type: 'event_callback' }) }
+    });
+
+    expect(challengePayload).toEqual({ type: 'url_verification', challenge: 'abc123' });
+    expect(nonChallengePayload).toBeNull();
+  });
+
+  test('doPost returns challenge payload for Slack url_verification', () => {
+    const { doPost } = require('../../gas/Commands.gs');
+
+    doPost({
+      postData: {
+        type: 'application/json',
+        contents: JSON.stringify({ type: 'url_verification', token: '', challenge: 'abc123' })
+      },
+      parameter: {}
+    });
+
+    expect(global.ContentService.createTextOutput).toHaveBeenCalledTimes(1);
+    const payload = global.ContentService.createTextOutput.mock.calls[0][0];
+    expect(payload).toBe('abc123');
+  });
+
   test('doPost rejects Slack interactive payloads as read-only', () => {
     const { doPost } = require('../../gas/Commands.gs');
 
