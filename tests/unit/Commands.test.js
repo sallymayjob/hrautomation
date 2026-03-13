@@ -206,4 +206,76 @@ describe('Commands', () => {
     expect(response.text).toContain('Checklist progress');
   });
 
+  test('routeSlackCommand_ exposes explicit read-only command allowlist', () => {
+    const { READ_ONLY_COMMANDS } = require('../../gas/Commands.gs');
+
+    expect(READ_ONLY_COMMANDS).toEqual(expect.arrayContaining([
+      '/onboarding-status',
+      '/it-onboarding-status',
+      '/finance-onboarding-status',
+      '/hr-onboarding-status',
+      '/checklist-status',
+      '/checklist-progress'
+    ]));
+  });
+
+  test('routeSlackCommand_ converts write-like intents into proposals and skips repository writes', () => {
+    const { routeSlackCommand_ } = require('../../gas/Commands.gs');
+    const sheetClient = {
+      getOnboardingRows: jest.fn(() => []),
+      getChecklistRows: jest.fn(() => []),
+      appendOnboardingRow: jest.fn(),
+      appendChecklistTask: jest.fn(),
+      appendTrainingRow: jest.fn(),
+      updateOnboardingStatus: jest.fn(),
+      updateChecklistTask: jest.fn(),
+      updateTrainingStatus: jest.fn(),
+      upsertTrainingRow: jest.fn()
+    };
+
+    global.SheetClient = jest.fn(() => sheetClient);
+    global.AuditLogger = jest.fn(() => ({ log: jest.fn() }));
+    global.SlackClient = jest.fn(() => ({ postMessage: jest.fn() }));
+    global.SubmissionController = {
+      createProposal: jest.fn(() => ({ id: 'PROP-42' }))
+    };
+
+    const response = routeSlackCommand_({
+      command: '/onboarding-status',
+      text: 'update ONB-42 to complete',
+      user_name: 'hr-user'
+    });
+
+    expect(response.response_type).toBe('ephemeral');
+    expect(response.text).toContain('proposal');
+    expect(global.SubmissionController.createProposal).toHaveBeenCalledWith(expect.objectContaining({
+      actor: 'hr-user',
+      command: '/onboarding-status',
+      intent: 'update'
+    }));
+    expect(sheetClient.getOnboardingRows).not.toHaveBeenCalled();
+    expect(sheetClient.getChecklistRows).not.toHaveBeenCalled();
+    expect(sheetClient.appendOnboardingRow).not.toHaveBeenCalled();
+    expect(sheetClient.appendChecklistTask).not.toHaveBeenCalled();
+    expect(sheetClient.appendTrainingRow).not.toHaveBeenCalled();
+    expect(sheetClient.updateOnboardingStatus).not.toHaveBeenCalled();
+    expect(sheetClient.updateChecklistTask).not.toHaveBeenCalled();
+    expect(sheetClient.updateTrainingStatus).not.toHaveBeenCalled();
+    expect(sheetClient.upsertTrainingRow).not.toHaveBeenCalled();
+  });
+
+  test('formatCommandOutput_ centralizes payload serialization without mutating source object', () => {
+    const { formatCommandOutput_ } = require('../../gas/Commands.gs');
+    const original = {
+      responseType: 'in_channel',
+      text: 'Hello world'
+    };
+
+    const formatted = formatCommandOutput_(original);
+
+    expect(formatted).toEqual({ response_type: 'in_channel', text: 'Hello world' });
+    expect(formatted).not.toBe(original);
+    expect(original).toEqual({ responseType: 'in_channel', text: 'Hello world' });
+  });
+
 });

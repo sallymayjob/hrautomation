@@ -9,6 +9,14 @@ var COMMAND_NAME_FINANCE_STATUS = '/finance-onboarding-status';
 var COMMAND_NAME_HR_STATUS = '/hr-onboarding-status';
 var COMMAND_NAME_CHECKLIST_STATUS = '/checklist-status';
 var COMMAND_NAME_CHECKLIST_PROGRESS = '/checklist-progress';
+var READ_ONLY_COMMANDS = [
+  COMMAND_NAME_ONBOARDING_STATUS,
+  COMMAND_NAME_IT_STATUS,
+  COMMAND_NAME_FINANCE_STATUS,
+  COMMAND_NAME_HR_STATUS,
+  COMMAND_NAME_CHECKLIST_STATUS,
+  COMMAND_NAME_CHECKLIST_PROGRESS
+];
 var MAX_DISAMBIGUATION_RESULTS = 5;
 var MAX_DUE_ITEMS = 3;
 
@@ -87,6 +95,20 @@ function handleSlackInteractivePayload_(payload) {
 
 function routeSlackCommand_(payload) {
   var commandName = String(payload.command || '').trim();
+  var actor = String(payload.user_name || payload.user_id || 'unknown');
+  var writeIntent = detectWriteIntent_(payload.text || '');
+
+  if (writeIntent.isWriteLikeIntent) {
+    return routeWriteIntentToProposal_(payload, actor, writeIntent);
+  }
+
+  if (READ_ONLY_COMMANDS.indexOf(commandName) === -1) {
+    return formatCommandOutput_({
+      responseType: 'ephemeral',
+      text: 'Unsupported slash command: ' + (commandName || '(empty)')
+    });
+  }
+
   if (commandName === COMMAND_NAME_ONBOARDING_STATUS || commandName === COMMAND_NAME_CHECKLIST_STATUS || commandName === COMMAND_NAME_CHECKLIST_PROGRESS) {
     return handleOnboardingStatusCommand_(payload, 'default', new SheetClient(), new AuditLogger(), new SlackClient());
   }
@@ -100,9 +122,49 @@ function routeSlackCommand_(payload) {
     return handleOnboardingStatusCommand_(payload, 'hr', new SheetClient(), new AuditLogger(), new SlackClient());
   }
 
-  return {
-    response_type: 'ephemeral',
+  return formatCommandOutput_({
+    responseType: 'ephemeral',
     text: 'Unsupported slash command: ' + (commandName || '(empty)')
+  });
+}
+
+function routeWriteIntentToProposal_(payload, actor, writeIntent) {
+  if (typeof SubmissionController === 'undefined' || !SubmissionController || typeof SubmissionController.createProposal !== 'function') {
+    return formatCommandOutput_({
+      responseType: 'ephemeral',
+      text: 'Write-like requests are blocked in Slack commands. Submission proposals are currently unavailable; please use Google Sheets.'
+    });
+  }
+
+  var proposal = SubmissionController.createProposal({
+    actor: actor,
+    command: String(payload.command || ''),
+    text: String(payload.text || ''),
+    intent: writeIntent.intent
+  });
+
+  return formatCommandOutput_({
+    responseType: 'ephemeral',
+    text: 'Captured your request as a proposal' + (proposal && proposal.id ? ' (' + proposal.id + ')' : '') + '. A reviewer can apply it from the submission queue.'
+  });
+}
+
+function detectWriteIntent_(rawText) {
+  var normalized = normalizeForMatch_(rawText);
+  var writeVerbs = ['update', 'set', 'change', 'edit', 'complete', 'reopen', 'close', 'approve', 'reject', 'delete', 'create', 'add'];
+
+  for (var i = 0; i < writeVerbs.length; i += 1) {
+    if (normalized.indexOf(writeVerbs[i] + ' ') === 0 || normalized.indexOf(' ' + writeVerbs[i] + ' ') > -1) {
+      return {
+        isWriteLikeIntent: true,
+        intent: writeVerbs[i]
+      };
+    }
+  }
+
+  return {
+    isWriteLikeIntent: false,
+    intent: ''
   };
 }
 
@@ -115,27 +177,27 @@ function handleOnboardingStatusCommand_(payload, teamViewKey, sheetClient, audit
 
   if (!query) {
     logOnboardingStatusRead_(auditLogger, actor, query, teamView.label, 'invalid_query', 0);
-    return {
-      response_type: 'ephemeral',
+    return formatCommandOutput_({
+      responseType: 'ephemeral',
       text: 'Usage: /onboarding-status <new hire name>\nExample: /onboarding-status Amelia Thompson'
-    };
+    });
   }
 
   var lookupResult = performOnboardingStatusLookup_(query, sheetClient);
   logOnboardingStatusRead_(auditLogger, actor, query, teamView.label, lookupResult.matchType, lookupResult.candidates.length);
 
   if (lookupResult.candidates.length === 0) {
-    return {
-      response_type: 'ephemeral',
+    return formatCommandOutput_({
+      responseType: 'ephemeral',
       text: 'No onboarding records found for "' + query + '".'
-    };
+    });
   }
 
   if (lookupResult.candidates.length > 1) {
-    return {
-      response_type: 'ephemeral',
+    return formatCommandOutput_({
+      responseType: 'ephemeral',
       text: formatDisambiguationMessage_(query, lookupResult.candidates)
-    };
+    });
   }
 
   var candidate = lookupResult.candidates[0];
@@ -146,10 +208,10 @@ function handleOnboardingStatusCommand_(payload, teamViewKey, sheetClient, audit
     postTeamTransparencyUpdate_(teamView, candidate, summaryText, slackClient);
   }
 
-  return {
-    response_type: 'ephemeral',
+  return formatCommandOutput_({
+    responseType: 'ephemeral',
     text: summaryText
-  };
+  });
 }
 
 function parseStatusCommandInput_(rawText) {
@@ -504,12 +566,21 @@ function safeDateSort_(value) {
 }
 
 function toSlackTextOutput_(responsePayload) {
+  var normalized = formatCommandOutput_(responsePayload);
   if (typeof ContentService === 'undefined' || !ContentService.createTextOutput) {
-    return responsePayload;
+    return normalized;
   }
   return ContentService
-    .createTextOutput(JSON.stringify(responsePayload))
+    .createTextOutput(JSON.stringify(normalized))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+function formatCommandOutput_(responsePayload) {
+  var payload = responsePayload || {};
+  return {
+    response_type: String(payload.response_type || payload.responseType || 'ephemeral'),
+    text: String(payload.text || '')
+  };
 }
 
 if (typeof module !== 'undefined') {
@@ -529,6 +600,9 @@ if (typeof module !== 'undefined') {
     logOnboardingStatusRead_: logOnboardingStatusRead_,
     parseSlackPayloadEnvelope_: parseSlackPayloadEnvelope_,
     handleSlackInteractivePayload_: handleSlackInteractivePayload_,
-    parseSlackUserIdFromQuery_: parseSlackUserIdFromQuery_
+    parseSlackUserIdFromQuery_: parseSlackUserIdFromQuery_,
+    detectWriteIntent_: detectWriteIntent_,
+    formatCommandOutput_: formatCommandOutput_,
+    READ_ONLY_COMMANDS: READ_ONLY_COMMANDS
   };
 }
