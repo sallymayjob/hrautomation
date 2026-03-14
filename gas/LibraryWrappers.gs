@@ -19,7 +19,8 @@ if (typeof require === 'function') {
     repository: require('./WorkflowSheetRepository.gs'),
     controller: require('./WorkflowRunController.gs'),
     onboardingController: require('./OnboardingController.gs'),
-    runnerService: require('./WorkflowRunnerService.gs')
+    runnerService: require('./WorkflowRunnerService.gs'),
+    periodicValidator: require('./SpreadsheetPeriodicValidator.gs')
   };
 }
 
@@ -134,6 +135,14 @@ function runTrainingReminders() {
     dateWindowMinutes: 24 * 60,
     logSheetName: 'Logs'
   });
+}
+
+
+function runPeriodicValidator() {
+  var validator = (typeof runPeriodicManagedRowsValidation === 'function')
+    ? runPeriodicManagedRowsValidation
+    : (WorkflowRunBindings_ && WorkflowRunBindings_.periodicValidator && WorkflowRunBindings_.periodicValidator.runPeriodicManagedRowsValidation);
+  return validator();
 }
 
 function runTrainingSync() {
@@ -440,6 +449,7 @@ if (typeof module !== 'undefined') module.exports = {
   runTrainingAssignments: runTrainingAssignments,
   runTrainingReminders: runTrainingReminders,
   runTrainingSync: runTrainingSync,
+  runPeriodicValidator: runPeriodicValidator,
   runLibraryWorkflow_: runLibraryWorkflow_,
   readSheetRows_: readSheetRows_,
   mapRowToObject_: mapRowToObject_,

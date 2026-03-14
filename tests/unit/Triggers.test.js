@@ -38,6 +38,15 @@ describe('Triggers', () => {
   });
 
 
+
+  test('setupPeriodicValidatorTrigger creates periodic validator trigger', () => {
+    const { setupPeriodicValidatorTrigger } = require('../../gas/Triggers.gs');
+
+    setupPeriodicValidatorTrigger();
+
+    expect(global.ScriptApp.newTrigger).toHaveBeenCalledWith('runPeriodicValidator');
+  });
+
   test('setupTrainingTriggers creates assignments/reminders/sync triggers', () => {
     const { setupTrainingTriggers } = require('../../gas/Triggers.gs');
 
