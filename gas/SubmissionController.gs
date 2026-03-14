@@ -15,6 +15,11 @@ if (typeof module !== 'undefined') {
   };
 }
 
+var SubmissionRepositoryOverride_ = null;
+var ProposalStore_ = (SubmissionControllerBindings_ && SubmissionControllerBindings_.ingress && SubmissionControllerBindings_.ingress.ProposalStore_)
+  ? SubmissionControllerBindings_.ingress.ProposalStore_
+  : { proposals: {} };
+
 function getSubmissionPolicy_() {
   return typeof submissionNormalizeActionKey_ === 'function'
     ? this
@@ -31,6 +36,34 @@ function getSubmissionPersistence_() {
   return typeof submissionGetDefaultRepository_ === 'function'
     ? this
     : SubmissionControllerBindings_.persistence;
+}
+
+
+function normalizeActionKey_(action) {
+  return getSubmissionPolicy_().submissionNormalizeActionKey_(action);
+}
+
+function inferEntityType_(input) {
+  return getSubmissionPolicy_().submissionInferEntityType_(input);
+}
+
+function inferEntityKey_(input) {
+  return getSubmissionPolicy_().submissionInferEntityKey_(input);
+}
+
+function getGovernanceConfig_() {
+  return getSubmissionPolicy_().submissionGetGovernanceConfig_();
+}
+
+function buildId_(prefix) {
+  var ingress = getSubmissionIngress_();
+  if (ingress && typeof ingress.submissionBuildId_ === 'function') {
+    return ingress.submissionBuildId_(prefix);
+  }
+  if (typeof generateId === 'function') {
+    return generateId(prefix);
+  }
+  return String(prefix || 'ID') + '-' + new Date().getTime();
 }
 
 function createProposal(input) {
@@ -310,25 +343,6 @@ function runCommitGates_(proposal, opts) {
   proposal.proposal_version = Number(nextVersion || proposal.proposal_version || 1);
 }
 
-function commitApprovedProposal(proposalId, options) {
-  var opts = options || {};
-  var proposal = getProposal(proposalId);
-  revalidateProposalForCommit(proposal);
-  runCommitGates_(proposal, opts);
-
-  var repository = opts.repository;
-  if (!repository || typeof repository.commitProposal !== 'function') throw new Error('Repository with commitProposal is required for final commit.');
-  repository.commitProposal(proposal, opts);
-  if (opts.auditService && typeof opts.auditService.logEvent === 'function') {
-    opts.auditService.logEvent({ actorEmail: String(opts.actor || proposal.approved_by || proposal.actor || 'system'), entityType: String(proposal.entity_type || 'proposal'), entityId: String(proposal.entity_key || proposal.id), action: 'COMMIT', details: 'Proposal committed via repository; trace_id=' + String(proposal.trace_id || '') });
-  }
-  proposal.committed_at = new Date().toISOString();
-  proposal.approval_status = String(proposal.approval_status || '').toUpperCase() || 'APPROVED';
-  getSubmissionIngress_().ProposalStore_.proposals[proposal.id] = proposal;
-  getSubmissionPersistence_().submissionPersistProposal_(proposal, repository);
-  return proposal;
-}
-
 function computeProposalHash_(proposal) {
   return getSubmissionPolicy_().submissionComputeProposalHash_(proposal);
 }
@@ -336,6 +350,7 @@ function requiresApprovalForAction_(entityType, action) {
   return getSubmissionPolicy_().submissionRequiresApprovalForAction_(entityType, action);
 }
 function setSubmissionRepositoryForTests_(repository) {
+  SubmissionRepositoryOverride_ = repository || null;
   return getSubmissionPersistence_().submissionSetRepositoryForTests_(repository);
 }
 

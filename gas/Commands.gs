@@ -22,9 +22,15 @@ var MAX_DUE_ITEMS = 3;
 
 var CommandSecurityBindings_ = null;
 var CommandIngressBindings_ = null;
+var CommandsBindings_ = null;
 if (typeof module !== 'undefined') {
   CommandSecurityBindings_ = require('./SecurityUtils.gs');
   CommandIngressBindings_ = require('./SlackIngress.gs');
+  CommandsBindings_ = {
+    ingress: require('./CommandsIngress.gs'),
+    policy: require('./CommandsPolicy.gs'),
+    persistence: require('./CommandsPersistenceAdapter.gs')
+  };
 }
 
 function verifySlackRequestForCommands_(event) {
