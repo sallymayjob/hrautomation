@@ -202,7 +202,7 @@ describe('SheetClient', () => {
   });
 
   test('validateSheetSchema_ catches naming and case drift fixture headers', () => {
-    const training = makeSheet(['employee_id', 'modulecode', 'training_status', 'assigned_date', 'due_date', 'completion_date', 'last_updated_at', 'completion_hash', 'celebration_posted', 'module_name'], [], 'Training');
+    const training = makeSheet(['employee_id', 'modulecode', 'training_status', 'assigned_date', 'due_date', 'completion_date', 'owner_email', 'reminder_count', 'last_reminder_at', 'last_updated_at', 'completion_hash', 'celebration_posted', 'module_name'], [], 'Training');
     const config = makeSheet(['key', 'value'], [['Training.schema_version', '1']], '_sys_config');
     const spreadsheet = makeSpreadsheet({ Training: training, _sys_config: config });
     SpreadsheetApp.openById.mockReturnValue(spreadsheet);
@@ -210,14 +210,14 @@ describe('SheetClient', () => {
     const { SheetClient } = require('../../gas/SheetClient.gs');
     const client = new SheetClient();
 
-    expect(() => client.validateSheetSchema_(training, 1, ['employee_id', 'module_code', 'module_name', 'assigned_date', 'due_date', 'completion_date', 'training_status', 'last_updated_at', 'completion_hash', 'celebration_posted'])).toThrow('Missing required header(s): module_code');
+    expect(() => client.validateSheetSchema_(training, 1, ['employee_id', 'module_code', 'module_name', 'assigned_date', 'due_date', 'completion_date', 'training_status', 'owner_email', 'reminder_count', 'last_reminder_at', 'last_updated_at', 'completion_hash', 'celebration_posted'])).toThrow('Missing required header(s): module_code');
 
     training.getRange = jest.fn((r, c, numRows, numCols) => ({
-      getValues: jest.fn(() => [['employee_id', 'MODULE_CODE', 'module_name', 'assigned_date', 'due_date', 'completion_date', 'last_updated_at', 'training_status', 'completion_hash', 'celebration_posted']])
+      getValues: jest.fn(() => [['employee_id', 'MODULE_CODE', 'module_name', 'assigned_date', 'due_date', 'completion_date', 'owner_email', 'training_status', 'reminder_count', 'last_reminder_at', 'last_updated_at', 'completion_hash', 'celebration_posted']])
     }));
-    training.getLastColumn = jest.fn(() => 10);
+    training.getLastColumn = jest.fn(() => 13);
 
-    expect(() => client.validateSheetSchema_(training, 1, ['employee_id', 'module_code', 'module_name', 'assigned_date', 'due_date', 'completion_date', 'training_status', 'last_updated_at', 'completion_hash', 'celebration_posted'])).toThrow('Header order mismatch');
+    expect(() => client.validateSheetSchema_(training, 1, ['employee_id', 'module_code', 'module_name', 'assigned_date', 'due_date', 'completion_date', 'training_status', 'owner_email', 'reminder_count', 'last_reminder_at', 'last_updated_at', 'completion_hash', 'celebration_posted'])).toThrow('Header order mismatch');
   });
 
   test('validateSchema accepts canonical library headers and rejects drift with readable errors', () => {
@@ -274,7 +274,7 @@ describe('SheetClient', () => {
     global.Config.getSubmissionsSpreadsheetId = jest.fn(() => 'training-id');
     global.Config.getSubmissionsSheetName = jest.fn(() => 'submissions');
 
-    const training = makeSheet(['employee_id', 'module_code', 'module_name', 'assigned_date', 'due_date', 'completion_date', 'training_status', 'last_updated_at', 'completion_hash', 'celebration_posted'], [], 'Training');
+    const training = makeSheet(['employee_id', 'module_code', 'module_name', 'assigned_date', 'due_date', 'completion_date', 'training_status', 'owner_email', 'reminder_count', 'last_reminder_at', 'last_updated_at', 'completion_hash', 'celebration_posted'], [], 'Training');
     const lessons = makeSheet(['lesson_id', 'module_code', 'lesson_title', 'version', 'source', 'trace_id', 'approval_status', 'submitted_by', 'approved_by', 'submitted_at', 'approved_at', 'created_at', 'updated_at'], [], 'lessons');
     const mappings = makeSheet(['mapping_id', 'lesson_id', 'target_entity', 'target_key', 'version', 'source', 'trace_id', 'approval_status', 'submitted_by', 'approved_by', 'submitted_at', 'approved_at', 'created_at', 'updated_at'], [], 'mappings');
     const approvals = makeSheet(['approval_id', 'entity_type', 'entity_key', 'approval_status', 'submitted_by', 'approved_by', 'trace_id', 'version', 'source', 'submitted_at', 'approved_at', 'created_at', 'updated_at'], [], 'approvals');

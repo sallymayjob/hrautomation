@@ -37,6 +37,7 @@ describe('LibraryWrappers', () => {
         releaseLock: jest.fn()
       }))
     };
+    global.SheetClient = jest.fn(() => ({ validateWriteSchema_: jest.fn(() => true) }));
   });
 
 
