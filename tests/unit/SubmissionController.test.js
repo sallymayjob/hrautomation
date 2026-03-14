@@ -10,21 +10,53 @@ describe('SubmissionController commit gates', () => {
     };
   });
 
+  function makeRepository() {
+    const persisted = {};
+    return {
+      persisted,
+      createProposal: jest.fn((proposal) => {
+        persisted[proposal.id] = JSON.parse(JSON.stringify(proposal));
+        return proposal;
+      }),
+      getProposalById: jest.fn((id) => persisted[id] ? JSON.parse(JSON.stringify(persisted[id])) : null),
+      updateProposal: jest.fn((id, patch) => {
+        const existing = persisted[id] ? JSON.parse(JSON.stringify(persisted[id])) : null;
+        if (!existing) return null;
+        const next = Object.assign(existing, patch);
+        persisted[id] = JSON.parse(JSON.stringify(next));
+        return next;
+      }),
+      commitProposal: jest.fn((proposal, options) => {
+        const existing = persisted[proposal.id];
+        if (!existing) throw new Error('Proposal not found: ' + proposal.id);
+        if (options && options.expectedProposalVersion !== undefined && Number(existing.proposal_version || 1) !== Number(options.expectedProposalVersion)) {
+          throw new Error('Optimistic commit failed: proposal version mismatch for ' + proposal.id + '.');
+        }
+        if (options && options.expectedProposalHash && String(existing.proposal_hash || '') !== String(options.expectedProposalHash)) {
+          throw new Error('Optimistic commit failed: proposal hash mismatch for ' + proposal.id + '.');
+        }
+        persisted[proposal.id] = JSON.parse(JSON.stringify(proposal));
+        return proposal;
+      })
+    };
+  }
+
   test('commitApprovedProposal enforces gates before repository commit', () => {
     const utils = require('../../gas/Utils.gs');
     global.computeHash = utils.computeHash;
     const controller = require('../../gas/SubmissionController.gs');
 
+    const repository = makeRepository();
     const proposal = controller.createProposal({
       id: 'PROP-1',
       entity_type: 'lesson',
       entity_key: 'lesson:1',
       action: 'lesson_edit',
       approval_status: 'APPROVED',
-      payload: { course_id: 'c1', module_code: 'm1', lesson_id: 'l1' }
+      payload: { course_id: 'c1', module_code: 'm1', lesson_id: 'l1' },
+      repository
     });
 
-    const repository = { commitProposal: jest.fn() };
     controller.commitApprovedProposal(proposal.id, {
       repository,
       gateContext: {
@@ -39,22 +71,24 @@ describe('SubmissionController commit gates', () => {
     });
 
     expect(repository.commitProposal).toHaveBeenCalledTimes(1);
-    expect(controller.getProposal(proposal.id).proposal_version).toBe(2);
+    expect(controller.getProposal(proposal.id, { repository }).proposal_version).toBe(2);
   });
 
   test('commitApprovedProposal blocks duplicate gate failures', () => {
     const controller = require('../../gas/SubmissionController.gs');
+    const repository = makeRepository();
     const proposal = controller.createProposal({
       id: 'PROP-2',
       entity_type: 'lesson',
       entity_key: 'lesson:1',
       action: 'lesson_edit',
       approval_status: 'APPROVED',
-      payload: { course_id: 'c1', module_code: 'm1', lesson_id: 'l1' }
+      payload: { course_id: 'c1', module_code: 'm1', lesson_id: 'l1' },
+      repository
     });
 
     expect(() => controller.commitApprovedProposal(proposal.id, {
-      repository: { commitProposal: jest.fn() },
+      repository,
       gateContext: {
         existingRows: [],
         existingRecords: [{ entity_type: 'lesson', entity_key: 'lesson:1', action: 'lesson_edit', payload: { course_id: 'c1', module_code: 'm1', lesson_id: 'l1' }, active: true }],
@@ -70,8 +104,15 @@ describe('SubmissionController commit gates', () => {
   test('proposal persistence survives controller reload via repository', () => {
     const persisted = {};
     const mockRepository = {
-      saveProposal: jest.fn((proposal) => { persisted[proposal.id] = JSON.parse(JSON.stringify(proposal)); }),
-      getProposalById: jest.fn((id) => persisted[id] || null)
+      createProposal: jest.fn((proposal) => { persisted[proposal.id] = JSON.parse(JSON.stringify(proposal)); return proposal; }),
+      getProposalById: jest.fn((id) => persisted[id] || null),
+      updateProposal: jest.fn((id, patch) => {
+        const proposal = persisted[id];
+        if (!proposal) return null;
+        persisted[id] = Object.assign({}, proposal, patch);
+        return persisted[id];
+      }),
+      commitProposal: jest.fn((proposal) => proposal)
     };
 
     let controller = require('../../gas/SubmissionController.gs');
