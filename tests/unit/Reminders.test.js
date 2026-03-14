@@ -23,7 +23,7 @@ describe('Reminders', () => {
       ONBOARDING: { EMAIL: 3, FULL_NAME: 2, START_DATE: 4, EMPLOYEE_ID: 1 },
       AUDIT: { EVENT_HASH: 8 }
     };
-    global.Config = { getAuditSheetName: jest.fn(() => 'Audit'), getOnboardingSpreadsheetId: jest.fn(() => 'onboarding-id'), getOnboardingSheetName: jest.fn(() => 'Onboarding') };
+    global.Config = { getAuditSheetName: jest.fn(() => 'Audit'), getOnboardingSpreadsheetId: jest.fn(() => 'onboarding-id'), getOnboardingSheetName: jest.fn(() => 'Onboarding'), CHANNEL_ROUTING: { HR: 'getHrTeamChannelId' } };
     global.computeHash = jest.fn(() => 'event-hash');
     global.generateId = jest.fn(() => 'AUD_1');
     global.getDaysUntilDue = jest.fn(() => 3);
@@ -56,6 +56,56 @@ describe('Reminders', () => {
     const { sendReminderDM } = require('../../gas/Reminders.gs');
     sendReminderDM(['E1', 'M1', 'Module', '', new Date().toISOString()], 3);
     expect(postMessage).toHaveBeenCalled();
+  });
+
+
+
+  test('sendReminderDM reuses cached Slack identity across repeated sends', () => {
+    const client = {
+      findOnboardingByEmployeeId: jest.fn(() => ({ values: ['E1', 'Alex', 'a@x.com'] })),
+      checkDuplicate: jest.fn(() => -1)
+    };
+    global.SheetClient = jest.fn(() => client);
+    global.AuditLogger = jest.fn(() => ({ log: jest.fn() }));
+    const postMessage = jest.fn();
+    const lookupUserByEmail = jest.fn(() => ({ user: { id: 'U1' } }));
+    global.SlackClient = jest.fn(() => ({ lookupUserByEmail, postMessage }));
+
+    const inMemory = {};
+    global.getOrLoadScriptCache_ = jest.fn((key, ttlSeconds, loaderFn) => {
+      if (Object.prototype.hasOwnProperty.call(inMemory, key)) {
+        return inMemory[key];
+      }
+      const loaded = loaderFn();
+      inMemory[key] = loaded;
+      return loaded;
+    });
+
+    const { sendReminderDM } = require('../../gas/Reminders.gs');
+    sendReminderDM(['E1', 'M1', 'Module', '', new Date().toISOString()], 3);
+    sendReminderDM(['E1', 'M2', 'Module', '', new Date().toISOString()], 3);
+
+    expect(lookupUserByEmail).toHaveBeenCalledTimes(1);
+    expect(postMessage).toHaveBeenCalledTimes(2);
+  });
+
+  test('sendReminderDM falls back when cache helper throws', () => {
+    const client = {
+      findOnboardingByEmployeeId: jest.fn(() => ({ values: ['E1', 'Alex', 'a@x.com'] })),
+      checkDuplicate: jest.fn(() => -1)
+    };
+    global.SheetClient = jest.fn(() => client);
+    global.AuditLogger = jest.fn(() => ({ log: jest.fn() }));
+    const postMessage = jest.fn();
+    const lookupUserByEmail = jest.fn(() => ({ user: { id: 'U1' } }));
+    global.SlackClient = jest.fn(() => ({ lookupUserByEmail, postMessage }));
+    global.getOrLoadScriptCache_ = jest.fn(() => { throw new Error('cache unavailable'); });
+
+    const { sendReminderDM } = require('../../gas/Reminders.gs');
+    sendReminderDM(['E1', 'M1', 'Module', '', new Date().toISOString()], 3);
+
+    expect(lookupUserByEmail).toHaveBeenCalledTimes(1);
+    expect(postMessage).toHaveBeenCalledTimes(1);
   });
 
   test('escalateToManager appends audit once', () => {

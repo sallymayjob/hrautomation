@@ -18,9 +18,26 @@ var STATUS = {
 
 var RepositoryBindings_ = null;
 var OnboardingPolicyBindings_ = null;
+var CacheRepositoryBindings_ = null;
 if (typeof module !== 'undefined') {
   RepositoryBindings_ = require('./OnboardingRepositories.gs');
   OnboardingPolicyBindings_ = require('./OnboardingPolicy.gs');
+  CacheRepositoryBindings_ = require('./CacheRepository.gs');
+}
+
+
+function getOrLoadScriptCacheSafe_(key, ttlSeconds, loaderFn) {
+  var cacheLoader = (typeof getOrLoadScriptCache_ === 'function')
+    ? getOrLoadScriptCache_
+    : (CacheRepositoryBindings_ && CacheRepositoryBindings_.getOrLoadScriptCache_);
+  if (typeof cacheLoader !== 'function') {
+    return loaderFn();
+  }
+  try {
+    return cacheLoader(key, ttlSeconds, loaderFn);
+  } catch (err) {
+    return loaderFn();
+  }
 }
 
 function getRepositoryCtor_(name, globalCtor) {
@@ -197,8 +214,16 @@ function requireMandatoryStakeholders_(rowData) {
 }
 
 function lookupSlackIdByEmail_(slackClient, email) {
-  var lookup = slackClient.lookupUserByEmail(String(email || '').trim());
-  return lookup && lookup.user && lookup.user.id ? lookup.user.id : '';
+  var normalizedEmail = String(email || '').trim().toLowerCase();
+  if (!normalizedEmail) {
+    return '';
+  }
+
+  // Invalidation assumption: Slack identities can change, so keep cache brief (120s).
+  return getOrLoadScriptCacheSafe_('slack_user_by_email:' + normalizedEmail, 120, function () {
+    var lookup = slackClient.lookupUserByEmail(normalizedEmail);
+    return lookup && lookup.user && lookup.user.id ? lookup.user.id : '';
+  });
 }
 
 function writeTrainingAssignments_(trainingRepository, rowData, roleMapping, startDate) {
@@ -510,7 +535,9 @@ function resolveTaskOwnerDestination_(ownerTeam, ownerSlackId) {
 
 function resolveTeamChannelGetterName_(teamKey) {
   var normalizedKey = String(teamKey || '').trim().toUpperCase();
-  var routing = (Config && Config.CHANNEL_ROUTING) || {
+  // Invalidation assumption: routing is configured via Script Properties and may change during incidents; use short cache (300s).
+  var routing = getOrLoadScriptCacheSafe_('config_channel_routing_map', 300, function () {
+    return (Config && Config.CHANNEL_ROUTING) || {
     ADMIN: 'getAdminTeamChannelId',
     FINANCE: 'getFinanceTeamChannelId',
     HR: 'getHrTeamChannelId',
@@ -520,6 +547,7 @@ function resolveTeamChannelGetterName_(teamKey) {
     PEOPLE: 'getPeopleTeamChannelId',
     'PEOPLE OPS': 'getPeopleTeamChannelId'
   };
+  });
   if (routing[normalizedKey]) {
     return routing[normalizedKey];
   }
