@@ -75,6 +75,30 @@ var Config = (function () {
     'PEOPLE OPS': 'getPeopleTeamChannelId'
   };
 
+  var REQUIRED_CHANNEL_GETTERS = [
+    'getAdminTeamChannelId',
+    'getFinanceTeamChannelId',
+    'getHrTeamChannelId',
+    'getItTeamChannelId',
+    'getLegalTeamChannelId',
+    'getOperationsTeamChannelId',
+    'getPeopleTeamChannelId',
+    'getDefaultAssignmentsChannelId',
+    'getHrOpsAlertsChannelId'
+  ];
+
+  var CHANNEL_GETTER_TO_KEY = {
+    getAdminTeamChannelId: KEYS.ADMIN_TEAM_CHANNEL_ID,
+    getFinanceTeamChannelId: KEYS.FINANCE_TEAM_CHANNEL_ID,
+    getHrTeamChannelId: KEYS.HR_TEAM_CHANNEL_ID,
+    getItTeamChannelId: KEYS.IT_TEAM_CHANNEL_ID,
+    getLegalTeamChannelId: KEYS.LEGAL_TEAM_CHANNEL_ID,
+    getOperationsTeamChannelId: KEYS.OPERATIONS_TEAM_CHANNEL_ID,
+    getPeopleTeamChannelId: KEYS.PEOPLE_TEAM_CHANNEL_ID,
+    getDefaultAssignmentsChannelId: KEYS.DEFAULT_ASSIGNMENTS_CHANNEL_ID,
+    getHrOpsAlertsChannelId: KEYS.HR_OPS_ALERTS_CHANNEL_ID
+  };
+
   var DATASETS = {
     onboarding: { spreadsheetIdKey: KEYS.ONBOARDING_SPREADSHEET_ID, sheetNameKey: KEYS.ONBOARDING_SHEET_NAME },
     training: { spreadsheetIdKey: KEYS.TRAINING_SPREADSHEET_ID, sheetNameKey: KEYS.TRAINING_SHEET_NAME },
@@ -144,7 +168,27 @@ var Config = (function () {
     getOperationsTeamChannelId: function () { return configHelpers.getStringProperty_(KEYS.OPERATIONS_TEAM_CHANNEL_ID); },
     getPeopleTeamChannelId: function () { return configHelpers.getStringProperty_(KEYS.PEOPLE_TEAM_CHANNEL_ID); },
     getDefaultAssignmentsChannelId: function () { return configHelpers.getStringProperty_(KEYS.DEFAULT_ASSIGNMENTS_CHANNEL_ID); },
-    getHrOpsAlertsChannelId: function () { return configHelpers.getStringProperty_(KEYS.HR_OPS_ALERTS_CHANNEL_ID); }
+    getHrOpsAlertsChannelId: function () { return configHelpers.getStringProperty_(KEYS.HR_OPS_ALERTS_CHANNEL_ID); },
+
+    validateRequiredChannelConfig: function () {
+      var missing = [];
+      for (var i = 0; i < REQUIRED_CHANNEL_GETTERS.length; i += 1) {
+        var getterName = REQUIRED_CHANNEL_GETTERS[i];
+        var getter = this[getterName];
+        if (typeof getter !== 'function') {
+          missing.push(CHANNEL_GETTER_TO_KEY[getterName] || getterName);
+          continue;
+        }
+        var value = getter();
+        if (!String(value || '').trim()) {
+          missing.push(CHANNEL_GETTER_TO_KEY[getterName] || getterName);
+        }
+      }
+      if (missing.length) {
+        throw new Error('Missing required channel Script Properties: ' + missing.join(', '));
+      }
+      return true;
+    }
   };
 })();
 

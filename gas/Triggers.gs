@@ -1,4 +1,4 @@
-/* global ScriptApp */
+/* global ScriptApp, Config */
 /**
  * @fileoverview Trigger setup and teardown helpers.
  * CONTRACT: no SpreadsheetApp writes in this file.
@@ -15,11 +15,21 @@ var TRIGGER_HANDLERS = {
   TRAINING_SYNC: 'runTrainingSync'
 };
 
+
+function validateStartupConfig_() {
+  if (!Config || typeof Config.validateRequiredChannelConfig !== 'function') {
+    throw new Error('Config.validateRequiredChannelConfig is required during startup trigger setup.');
+  }
+  Config.validateRequiredChannelConfig();
+}
+
 function setupDailyTrigger() {
+  validateStartupConfig_();
   ensureTimeTrigger_(TRIGGER_HANDLERS.DAILY_REMINDERS, 9);
 }
 
 function setupBirthdayTrigger() {
+  validateStartupConfig_();
   ensureTimeTrigger_(TRIGGER_HANDLERS.BIRTHDAY_CHECK, 8);
 }
 
@@ -41,16 +51,19 @@ function teardownAllTriggers() {
 }
 
 function setupOnboardingBusinessHoursTrigger() {
+  validateStartupConfig_();
   ensureOnboardingTrigger_();
 }
 
 function setupAuditTriggers() {
+  validateStartupConfig_();
   ensureTimeTrigger_(TRIGGER_HANDLERS.AUDIT_DAILY, 7);
   ensureWeeklyTrigger_(TRIGGER_HANDLERS.AUDIT_WEEKLY_DEEP, ScriptApp.WeekDay.SUNDAY, 6);
 }
 
 
 function setupTrainingTriggers() {
+  validateStartupConfig_();
   ensureTimeTrigger_(TRIGGER_HANDLERS.TRAINING_ASSIGNMENTS, 6);
   ensureWeekdayTrigger_(TRIGGER_HANDLERS.TRAINING_REMINDERS, 9);
   ensureEveryHoursTrigger_(TRIGGER_HANDLERS.TRAINING_SYNC, 4);
@@ -157,6 +170,7 @@ if (typeof module !== 'undefined') {
     teardownAllTriggers: teardownAllTriggers,
     setupOnboardingBusinessHoursTrigger: setupOnboardingBusinessHoursTrigger,
     setupAuditTriggers: setupAuditTriggers,
-    setupTrainingTriggers: setupTrainingTriggers
+    setupTrainingTriggers: setupTrainingTriggers,
+    validateStartupConfig_: validateStartupConfig_
   };
 }
