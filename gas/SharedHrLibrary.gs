@@ -184,6 +184,23 @@ function syncTrainingCompletion(rows, options) {
   return result;
 }
 
+
+
+function resolveOnboardingCandidates(rows, query) {
+  var onboardingRows = Array.isArray(rows) ? rows : [];
+  if (typeof resolveOnboardingCandidates_ === 'function') {
+    return resolveOnboardingCandidates_(query, onboardingRows);
+  }
+  return { matchType: 'unsupported', candidates: [] };
+}
+
+function computeGovernedProposalHash(proposal) {
+  if (typeof computeProposalHash_ === 'function') {
+    return computeProposalHash_(proposal || {});
+  }
+  return '';
+}
+
 function getTraceId_(candidate) {
   if (candidate) {
     return String(candidate);
@@ -210,6 +227,6 @@ if (typeof module !== 'undefined') module.exports = {
   processTrainingAssignments: processTrainingAssignments,
   runTrainingReminders: runTrainingReminders,
   syncTrainingCompletion: syncTrainingCompletion,
-  getTraceId_: getTraceId_,
-  buildResult_: buildResult_
+  resolveOnboardingCandidates: resolveOnboardingCandidates,
+  computeGovernedProposalHash: computeGovernedProposalHash
 };

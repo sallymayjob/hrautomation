@@ -27,6 +27,62 @@ function SubmissionRepository(sheetClient) {
   this.sheetClient = sheetClient || (getSheetClientForSubmission_() ? new (getSheetClientForSubmission_())() : null);
 }
 
+SubmissionRepository.prototype.createProposal = function (proposal) {
+  return this.saveProposal(proposal);
+};
+
+SubmissionRepository.prototype.getProposal = function (proposalId) {
+  return this.getProposalById(proposalId);
+};
+
+SubmissionRepository.prototype.updateProposal = function (proposalId, patch) {
+  var proposal = this.getProposalById(proposalId);
+  if (!proposal) return null;
+
+  var updates = patch || {};
+  var keys = Object.keys(updates);
+  for (var i = 0; i < keys.length; i += 1) {
+    proposal[keys[i]] = updates[keys[i]];
+  }
+
+  this.saveProposal(proposal);
+  return proposal;
+};
+
+SubmissionRepository.prototype.commitProposal = function (proposal, options) {
+  if (!proposal) {
+    throw new Error('Proposal is required.');
+  }
+
+  var opts = options || {};
+  var persisted = this.getProposalById(proposal.id);
+  if (!persisted) {
+    throw new Error('Proposal not found: ' + proposal.id);
+  }
+
+  if (opts.expectedProposalVersion !== undefined && Number(persisted.proposal_version || 1) !== Number(opts.expectedProposalVersion)) {
+    throw new Error('Optimistic commit failed: proposal version mismatch for ' + proposal.id + '.');
+  }
+  if (opts.expectedProposalHash && String(persisted.proposal_hash || '') !== String(opts.expectedProposalHash)) {
+    throw new Error('Optimistic commit failed: proposal hash mismatch for ' + proposal.id + '.');
+  }
+
+  this.saveProposal(proposal);
+  return proposal;
+};
+
+SubmissionRepository.prototype.writeDraftProposal = function (proposal) {
+  return this.createProposal(proposal);
+};
+
+SubmissionRepository.prototype.writeProposalDraft = function (proposal) {
+  return this.createProposal(proposal);
+};
+
+SubmissionRepository.prototype.writeProposal = function (proposal) {
+  return this.createProposal(proposal);
+};
+
 SubmissionRepository.prototype.ensureSheet_ = function () {
   if (!this.sheetClient) return null;
   return this.sheetClient.ensureSheetWithHeaders(Config.getSubmissionsSheetName(), SUBMISSION_HEADERS);
