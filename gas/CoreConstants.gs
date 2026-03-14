@@ -75,7 +75,17 @@ var CoreConstants = {
       },
       training: {
         expectedVersion: 1,
-        requiredHeaders: ['employee_id', 'module_code', 'module_name', 'assigned_date', 'due_date', 'completion_date', 'training_status', 'last_updated_at', 'completion_hash', 'celebration_posted']
+        requiredHeaders: ['employee_id', 'module_code', 'module_name', 'assigned_date', 'due_date', 'completion_date', 'training_status', 'owner_email', 'reminder_count', 'last_reminder_at', 'last_updated_at', 'completion_hash', 'celebration_posted'],
+        legacyHeaderAliases: {
+          employee_id: ['training_id', 'onboarding_id'],
+          module_code: ['modulecode', 'resource_code'],
+          module_name: ['resource_title'],
+          assigned_date: ['assigned_at'],
+          completion_date: ['completed_at'],
+          training_status: ['status'],
+          owner_email: ['owner', 'manager_email', 'resource_owner_email'],
+          last_updated_at: ['updated_at']
+        }
       },
       audit: {
         expectedVersion: 1,
