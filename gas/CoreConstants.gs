@@ -29,10 +29,41 @@ var CoreConstants = {
     PENDING: 'PENDING',
     APPROVED: 'APPROVED',
     REJECTED: 'REJECTED',
+    IN_PROGRESS: 'IN_PROGRESS',
+    NOT_STARTED: 'NOT_STARTED',
+    OVERDUE: 'OVERDUE',
     COMPLETE: 'COMPLETE',
     COMPLETED: 'COMPLETED',
     BLOCKED: 'BLOCKED',
     DONE: 'DONE'
+  },
+
+  STATUS_SETS: {
+    ONBOARDING: ['PENDING', 'IN_PROGRESS', 'BLOCKED', 'COMPLETE'],
+    CHECKLIST: ['PENDING', 'IN_PROGRESS', 'BLOCKED', 'COMPLETE'],
+    TRAINING: ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'OVERDUE'],
+    APPROVALS: ['PENDING', 'APPROVED', 'REJECTED']
+  },
+
+  STATUS_ALIASES: {
+    ONBOARDING: {
+      COMPLETED: 'COMPLETE',
+      DONE: 'COMPLETE'
+    },
+    CHECKLIST: {
+      DONE: 'COMPLETE',
+      COMPLETED: 'COMPLETE'
+    },
+    TRAINING: {
+      COMPLETE: 'COMPLETED',
+      Completed: 'COMPLETED',
+      'COMPLETED ': 'COMPLETED',
+      'NOT STARTED': 'NOT_STARTED',
+      'In Progress': 'IN_PROGRESS',
+      'Not Started': 'NOT_STARTED',
+      'Overdue': 'OVERDUE'
+    },
+    APPROVALS: {}
   },
 
   ENTITY_NAMES: {
@@ -122,4 +153,55 @@ var CoreConstants = {
   }
 };
 
-if (typeof module !== 'undefined') module.exports = { CoreConstants: CoreConstants };
+function normalizeStatusValue_(rawValue, statusSet, aliases) {
+  var normalized = String(rawValue || '').trim();
+  if (!normalized) {
+    return '';
+  }
+
+  if (aliases && aliases[normalized]) {
+    return aliases[normalized];
+  }
+
+  var upper = normalized.toUpperCase().replace(/\s+/g, '_');
+  if (aliases && aliases[upper]) {
+    return aliases[upper];
+  }
+
+  if ((statusSet || []).indexOf(upper) > -1) {
+    return upper;
+  }
+
+  return upper;
+}
+
+function normalizeOnboardingStatus(rawValue) {
+  return normalizeStatusValue_(rawValue, CoreConstants.STATUS_SETS.ONBOARDING, CoreConstants.STATUS_ALIASES.ONBOARDING);
+}
+
+function normalizeChecklistStatus(rawValue) {
+  return normalizeStatusValue_(rawValue, CoreConstants.STATUS_SETS.CHECKLIST, CoreConstants.STATUS_ALIASES.CHECKLIST);
+}
+
+function normalizeTrainingStatus(rawValue) {
+  return normalizeStatusValue_(rawValue, CoreConstants.STATUS_SETS.TRAINING, CoreConstants.STATUS_ALIASES.TRAINING);
+}
+
+function normalizeApprovalStatus(rawValue) {
+  return normalizeStatusValue_(rawValue, CoreConstants.STATUS_SETS.APPROVALS, CoreConstants.STATUS_ALIASES.APPROVALS);
+}
+
+function isChecklistDoneStatus(rawValue) {
+  return normalizeChecklistStatus(rawValue) === CoreConstants.STATUSES.COMPLETE;
+}
+
+if (typeof module !== 'undefined') {
+  module.exports = {
+    CoreConstants: CoreConstants,
+    normalizeOnboardingStatus: normalizeOnboardingStatus,
+    normalizeChecklistStatus: normalizeChecklistStatus,
+    normalizeTrainingStatus: normalizeTrainingStatus,
+    normalizeApprovalStatus: normalizeApprovalStatus,
+    isChecklistDoneStatus: isChecklistDoneStatus
+  };
+}

@@ -10,6 +10,13 @@ function mockGasGlobals() {
 describe('Reminders', () => {
   beforeEach(() => {
     jest.resetModules();
+    const statusUtils = require('../../gas/CoreConstants.gs');
+    global.CoreConstants = statusUtils.CoreConstants;
+    global.normalizeOnboardingStatus = statusUtils.normalizeOnboardingStatus;
+    global.normalizeChecklistStatus = statusUtils.normalizeChecklistStatus;
+    global.normalizeTrainingStatus = statusUtils.normalizeTrainingStatus;
+    global.normalizeApprovalStatus = statusUtils.normalizeApprovalStatus;
+    global.isChecklistDoneStatus = statusUtils.isChecklistDoneStatus;
     mockGasGlobals();
     global.COL = {
       TRAINING: { EMPLOYEE_ID: 1, MODULE_CODE: 2, MODULE_NAME: 3, DUE_DATE: 5, TRAINING_STATUS: 7, OWNER_EMAIL: 8 },

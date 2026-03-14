@@ -47,3 +47,17 @@ Examples of intentionally private helpers:
 - `buildResult_`
 - Any method with trailing `_` in internal modules.
 
+
+
+## Canonical status normalization (`CoreConstants`)
+
+- Canonical status sets are defined in `gas/CoreConstants.gs` for onboarding, checklist, training, and approvals.
+- Normalization helpers map accepted aliases to canonical values:
+  - `normalizeOnboardingStatus`
+  - `normalizeChecklistStatus`
+  - `normalizeTrainingStatus`
+  - `normalizeApprovalStatus`
+- Backward-compatible aliases currently accepted during transition include:
+  - Checklist/onboarding: `DONE` and `COMPLETED` → `COMPLETE`
+  - Training: `Completed` and `COMPLETE` → `COMPLETED`
+
