@@ -36,7 +36,7 @@ var ROLE_MAPPINGS = {
   MANAGER: { probationDays: 120, resources: [{ moduleCode: 'MGR-101', moduleName: 'People Leadership Essentials', dueOffsetDays: 10 }, { moduleCode: 'SEC-101', moduleName: 'Security Awareness', dueOffsetDays: 14 }] }
 };
 
-function processOnboardingRow_(sheet, rowIndex, workflowContext, repositories) {
+function processOnboardingRow_(sheet, rowIndex, workflowContext, repositories, rowValues) {
   var deps = createOnboardingRepositories_();
   if (repositories) {
     var dependencyKeys = Object.keys(repositories);
@@ -48,9 +48,11 @@ function processOnboardingRow_(sheet, rowIndex, workflowContext, repositories) {
   emitLifecycleEvent_(deps.auditRepository, runContext, 'WORKFLOW_STARTED', runContext.onboardingId || '');
   var headerMap = deps.onboardingRepository.getHeaderMap(sheet);
   validateOnboardingSchema_(sheet, headerMap);
+  var mutationRequired = headerMap.status ? ['status'] : [];
+  var mutation = deps.onboardingRepository.prepareRowMutation(sheet, rowIndex, headerMap, mutationRequired);
 
   try {
-    var rowData = deps.onboardingRepository.getRowObject(sheet, rowIndex, headerMap);
+    var rowData = deps.onboardingRepository.getRowObject(sheet, rowIndex, headerMap, rowValues || mutation.values);
     var normalizedRowData = normalizeOnboardingRowData_(rowData);
 
     if (!headerMap.status) {
@@ -59,12 +61,12 @@ function processOnboardingRow_(sheet, rowIndex, workflowContext, repositories) {
     }
 
     var rowHash = computeHash([normalizedRowData.email, formatDateKey_(normalizedRowData.start_date), normalizedRowData.role, normalizedRowData.manager_email]);
-    deps.onboardingRepository.setValueIfPresent(sheet, rowIndex, headerMap, 'row_hash', rowHash);
+    deps.onboardingRepository.setValueIfPresent(sheet, rowIndex, headerMap, 'row_hash', rowHash, mutation);
 
     var duplicateRow = findDuplicateForRowHash_(deps, rowHash, rowIndex, headerMap);
     if (duplicateRow > -1) {
-      deps.onboardingRepository.setStatus(sheet, rowIndex, headerMap, STATUS.BLOCKED);
-      deps.onboardingRepository.setBlockedReason(sheet, rowIndex, headerMap, 'Duplicate onboarding row found. Matched row index ' + duplicateRow + '.');
+      deps.onboardingRepository.setStatus(sheet, rowIndex, headerMap, STATUS.BLOCKED, mutation);
+      deps.onboardingRepository.setBlockedReason(sheet, rowIndex, headerMap, 'Duplicate onboarding row found. Matched row index ' + duplicateRow + '.', mutation);
       deps.auditRepository.log({ entityType: 'Onboarding', entityId: String(normalizedRowData.onboarding_id || rowIndex), action: 'UPDATE', details: 'Marked as duplicate. Matched row index ' + duplicateRow + '.' });
       return;
     }
@@ -72,12 +74,12 @@ function processOnboardingRow_(sheet, rowIndex, workflowContext, repositories) {
     requireMandatoryStakeholders_(normalizedRowData);
 
     var managerSlackId = lookupSlackIdByEmail_(deps.slackClient, normalizedRowData.manager_email);
-    deps.onboardingRepository.setValueIfPresent(sheet, rowIndex, headerMap, 'manager_slack_id', managerSlackId);
+    deps.onboardingRepository.setValueIfPresent(sheet, rowIndex, headerMap, 'manager_slack_id', managerSlackId, mutation);
 
     var buddySlackId = String(normalizedRowData.buddy_slack_id || '').trim();
     if (!buddySlackId) {
       buddySlackId = lookupSlackIdByEmail_(deps.slackClient, normalizedRowData.buddy_email);
-      deps.onboardingRepository.setValueIfPresent(sheet, rowIndex, headerMap, 'buddy_slack_id', buddySlackId);
+      deps.onboardingRepository.setValueIfPresent(sheet, rowIndex, headerMap, 'buddy_slack_id', buddySlackId, mutation);
     }
 
     var roleMapping = getRoleMapping_(normalizedRowData.role);
@@ -106,14 +108,14 @@ function processOnboardingRow_(sheet, rowIndex, workflowContext, repositories) {
 
     var onboardingId = normalizedRowData.onboarding_id || generateId('ONB');
     if (!normalizedRowData.onboarding_id) {
-      deps.onboardingRepository.setValueIfPresent(sheet, rowIndex, headerMap, 'onboarding_id', onboardingId);
+      deps.onboardingRepository.setValueIfPresent(sheet, rowIndex, headerMap, 'onboarding_id', onboardingId, mutation);
     }
 
     generateChecklistTasks_(deps, onboardingId, normalizedRowData, startDate, new Date());
-    deps.onboardingRepository.setValueIfPresent(sheet, rowIndex, headerMap, 'dm_sent_at', new Date());
-    deps.onboardingRepository.setValueIfPresent(sheet, rowIndex, headerMap, 'processed_at', new Date());
-    deps.onboardingRepository.setStatus(sheet, rowIndex, headerMap, STATUS.IN_PROGRESS);
-    deps.onboardingRepository.setBlockedReason(sheet, rowIndex, headerMap, '');
+    deps.onboardingRepository.setValueIfPresent(sheet, rowIndex, headerMap, 'dm_sent_at', new Date(), mutation);
+    deps.onboardingRepository.setValueIfPresent(sheet, rowIndex, headerMap, 'processed_at', new Date(), mutation);
+    deps.onboardingRepository.setStatus(sheet, rowIndex, headerMap, STATUS.IN_PROGRESS, mutation);
+    deps.onboardingRepository.setBlockedReason(sheet, rowIndex, headerMap, '', mutation);
 
     deps.auditRepository.log({
       entityType: 'Onboarding',
@@ -123,13 +125,14 @@ function processOnboardingRow_(sheet, rowIndex, workflowContext, repositories) {
     });
     runContext.onboardingId = onboardingId;
   } catch (err) {
-    deps.onboardingRepository.setStatus(sheet, rowIndex, headerMap, STATUS.BLOCKED);
+    deps.onboardingRepository.setStatus(sheet, rowIndex, headerMap, STATUS.BLOCKED, mutation);
     var safeError = typeof sanitizeErrorForLog === 'function' ? sanitizeErrorForLog(err) : String(err && err.message ? err.message : err);
-    deps.onboardingRepository.setBlockedReason(sheet, rowIndex, headerMap, safeError);
-    deps.onboardingRepository.setValueIfPresent(sheet, rowIndex, headerMap, 'error_message', safeError);
+    deps.onboardingRepository.setBlockedReason(sheet, rowIndex, headerMap, safeError, mutation);
+    deps.onboardingRepository.setValueIfPresent(sheet, rowIndex, headerMap, 'error_message', safeError, mutation);
     console.error('Onboarding processing failed for row ' + rowIndex + ': ' + safeError);
     deps.auditRepository.error({ entityType: 'Onboarding', entityId: 'row_' + rowIndex, action: 'UPDATE', details: 'Onboarding processing failed. reason=' + safeError }, err);
   } finally {
+    deps.onboardingRepository.commitRowMutation(mutation);
     emitLifecycleEvent_(deps.auditRepository, runContext, 'WORKFLOW_ENDED', runContext.onboardingId || '');
   }
 }
@@ -155,24 +158,36 @@ function createOnboardingRepositories_() {
   };
 }
 
-function hydrateOnboardingDefaults_(sheet, rowIndex, headerMap, onboardingRepository) {
+function hydrateOnboardingDefaults_(sheet, rowIndex, headerMap, onboardingRepository, rowValues) {
   var repo = onboardingRepository || new OnboardingRepository(new SheetClient());
-  var onboardingId = String(sheet.getRange(rowIndex, headerMap.onboarding_id).getValue() || '').trim();
-  if (!onboardingId) {
-    repo.setValueIfPresent(sheet, rowIndex, headerMap, 'onboarding_id', generateId('ONB'));
+  var requiredColumns = [];
+  if (headerMap.onboarding_id) requiredColumns.push('onboarding_id');
+  if (headerMap.status) requiredColumns.push('status');
+  var mutation = repo.prepareRowMutation(sheet, rowIndex, headerMap, requiredColumns);
+  var values = rowValues || mutation.values;
+
+  if (headerMap.onboarding_id) {
+    var onboardingId = String(values[headerMap.onboarding_id - 1] || '').trim();
+    if (!onboardingId) {
+      repo.setValueIfPresent(sheet, rowIndex, headerMap, 'onboarding_id', generateId('ONB'), mutation);
+    }
   }
 
-  var statusValue = String(sheet.getRange(rowIndex, headerMap.status).getValue() || '').trim().toUpperCase();
-  if (!statusValue) {
-    repo.setStatus(sheet, rowIndex, headerMap, STATUS.PENDING);
+  if (headerMap.status) {
+    var statusValue = String(values[headerMap.status - 1] || '').trim().toUpperCase();
+    if (!statusValue) {
+      repo.setStatus(sheet, rowIndex, headerMap, STATUS.PENDING, mutation);
+    }
   }
 
   if (headerMap.checklist_completed) {
-    var checklistCompleted = sheet.getRange(rowIndex, headerMap.checklist_completed).getValue();
+    var checklistCompleted = values[headerMap.checklist_completed - 1];
     if (checklistCompleted === '' || checklistCompleted === null) {
-      repo.setValueIfPresent(sheet, rowIndex, headerMap, 'checklist_completed', false);
+      repo.setValueIfPresent(sheet, rowIndex, headerMap, 'checklist_completed', false, mutation);
     }
   }
+
+  repo.commitRowMutation(mutation);
 }
 
 function emitLifecycleEvent_(auditRepository, workflowContext, eventType, onboardingId) {

@@ -10,6 +10,30 @@ if (typeof module !== "undefined") {
   };
 }
 
+
+function normalizeTrainingStatusForReminders_(value) {
+  if (typeof normalizeTrainingStatus === 'function') {
+    return normalizeTrainingStatus(value);
+  }
+  return String(value || '').trim().toUpperCase();
+}
+
+function getCompletedTrainingStatus_() {
+  if (typeof CoreConstants !== 'undefined' && CoreConstants && CoreConstants.STATUSES && CoreConstants.STATUSES.COMPLETED) {
+    return CoreConstants.STATUSES.COMPLETED;
+  }
+  return 'COMPLETED';
+}
+
+
+function isChecklistDoneStatusForReminders_(value) {
+  if (typeof isChecklistDoneStatus === 'function') {
+    return isChecklistDoneStatus(value);
+  }
+  var normalized = String(value || '').trim().toUpperCase();
+  return normalized === 'DONE' || normalized === 'COMPLETE' || normalized === 'COMPLETED';
+}
+
 var REMINDER_THRESHOLDS = {
   REMINDER_DAYS: [3, 0],
   ESCALATE_AFTER_OVERDUE_DAYS: 3
@@ -28,10 +52,11 @@ function runDailyReminders() {
 
 function processTrainingReminders_(sheetClient, trainingRepository, onboardingRepository, auditRepository) {
   var trainingRows = trainingRepository.getRows();
+  var pendingReminderUpdates = [];
   for (var i = 0; i < trainingRows.length; i += 1) {
     var row = trainingRows[i];
-    var status = normalizeTrainingStatus(row[COL.TRAINING.TRAINING_STATUS - 1]);
-    if (status === CoreConstants.STATUSES.COMPLETED) {
+    var status = normalizeTrainingStatusForReminders_(row[COL.TRAINING.TRAINING_STATUS - 1]);
+    if (status === getCompletedTrainingStatus_()) {
       continue;
     }
 
@@ -41,20 +66,25 @@ function processTrainingReminders_(sheetClient, trainingRepository, onboardingRe
     }
 
     if (REMINDER_THRESHOLDS.REMINDER_DAYS.indexOf(daysUntil) > -1 || daysUntil < 0) {
-      sendTrainingReminderDM_(sheetClient, trainingRepository, onboardingRepository, auditRepository, row, daysUntil);
+      var reminderUpdate = sendTrainingReminderDM_(sheetClient, trainingRepository, onboardingRepository, auditRepository, row, daysUntil, { deferPersistence: true });
+      if (reminderUpdate) pendingReminderUpdates.push(reminderUpdate);
     }
 
     if (daysUntil <= -REMINDER_THRESHOLDS.ESCALATE_AFTER_OVERDUE_DAYS) {
       escalateTrainingToManager_(sheetClient, auditRepository, row);
     }
   }
+  if (pendingReminderUpdates.length && trainingRepository.updateReminderMetadataBatch) {
+    trainingRepository.updateReminderMetadataBatch(pendingReminderUpdates);
+  }
 }
 
 function processChecklistReminders_(sheetClient, lessonRepository, onboardingRepository, auditRepository) {
   var checklistRows = lessonRepository.getRows();
+  var pendingReminderUpdates = [];
   for (var i = 0; i < checklistRows.length; i += 1) {
     var row = checklistRows[i];
-    if (isChecklistDoneStatus(row[COL.CHECKLIST.STATUS - 1])) {
+    if (isChecklistDoneStatusForReminders_(row[COL.CHECKLIST.STATUS - 1])) {
       continue;
     }
 
@@ -64,16 +94,20 @@ function processChecklistReminders_(sheetClient, lessonRepository, onboardingRep
     }
 
     if (REMINDER_THRESHOLDS.REMINDER_DAYS.indexOf(daysUntil) > -1 || daysUntil < 0) {
-      sendChecklistReminderDM_(sheetClient, lessonRepository, auditRepository, row, daysUntil);
+      var checklistUpdate = sendChecklistReminderDM_(sheetClient, lessonRepository, auditRepository, row, daysUntil, { deferPersistence: true });
+      if (checklistUpdate) pendingReminderUpdates.push(checklistUpdate);
     }
 
     if (daysUntil <= -REMINDER_THRESHOLDS.ESCALATE_AFTER_OVERDUE_DAYS) {
       escalateChecklistTask_(sheetClient, onboardingRepository, auditRepository, row, daysUntil);
     }
   }
+  if (pendingReminderUpdates.length && lessonRepository.updateReminderMetadataBatch) {
+    lessonRepository.updateReminderMetadataBatch(pendingReminderUpdates);
+  }
 }
 
-function sendTrainingReminderDM_(sheetClient, trainingRepository, onboardingRepository, auditRepository, row, daysUntil) {
+function sendTrainingReminderDM_(sheetClient, trainingRepository, onboardingRepository, auditRepository, row, daysUntil, options) {
   var slackClient = new SlackClient();
   var employeeId = row[COL.TRAINING.EMPLOYEE_ID - 1];
   var moduleCode = row[COL.TRAINING.MODULE_CODE - 1];
@@ -102,7 +136,7 @@ function sendTrainingReminderDM_(sheetClient, trainingRepository, onboardingRepo
   }));
 
   var nextCount = Number(row[COL.TRAINING.REMINDER_COUNT - 1] || 0) + 1;
-  if (trainingRepository.updateReminderMetadata) {
+  if (!(options && options.deferPersistence) && trainingRepository.updateReminderMetadata) {
     trainingRepository.updateReminderMetadata(employeeId, moduleCode, nextCount, new Date());
   }
 
@@ -116,6 +150,8 @@ function sendTrainingReminderDM_(sheetClient, trainingRepository, onboardingRepo
       details: reminderDetails
     });
   }
+
+  return { employeeId: employeeId, moduleCode: moduleCode, reminderCount: nextCount, lastReminderAt: new Date() };
 }
 
 function escalateTrainingToManager_(sheetClient, auditRepository, row) {
@@ -156,7 +192,7 @@ function parseReminderCountFromUpdatedBy_(value) {
   return match ? Number(match[1]) : 0;
 }
 
-function sendChecklistReminderDM_(sheetClient, lessonRepository, auditRepository, row, daysUntil) {
+function sendChecklistReminderDM_(sheetClient, lessonRepository, auditRepository, row, daysUntil, options) {
   var slackClient = new SlackClient();
   var onboardingId = row[COL.CHECKLIST.ONBOARDING_ID - 1];
   var taskId = row[COL.CHECKLIST.TASK_ID - 1];
@@ -180,9 +216,13 @@ function sendChecklistReminderDM_(sheetClient, lessonRepository, auditRepository
   }));
 
   var nextCount = parseReminderCountFromUpdatedBy_(row[COL.CHECKLIST.UPDATED_BY - 1]) + 1;
-  lessonRepository.updateReminderMetadata(taskId, onboardingId, nextCount, new Date());
+  if (!(options && options.deferPersistence)) {
+    lessonRepository.updateReminderMetadata(taskId, onboardingId, nextCount, new Date());
+  }
 
   auditRepository.logOnce(reminderHash, auditRepository.newAuditRow('ChecklistTask', String(onboardingId) + ':' + String(taskId), 'UPDATE', 'Checklist reminder sent to ' + destination.channelId + ' (' + daysUntil + ' days)', reminderHash));
+
+  return { taskId: taskId, onboardingId: onboardingId, reminderCount: nextCount, lastReminderAt: new Date() };
 }
 
 function escalateChecklistTask_(sheetClient, onboardingRepository, auditRepository, row, daysUntil) {

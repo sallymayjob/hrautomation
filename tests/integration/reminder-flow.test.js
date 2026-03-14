@@ -37,7 +37,8 @@ describe('integration reminder flow', () => {
     global.SubmissionController = { createProposal: jest.fn(), commitLesson: jest.fn() };
     global.TrainingRepository = jest.fn((sheetClient) => ({
       getRows: jest.fn(() => sheetClient.getTrainingRows()),
-      updateReminderMetadata: jest.fn((employeeId, moduleCode, reminderCount, lastReminderAt) => sheetClient.updateTrainingReminderMetadata(employeeId, moduleCode, reminderCount, lastReminderAt))
+      updateReminderMetadata: jest.fn((employeeId, moduleCode, reminderCount, lastReminderAt) => sheetClient.updateTrainingReminderMetadata(employeeId, moduleCode, reminderCount, lastReminderAt)),
+      updateReminderMetadataBatch: jest.fn((updates) => sheetClient.updateTrainingReminderMetadataBatch && sheetClient.updateTrainingReminderMetadataBatch(updates))
     }));
     global.OnboardingRepository = jest.fn((sheetClient) => ({
       findByEmployeeId: jest.fn((employeeId) => sheetClient.findOnboardingByEmployeeId(employeeId)),
@@ -59,6 +60,7 @@ describe('integration reminder flow', () => {
       appendAuditIfNotExists: jest.fn(),
       getChecklistRows: jest.fn(() => [['DOC-1', 'E1', 'Documentation', 'Submit documents', 'People Ops', 'CPEO', 'PENDING', new Date().toISOString(), '', '', '']]),
       updateTrainingReminderMetadata: jest.fn(),
+      updateTrainingReminderMetadataBatch: jest.fn(),
       updateChecklistReminderMetadata: jest.fn()
     };
     global.SheetClient = jest.fn(() => sheetClient);
@@ -70,6 +72,7 @@ describe('integration reminder flow', () => {
 
     expect(postMessage).toHaveBeenCalled();
     expect(sheetClient.appendAuditIfNotExists).toHaveBeenCalled();
+    expect(sheetClient.updateTrainingReminderMetadataBatch).toHaveBeenCalledTimes(1);
     expect(global.SubmissionController.createProposal).not.toHaveBeenCalled();
     expect(global.SubmissionController.commitLesson).not.toHaveBeenCalled();
   });

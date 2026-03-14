@@ -15,6 +15,33 @@ function withOnboardingLock_(operation) {
 }
 
 function OnboardingRepository(sheetClient) { this.sheetClient = sheetClient; }
+OnboardingRepository.prototype.prepareRowMutation = function (sheet, rowIndex, headerMap, requiredColumns) {
+  var mutationHeaderMap = headerMap || this.getHeaderMap(sheet);
+  var required = requiredColumns || [];
+  for (var i = 0; i < required.length; i += 1) {
+    if (!mutationHeaderMap[required[i]]) {
+      throw new Error('Required column not found on sheet "' + sheet.getName() + '": ' + required[i]);
+    }
+  }
+  return {
+    sheet: sheet,
+    rowIndex: rowIndex,
+    headerMap: mutationHeaderMap,
+    values: sheet.getRange(rowIndex, 1, 1, sheet.getLastColumn()).getValues()[0],
+    touched: false
+  };
+};
+OnboardingRepository.prototype.commitRowMutation = function (mutation) {
+  if (!mutation || !mutation.touched) return;
+  var rowRange = mutation.sheet.getRange(mutation.rowIndex, 1, 1, mutation.values.length);
+  if (rowRange && typeof rowRange.setValues === 'function') {
+    rowRange.setValues([mutation.values]);
+    return;
+  }
+  for (var i = 0; i < mutation.values.length; i += 1) {
+    mutation.sheet.getRange(mutation.rowIndex, i + 1).setValue(mutation.values[i]);
+  }
+};
 OnboardingRepository.prototype.getRows = function () {
   if (this.sheetClient.getDataRows_ && this.sheetClient.getOnboardingSheet_) return this.sheetClient.getDataRows_(this.sheetClient.getOnboardingSheet_());
   return this.sheetClient.getOnboardingRows ? this.sheetClient.getOnboardingRows() : [];
@@ -77,9 +104,10 @@ OnboardingRepository.prototype.updateStatus = function (employeeId, status) {
       var statusColumn = self.sheetClient.getColumnIndexByHeaderKey_(sheet, 'status', true);
       var blockedReasonColumn = self.sheetClient.getColumnIndexByHeaderKey_(sheet, 'blocked_reason', false);
       var rowIndex = self.sheetClient.findRowIndexByValue_(sheet, idColumn, employeeId); if (rowIndex < 0) return false;
+      var mutation = self.prepareRowMutation(sheet, rowIndex, self.getHeaderMap(sheet), ['status']);
       var nextStatus = String(status || '').trim().toUpperCase();
-      if (nextStatus === 'COMPLETE') { var gate = self.evaluateCompletionGate(employeeId); if (!gate.canComplete) { sheet.getRange(rowIndex, statusColumn).setValue('BLOCKED'); if (blockedReasonColumn > 0) sheet.getRange(rowIndex, blockedReasonColumn).setValue(gate.blockedReason); return false; } }
-      sheet.getRange(rowIndex, statusColumn).setValue(status); if (blockedReasonColumn > 0 && nextStatus !== 'BLOCKED') sheet.getRange(rowIndex, blockedReasonColumn).setValue(''); return true;
+      if (nextStatus === 'COMPLETE') { var gate = self.evaluateCompletionGate(employeeId); if (!gate.canComplete) { self.setStatus(sheet, rowIndex, mutation.headerMap, 'BLOCKED', mutation); if (blockedReasonColumn > 0) self.setBlockedReason(sheet, rowIndex, mutation.headerMap, gate.blockedReason, mutation); self.commitRowMutation(mutation); return false; } }
+      self.setStatus(sheet, rowIndex, mutation.headerMap, status, mutation); if (blockedReasonColumn > 0 && nextStatus !== 'BLOCKED') self.setBlockedReason(sheet, rowIndex, mutation.headerMap, '', mutation); self.commitRowMutation(mutation); return true;
     }, { operation: 'updateOnboardingStatus', employeeId: employeeId });
   });
 };
@@ -89,10 +117,18 @@ OnboardingRepository.prototype.getHeaderMap = function (sheet) {
   for (var i = 0; i < headers.length; i += 1) { var key = String(headers[i] || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, ''); if (key) map[key] = i + 1; }
   return map;
 };
-OnboardingRepository.prototype.getRowObject = function (sheet, rowIndex, headerMap) { var rowValues = sheet.getRange(rowIndex, 1, 1, sheet.getLastColumn()).getValues()[0]; var row = {}; Object.keys(headerMap).forEach(function (key) { row[key] = rowValues[headerMap[key] - 1]; }); return row; };
-OnboardingRepository.prototype.setValueIfPresent = function (sheet, rowIndex, headerMap, key, value) { if (headerMap[key]) sheet.getRange(rowIndex, headerMap[key]).setValue(value); };
-OnboardingRepository.prototype.setStatus = function (sheet, rowIndex, headerMap, statusValue) { if (!headerMap.status) return; sheet.getRange(rowIndex, headerMap.status).setValue(statusValue); this.setValueIfPresent(sheet, rowIndex, headerMap, 'last_updated_at', new Date()); };
-OnboardingRepository.prototype.setBlockedReason = function (sheet, rowIndex, headerMap, message) { this.setValueIfPresent(sheet, rowIndex, headerMap, 'blocked_reason', message || ''); };
+OnboardingRepository.prototype.getRowObject = function (sheet, rowIndex, headerMap, rowValues) { var values = rowValues || sheet.getRange(rowIndex, 1, 1, sheet.getLastColumn()).getValues()[0]; var row = {}; Object.keys(headerMap).forEach(function (key) { row[key] = values[headerMap[key] - 1]; }); return row; };
+OnboardingRepository.prototype.setValueIfPresent = function (sheet, rowIndex, headerMap, key, value, mutation) {
+  if (!headerMap[key]) return;
+  if (mutation && mutation.values) {
+    mutation.values[headerMap[key] - 1] = value;
+    mutation.touched = true;
+    return;
+  }
+  sheet.getRange(rowIndex, headerMap[key]).setValue(value);
+};
+OnboardingRepository.prototype.setStatus = function (sheet, rowIndex, headerMap, statusValue, mutation) { if (!headerMap.status) return; this.setValueIfPresent(sheet, rowIndex, headerMap, 'status', statusValue, mutation); this.setValueIfPresent(sheet, rowIndex, headerMap, 'last_updated_at', new Date(), mutation); };
+OnboardingRepository.prototype.setBlockedReason = function (sheet, rowIndex, headerMap, message, mutation) { this.setValueIfPresent(sheet, rowIndex, headerMap, 'blocked_reason', message || '', mutation); };
 OnboardingRepository.prototype.findDuplicateByRowHash = function (rowHash, rowIndex) { return this.sheetClient.checkDuplicate(Config.getOnboardingSheetName(), 'row_hash', rowHash, rowIndex); };
 OnboardingRepository.prototype.ensureChecklistHeaders = function (headers) { this.sheetClient.ensureSheetWithHeaders(Config.getChecklistSheetName(), headers); };
 OnboardingRepository.prototype.appendChecklistTask = function (rowValues) { return (typeof LessonRepository !== 'undefined' ? new LessonRepository(this.sheetClient).appendTask(rowValues) : this.sheetClient.appendChecklistTask(rowValues)); };
