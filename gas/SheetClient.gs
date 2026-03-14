@@ -212,7 +212,8 @@ if (typeof module !== 'undefined') {
     LessonRepository: require('./LessonRepository.gs').LessonRepository,
     AuditRepository: require('./AuditRepository.gs').AuditRepository,
     ValidationService: require('./ValidationService.gs'),
-    VersioningService: require('./VersioningService.gs')
+    VersioningService: require('./VersioningService.gs'),
+    CacheRepository: require('./CacheRepository.gs')
   };
 }
 
@@ -231,6 +232,36 @@ function getValidationService_() {
 function getVersioningService_() {
   return SheetClientRepoBindings_ && SheetClientRepoBindings_.VersioningService;
 }
+
+function getOrLoadScriptCacheForSheetClient_(key, ttlSeconds, loaderFn) {
+  var cacheLoader = (typeof getOrLoadScriptCache_ === 'function')
+    ? getOrLoadScriptCache_
+    : (SheetClientRepoBindings_ && SheetClientRepoBindings_.CacheRepository && SheetClientRepoBindings_.CacheRepository.getOrLoadScriptCache_);
+  if (typeof cacheLoader !== 'function') {
+    return loaderFn();
+  }
+  try {
+    return cacheLoader(key, ttlSeconds, loaderFn);
+  } catch (err) {
+    return loaderFn();
+  }
+}
+
+function getSheetCacheIdentity_(sheetOrSpreadsheet, fallbackName) {
+  if (!sheetOrSpreadsheet) {
+    return String(fallbackName || 'unknown');
+  }
+  if (typeof sheetOrSpreadsheet.getId === 'function') {
+    var id = String(sheetOrSpreadsheet.getId() || '').trim();
+    if (id) return id;
+  }
+  if (typeof sheetOrSpreadsheet.getName === 'function') {
+    var name = String(sheetOrSpreadsheet.getName() || '').trim();
+    if (name) return name;
+  }
+  return String(fallbackName || 'unknown');
+}
+
 var DASHBOARD_SCHEMAS = {
   onboarding: {
     spreadsheetIdGetter: function () {
@@ -363,15 +394,22 @@ SheetClient.prototype.normalizeKey_ = function (value) {
 };
 
 SheetClient.prototype.getHeaderMap_ = function (sheet) {
-  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  var headerMap = {};
-  for (var i = 0; i < headers.length; i += 1) {
-    var key = this.normalizeKey_(headers[i]);
-    if (key) {
-      headerMap[key] = i + 1;
+  var spreadsheetIdentity = getSheetCacheIdentity_(sheet && typeof sheet.getParent === 'function' ? sheet.getParent() : null, 'spreadsheet');
+  var sheetIdentity = getSheetCacheIdentity_(sheet, 'sheet');
+  var cacheKey = 'sheet_header_map:' + spreadsheetIdentity + ':' + sheetIdentity;
+
+  // Invalidation assumption: header edits are infrequent and admin-driven; cache for only 60s.
+  return getOrLoadScriptCacheForSheetClient_(cacheKey, 60, function () {
+    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var headerMap = {};
+    for (var i = 0; i < headers.length; i += 1) {
+      var key = this.normalizeKey_(headers[i]);
+      if (key) {
+        headerMap[key] = i + 1;
+      }
     }
-  }
-  return headerMap;
+    return headerMap;
+  }.bind(this));
 };
 
 SheetClient.prototype.getColumnIndexByHeaderKey_ = function (sheet, headerKey, required) {
@@ -481,18 +519,24 @@ SheetClient.prototype.validateLibrarySheetSchema_ = function (sheet) {
 };
 
 SheetClient.prototype.getSchemaVersionFromConfig_ = function (spreadsheet, sheetName) {
-  var configSheet = spreadsheet.getSheetByName(SCHEMA_CONFIG_TAB);
-  if (!configSheet || configSheet.getLastRow() < 2) {
-    return '';
-  }
-  var key = sheetName + '.schema_version';
-  var rows = configSheet.getRange(2, 1, configSheet.getLastRow() - 1, 2).getValues();
-  for (var i = 0; i < rows.length; i += 1) {
-    if (String(rows[i][0] || '').trim() === key) {
-      return String(rows[i][1] || '').trim();
+  var spreadsheetIdentity = getSheetCacheIdentity_(spreadsheet, 'spreadsheet');
+  var cacheKey = 'schema_version:' + spreadsheetIdentity + ':' + String(sheetName || '').trim();
+
+  // Invalidation assumption: schema metadata changes during controlled migrations; cache for 120s.
+  return getOrLoadScriptCacheForSheetClient_(cacheKey, 120, function () {
+    var configSheet = spreadsheet.getSheetByName(SCHEMA_CONFIG_TAB);
+    if (!configSheet || configSheet.getLastRow() < 2) {
+      return '';
     }
-  }
-  return '';
+    var key = sheetName + '.schema_version';
+    var rows = configSheet.getRange(2, 1, configSheet.getLastRow() - 1, 2).getValues();
+    for (var i = 0; i < rows.length; i += 1) {
+      if (String(rows[i][0] || '').trim() === key) {
+        return String(rows[i][1] || '').trim();
+      }
+    }
+    return '';
+  });
 };
 
 SheetClient.prototype.isSchemaVersionCompatible_ = function (expectedVersion, configuredVersion, options) {
