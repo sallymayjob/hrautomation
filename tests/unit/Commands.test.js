@@ -21,6 +21,9 @@ describe('Commands', () => {
       getAdminTeamChannelId: jest.fn(() => 'CADMTEAM'),
       getDefaultAssignmentsChannelId: jest.fn(() => 'CDEFAULT')
     };
+    global.normalizeChecklistStatus = jest.fn((value) => String(value || '').trim().toUpperCase());
+    global.isChecklistDoneStatus = jest.fn((value) => String(value || '').trim().toUpperCase() === 'COMPLETE');
+    global.CoreConstants = { STATUSES: { PENDING: 'PENDING' } };
   });
 
   test('resolveOnboardingCandidates_ prefers exact name matches', () => {
@@ -366,11 +369,9 @@ describe('Commands', () => {
     });
   });
 
-  test('routeSlackCommand_ facade preserves canonical write-intent routing', () => {
+  test('routeSlackCommand_ facade uses canonical ingress implementation once for write-intent routing', () => {
     const Commands = require('../../gas/Commands.gs');
     const Ingress = require('../../gas/CommandsIngress.gs');
-    const Policy = require('../../gas/CommandsPolicy.gs');
-    const Persistence = require('../../gas/CommandsPersistenceAdapter.gs');
 
     const sheetClient = {
       getOnboardingRows: jest.fn(() => []),
@@ -382,6 +383,7 @@ describe('Commands', () => {
       createProposal: jest.fn(() => ({ id: 'PROP-900' }))
     };
 
+    const routeSpy = jest.spyOn(Ingress, 'routeSlackCommand_');
     const payload = {
       command: '/onboarding-status',
       text: 'update ONB-42 to complete',
@@ -389,22 +391,34 @@ describe('Commands', () => {
     };
 
     const facadeResponse = Commands.routeSlackCommand_(payload);
-    const canonicalResponse = Ingress.routeSlackCommand_(payload, Policy, Persistence);
 
-    expect(facadeResponse).toEqual(canonicalResponse);
-    expect(global.SubmissionController.createProposal).toHaveBeenCalledTimes(2);
-    expect(global.SubmissionController.createProposal).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      command: '/onboarding-status',
-      intent: 'update',
-      actor: 'hr-user'
-    }));
-    expect(global.SubmissionController.createProposal).toHaveBeenNthCalledWith(2, expect.objectContaining({
+    expect(routeSpy).toHaveBeenCalledTimes(1);
+    expect(routeSpy).toHaveBeenCalledWith(
+      payload,
+      expect.objectContaining({ READ_ONLY_COMMANDS: expect.any(Array) }),
+      expect.objectContaining({ performOnboardingStatusLookup_: expect.any(Function) })
+    );
+    expect(facadeResponse.response_type).toBe('ephemeral');
+    expect(facadeResponse.text).toContain('proposal');
+    expect(global.SubmissionController.createProposal).toHaveBeenCalledTimes(1);
+    expect(global.SubmissionController.createProposal).toHaveBeenCalledWith(expect.objectContaining({
       command: '/onboarding-status',
       intent: 'update',
       actor: 'hr-user'
     }));
     expect(sheetClient.getOnboardingRows).not.toHaveBeenCalled();
     expect(sheetClient.getChecklistRows).not.toHaveBeenCalled();
+  });
+
+  test('facade exports ingress helpers without duplicate shadow implementations', () => {
+    const Commands = require('../../gas/Commands.gs');
+    const Ingress = require('../../gas/CommandsIngress.gs');
+
+    expect(Commands.extractSlackJsonBodyForChallenge_).toBe(Ingress.extractSlackJsonBodyForChallenge_);
+    expect(Commands.parseSlackPayloadEnvelope_).toBe(Ingress.parseSlackPayloadEnvelope_);
+    expect(Commands.handleSlackInteractivePayload_).toBe(Ingress.handleSlackInteractivePayload_);
+    expect(Commands.formatCommandOutput_).toBe(Ingress.formatCommandOutput_);
+    expect(Commands.toSlackChallengeOutput_).toBe(Ingress.toSlackChallengeOutput_);
   });
 
 });
