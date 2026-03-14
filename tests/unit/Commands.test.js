@@ -330,4 +330,81 @@ describe('Commands', () => {
     expect(original).toEqual({ responseType: 'in_channel', text: 'Hello world' });
   });
 
+
+  test('routeSlackCommand_ facade matches canonical ingress behavior for supported commands', () => {
+    const Commands = require('../../gas/Commands.gs');
+    const Ingress = require('../../gas/CommandsIngress.gs');
+    const Policy = require('../../gas/CommandsPolicy.gs');
+    const Persistence = require('../../gas/CommandsPersistenceAdapter.gs');
+
+    const sheetClient = {
+      getOnboardingRows: jest.fn(() => [
+        ['ONB-42', 'Lachlan Fraser', 'ULACHLAN', 'lachlan@example.com', 'Resourcer', '', '2026-03-04', '', 'emma.brown@rwrgroup.com.au', '', 'buddy@rwrgroup.com.au', '', '', 'IN_PROGRESS']
+      ]),
+      getChecklistRows: jest.fn(() => [
+        ['DOC-1', 'ONB-42', 'Documentation', 'Collect signed contract', 'People', '', 'PENDING', '2026-03-06']
+      ])
+    };
+    global.SheetClient = jest.fn(() => sheetClient);
+    global.SlackClient = jest.fn(() => ({ postMessage: jest.fn() }));
+
+    const commands = [
+      '/onboarding-status',
+      '/checklist-status',
+      '/checklist-progress',
+      '/it-onboarding-status',
+      '/finance-onboarding-status',
+      '/hr-onboarding-status'
+    ];
+
+    commands.forEach((command) => {
+      const payload = { command, text: 'Lachlan Fraser', user_name: 'hr-user' };
+      const facadeResponse = Commands.routeSlackCommand_(payload);
+      const canonicalResponse = Ingress.routeSlackCommand_(payload, Policy, Persistence);
+
+      expect(facadeResponse).toEqual(canonicalResponse);
+    });
+  });
+
+  test('routeSlackCommand_ facade preserves canonical write-intent routing', () => {
+    const Commands = require('../../gas/Commands.gs');
+    const Ingress = require('../../gas/CommandsIngress.gs');
+    const Policy = require('../../gas/CommandsPolicy.gs');
+    const Persistence = require('../../gas/CommandsPersistenceAdapter.gs');
+
+    const sheetClient = {
+      getOnboardingRows: jest.fn(() => []),
+      getChecklistRows: jest.fn(() => [])
+    };
+    global.SheetClient = jest.fn(() => sheetClient);
+    global.SlackClient = jest.fn(() => ({ postMessage: jest.fn() }));
+    global.SubmissionController = {
+      createProposal: jest.fn(() => ({ id: 'PROP-900' }))
+    };
+
+    const payload = {
+      command: '/onboarding-status',
+      text: 'update ONB-42 to complete',
+      user_name: 'hr-user'
+    };
+
+    const facadeResponse = Commands.routeSlackCommand_(payload);
+    const canonicalResponse = Ingress.routeSlackCommand_(payload, Policy, Persistence);
+
+    expect(facadeResponse).toEqual(canonicalResponse);
+    expect(global.SubmissionController.createProposal).toHaveBeenCalledTimes(2);
+    expect(global.SubmissionController.createProposal).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      command: '/onboarding-status',
+      intent: 'update',
+      actor: 'hr-user'
+    }));
+    expect(global.SubmissionController.createProposal).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      command: '/onboarding-status',
+      intent: 'update',
+      actor: 'hr-user'
+    }));
+    expect(sheetClient.getOnboardingRows).not.toHaveBeenCalled();
+    expect(sheetClient.getChecklistRows).not.toHaveBeenCalled();
+  });
+
 });
