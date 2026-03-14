@@ -298,4 +298,30 @@ describe('SheetClient', () => {
     expect(() => client.validateWorkbookSchemas()).toThrow('Schema drift detected for sheet "lessons"');
   });
 
+  test('getHeaderMap_ and getSchemaVersionFromConfig_ gracefully fall back when cache loader fails', () => {
+    global.getOrLoadScriptCache_ = jest.fn(() => { throw new Error('cache unavailable'); });
+    const onboarding = makeSheet(['employee id', 'row hash'], [['E1', 'h1']], 'Onboarding');
+    const config = makeSheet(['key', 'value'], [['Onboarding.schema_version', '3']], '_sys_config');
+    const spreadsheet = makeSpreadsheet({ Onboarding: onboarding, _sys_config: config });
+    SpreadsheetApp.openById.mockReturnValue(spreadsheet);
+
+    const { SheetClient } = require('../../gas/SheetClient.gs');
+    const client = new SheetClient();
+
+    expect(client.getHeaderMap_(onboarding)).toEqual({ employee_id: 1, row_hash: 2 });
+    expect(client.getSchemaVersionFromConfig_(spreadsheet, 'Onboarding')).toBe('3');
+    expect(global.getOrLoadScriptCache_).toHaveBeenCalled();
+  });
+
+  test('getHeaderMap_ uses cache helper with conservative ttl', () => {
+    global.getOrLoadScriptCache_ = jest.fn((key, ttlSeconds, loaderFn) => loaderFn());
+    const onboarding = makeSheet(['employee id', 'row hash'], [['E1', 'h1']], 'Onboarding');
+
+    const { SheetClient } = require('../../gas/SheetClient.gs');
+    const client = new SheetClient();
+    client.getHeaderMap_(onboarding);
+
+    expect(global.getOrLoadScriptCache_).toHaveBeenCalledWith(expect.stringContaining('sheet_header_map:'), 60, expect.any(Function));
+  });
+
 });

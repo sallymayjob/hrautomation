@@ -19,6 +19,16 @@ describe('SubmissionController commit gates', () => {
         return proposal;
       }),
       getProposalById: jest.fn((id) => persisted[id] ? JSON.parse(JSON.stringify(persisted[id])) : null),
+      getProposalByIdempotencyKey: jest.fn((key) => {
+        const ids = Object.keys(persisted);
+        for (let i = 0; i < ids.length; i += 1) {
+          const proposal = persisted[ids[i]];
+          if (String(proposal.idempotency_key || proposal.request_id || proposal.trace_id || '') === String(key || '')) {
+            return JSON.parse(JSON.stringify(proposal));
+          }
+        }
+        return null;
+      }),
       updateProposal: jest.fn((id, patch) => {
         const existing = persisted[id] ? JSON.parse(JSON.stringify(persisted[id])) : null;
         if (!existing) return null;
@@ -171,6 +181,64 @@ describe('SubmissionController commit gates', () => {
 
     const loaded = controller.getProposal(created.id, { repository });
     expect(loaded.payload.version).toBe(1);
+  });
+
+
+  test('createProposal deduplicates by idempotency key and returns existing proposal', () => {
+    const controller = require('../../gas/SubmissionController.gs');
+    const repository = makeRepository();
+
+    const first = controller.createProposal({
+      id: 'PROP-IDEMP-1',
+      entity_type: 'lesson',
+      entity_key: 'lesson:dedupe',
+      action: 'lesson_edit',
+      request_id: 'REQ-DEDUPE-1',
+      trace_id: 'TRACE-DEDUPE-1',
+      payload: { lesson_id: 'L-1' },
+      repository
+    });
+
+    const second = controller.createProposal({
+      id: 'PROP-IDEMP-2',
+      entity_type: 'lesson',
+      entity_key: 'lesson:dedupe',
+      action: 'lesson_edit',
+      request_id: 'REQ-DEDUPE-1',
+      trace_id: 'TRACE-DEDUPE-1',
+      payload: { lesson_id: 'L-1' },
+      repository
+    });
+
+    expect(first.id).toBe('PROP-IDEMP-1');
+    expect(second.id).toBe('PROP-IDEMP-1');
+    expect(repository.createProposal).toHaveBeenCalledTimes(1);
+  });
+
+  test('createProposal uses LockService narrow critical section for create-or-return', () => {
+    const waitLock = jest.fn();
+    const releaseLock = jest.fn();
+    global.LockService = {
+      getScriptLock: jest.fn(() => ({ waitLock, releaseLock }))
+    };
+
+    const controller = require('../../gas/SubmissionController.gs');
+    const repository = makeRepository();
+
+    controller.createProposal({
+      id: 'PROP-LOCK-1',
+      action: 'lesson_edit',
+      entity_type: 'lesson',
+      entity_key: 'lesson:lock',
+      request_id: 'REQ-LOCK-1',
+      repository
+    });
+
+    expect(global.LockService.getScriptLock).toHaveBeenCalledTimes(1);
+    expect(waitLock).toHaveBeenCalledWith(30000);
+    expect(releaseLock).toHaveBeenCalledTimes(1);
+
+    delete global.LockService;
   });
 
 });

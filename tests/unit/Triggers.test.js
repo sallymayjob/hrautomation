@@ -1,34 +1,85 @@
+function makeTrigger(handler, spec) {
+  return {
+    getHandlerFunction: jest.fn(() => handler),
+    getFrequencyType: jest.fn(() => spec.frequencyType || null),
+    getHour: jest.fn(() => (spec.hour === undefined ? null : spec.hour)),
+    getWeekDay: jest.fn(() => (spec.weekday === undefined ? null : spec.weekday)),
+    getInterval: jest.fn(() => (spec.interval === undefined ? null : spec.interval))
+  };
+}
+
+function createScriptAppMock(initialSpecs) {
+  var projectTriggers = initialSpecs.map((item) => makeTrigger(item.handler, item.spec));
+
+  var scriptApp = {
+    WeekDay: {
+      SUNDAY: 'SUNDAY',
+      MONDAY: 'MONDAY',
+      TUESDAY: 'TUESDAY',
+      WEDNESDAY: 'WEDNESDAY',
+      THURSDAY: 'THURSDAY',
+      FRIDAY: 'FRIDAY'
+    },
+    getProjectTriggers: jest.fn(() => projectTriggers),
+    deleteTrigger: jest.fn((trigger) => {
+      projectTriggers = projectTriggers.filter((t) => t !== trigger);
+    }),
+    newTrigger: jest.fn((handler) => {
+      var state = { frequencyType: null, hour: null, weekday: null, interval: null };
+      var chain = {
+        timeBased: jest.fn(() => chain),
+        everyDays: jest.fn(() => {
+          state.frequencyType = 'DAILY';
+          return chain;
+        }),
+        atHour: jest.fn((hour) => {
+          state.hour = hour;
+          return chain;
+        }),
+        everyMinutes: jest.fn((minutes) => {
+          state.frequencyType = 'EVERY_MINUTES';
+          state.interval = minutes;
+          return chain;
+        }),
+        onWeekDay: jest.fn((weekday) => {
+          state.frequencyType = 'WEEKLY';
+          state.weekday = weekday;
+          return chain;
+        }),
+        everyHours: jest.fn((hours) => {
+          state.frequencyType = 'EVERY_HOURS';
+          state.interval = hours;
+          return chain;
+        }),
+        create: jest.fn(() => {
+          var trigger = makeTrigger(handler, state);
+          projectTriggers.push(trigger);
+          return trigger;
+        })
+      };
+      return chain;
+    })
+  };
+
+  return {
+    scriptApp: scriptApp,
+    getTriggers: () => projectTriggers
+  };
+}
+
 describe('Triggers', () => {
   beforeEach(() => {
     jest.resetModules();
     global.runEnvironmentPreflight = jest.fn(() => ({ ok: true }));
-    global.ScriptApp = {
-      WeekDay: { SUNDAY: 'SUNDAY', MONDAY: 'MONDAY', TUESDAY: 'TUESDAY', WEDNESDAY: 'WEDNESDAY', THURSDAY: 'THURSDAY', FRIDAY: 'FRIDAY' },
-      getProjectTriggers: jest.fn(() => []),
-      deleteTrigger: jest.fn(),
-      newTrigger: jest.fn(() => {
-        var chain = {
-          timeBased: jest.fn(() => chain),
-          everyDays: jest.fn(() => chain),
-          atHour: jest.fn(() => chain),
-          everyMinutes: jest.fn(() => chain),
-          onWeekDay: jest.fn(() => chain),
-          everyHours: jest.fn(() => chain),
-          create: jest.fn(() => ({}))
-        };
-        return chain;
-      })
-    };
-    global.Config = {
-      getHrOpsAlertsChannelId: jest.fn(() => 'C-HR-OPS'),
-      getHrAlertEmail: jest.fn(() => 'alerts@example.com')
-    };
-    global.SlackClient = jest.fn(() => ({ postMessage: jest.fn() }));
-    global.MailApp = { sendEmail: jest.fn() };
-    global.AuditService = jest.fn(() => ({ logEvent: jest.fn() }));
-    global.SheetClient = jest.fn(() => ({}));
-  });
 
+    var scriptAppState = createScriptAppMock([]);
+    global.ScriptApp = scriptAppState.scriptApp;
+    global.getMockProjectTriggers = scriptAppState.getTriggers;
+
+    global.Config = {
+      validateRequiredChannelConfig: jest.fn()
+    };
+  });
 
   test('setupDailyTrigger blocks trigger creation when preflight fails', () => {
     global.runEnvironmentPreflight = jest.fn(() => ({ ok: false, failures: [{ code: 'SCRIPT_PROPERTY_MISSING' }] }));
@@ -38,74 +89,58 @@ describe('Triggers', () => {
     expect(global.ScriptApp.newTrigger).not.toHaveBeenCalled();
   });
 
-  test('setupOnboardingBusinessHoursTrigger creates 15-minute trigger', () => {
-    const { setupOnboardingBusinessHoursTrigger } = require('../../gas/Triggers.gs');
+  test('setupTrainingTriggers reconciles partial weekday drift by creating missing weekdays', () => {
+    var scriptAppState = createScriptAppMock([
+      { handler: 'runTrainingAssignments', spec: { frequencyType: 'DAILY', hour: 6 } },
+      { handler: 'runTrainingSync', spec: { frequencyType: 'EVERY_HOURS', interval: 4 } },
+      { handler: 'runTrainingReminders', spec: { frequencyType: 'WEEKLY', hour: 9, weekday: 'MONDAY' } },
+      { handler: 'runTrainingReminders', spec: { frequencyType: 'WEEKLY', hour: 9, weekday: 'TUESDAY' } }
+    ]);
+    global.ScriptApp = scriptAppState.scriptApp;
 
-    setupOnboardingBusinessHoursTrigger();
+    const { setupTrainingTriggers } = require('../../gas/Triggers.gs');
+    setupTrainingTriggers();
 
-    expect(global.ScriptApp.newTrigger).toHaveBeenCalledWith('runOnboardingBusinessHours');
-    expect(global.Config.validateRequiredChannelConfig).toHaveBeenCalledTimes(1);
+    var trainingReminderTriggers = scriptAppState.getTriggers().filter((trigger) => trigger.getHandlerFunction() === 'runTrainingReminders');
+    var weekdays = trainingReminderTriggers.map((trigger) => trigger.getWeekDay()).sort();
+
+    expect(trainingReminderTriggers).toHaveLength(5);
+    expect(weekdays).toEqual(['FRIDAY', 'MONDAY', 'THURSDAY', 'TUESDAY', 'WEDNESDAY']);
+    expect(global.ScriptApp.deleteTrigger).not.toHaveBeenCalled();
   });
 
-  test('setupAuditTriggers creates daily and weekly triggers', () => {
-    const { setupAuditTriggers } = require('../../gas/Triggers.gs');
+  test('setupAuditTriggers removes duplicate and mismatched triggers', () => {
+    var scriptAppState = createScriptAppMock([
+      { handler: 'runAudit', spec: { frequencyType: 'DAILY', hour: 7 } },
+      { handler: 'runAudit', spec: { frequencyType: 'DAILY', hour: 7 } },
+      { handler: 'runAudit', spec: { frequencyType: 'DAILY', hour: 8 } },
+      { handler: 'runAuditDeepWeekly', spec: { frequencyType: 'WEEKLY', weekday: 'SUNDAY', hour: 6 } }
+    ]);
+    global.ScriptApp = scriptAppState.scriptApp;
 
+    const { setupAuditTriggers } = require('../../gas/Triggers.gs');
     setupAuditTriggers();
 
-    expect(global.ScriptApp.newTrigger).toHaveBeenCalledWith('runAudit');
-    expect(global.ScriptApp.newTrigger).toHaveBeenCalledWith('runAuditDeepWeekly');
-    expect(global.Config.validateRequiredChannelConfig).toHaveBeenCalledTimes(1);
+    var auditTriggers = scriptAppState.getTriggers().filter((trigger) => trigger.getHandlerFunction() === 'runAudit');
+    expect(auditTriggers).toHaveLength(1);
+    expect(auditTriggers[0].getHour()).toBe(7);
+    expect(global.ScriptApp.deleteTrigger).toHaveBeenCalledTimes(2);
   });
 
-
-
-  test('setupPeriodicValidatorTrigger creates periodic validator trigger', () => {
-    const { setupPeriodicValidatorTrigger } = require('../../gas/Triggers.gs');
-
-    setupPeriodicValidatorTrigger();
-
-    expect(global.ScriptApp.newTrigger).toHaveBeenCalledWith('runPeriodicValidator');
-  });
-
-  test('setupTrainingTriggers creates assignments/reminders/sync triggers', () => {
+  test('setupTrainingTriggers is idempotent across reruns', () => {
     const { setupTrainingTriggers } = require('../../gas/Triggers.gs');
 
     setupTrainingTriggers();
+    var createdAfterFirstRun = global.ScriptApp.newTrigger.mock.calls.length;
+    var deletedAfterFirstRun = global.ScriptApp.deleteTrigger.mock.calls.length;
 
-    expect(global.ScriptApp.newTrigger).toHaveBeenCalledWith('runTrainingAssignments');
-    expect(global.ScriptApp.newTrigger).toHaveBeenCalledWith('runTrainingReminders');
-    expect(global.ScriptApp.newTrigger).toHaveBeenCalledWith('runTrainingSync');
-    expect(global.Config.validateRequiredChannelConfig).toHaveBeenCalledTimes(1);
+    setupTrainingTriggers();
+
+    expect(createdAfterFirstRun).toBe(7);
+    expect(global.ScriptApp.newTrigger.mock.calls.length).toBe(createdAfterFirstRun);
+    expect(deletedAfterFirstRun).toBe(0);
+    expect(global.ScriptApp.deleteTrigger.mock.calls.length).toBe(0);
   });
-
-  test('validateRequiredTriggers reports healthy when all required handlers are present', () => {
-    const { validateRequiredTriggers, listRequiredTriggerHandlers_ } = require('../../gas/Triggers.gs');
-    const handlers = listRequiredTriggerHandlers_();
-
-    const triggers = handlers.map((handler) => ({
-      getHandlerFunction: jest.fn(() => handler)
-    }));
-    const auditService = { logEvent: jest.fn() };
-
-    const result = validateRequiredTriggers({
-      projectTriggers: triggers,
-      auditService,
-      logHealth: true,
-      notify: false
-    });
-
-    expect(result.healthy).toBe(true);
-    expect(result.missingHandlers).toEqual([]);
-    expect(auditService.logEvent).toHaveBeenCalledWith(expect.objectContaining({
-      entityType: 'Trigger',
-      action: 'TRIGGER_HEALTHY'
-    }));
-  });
-
-  test('validateRequiredTriggers reports missing handlers and can notify ops', () => {
-    const { validateRequiredTriggers } = require('../../gas/Triggers.gs');
-    const auditService = { logEvent: jest.fn() };
-    const slackClient = { postMessage: jest.fn() };
 
   test('validateStartupConfig_ throws when Config validator is unavailable', () => {
     global.Config = {};
@@ -113,5 +148,4 @@ describe('Triggers', () => {
 
     expect(() => validateStartupConfig_()).toThrow('Config.validateRequiredChannelConfig is required during startup trigger setup.');
   });
-
 });

@@ -6,7 +6,8 @@
 var ReminderBindings_ = null;
 if (typeof module !== "undefined") {
   ReminderBindings_ = {
-    LessonRepository: require('./LessonRepository.gs').LessonRepository
+    LessonRepository: require('./LessonRepository.gs').LessonRepository,
+    CacheRepository: require('./CacheRepository.gs')
   };
 }
 
@@ -117,8 +118,7 @@ function sendTrainingReminderDM_(sheetClient, trainingRepository, onboardingRepo
   }
 
   var employeeEmail = onboarding.values[COL.ONBOARDING.EMAIL - 1];
-  var userLookup = slackClient.lookupUserByEmail(employeeEmail);
-  var userId = userLookup && userLookup.user ? userLookup.user.id : '';
+  var userId = lookupSlackIdByEmailWithCache_(slackClient, employeeEmail);
   if (!userId) {
     return;
   }
@@ -169,8 +169,7 @@ function escalateTrainingToManager_(sheetClient, auditRepository, row) {
     return;
   }
 
-  var managerLookup = slackClient.lookupUserByEmail(managerEmail);
-  var managerSlackId = managerLookup && managerLookup.user ? managerLookup.user.id : '';
+  var managerSlackId = lookupSlackIdByEmailWithCache_(slackClient, managerEmail);
   if (!managerSlackId) {
     return;
   }
@@ -250,8 +249,7 @@ function escalateChecklistTask_(sheetClient, onboardingRepository, auditReposito
   var onboarding = onboardingRepository.findByEmployeeId(onboardingId);
   var managerEmail = onboarding && onboarding.values ? onboarding.values[COL.ONBOARDING.MANAGER_EMAIL - 1] : '';
   if (managerEmail) {
-    var managerLookup = slackClient.lookupUserByEmail(managerEmail);
-    var managerSlackId = managerLookup && managerLookup.user ? managerLookup.user.id : '';
+    var managerSlackId = lookupSlackIdByEmailWithCache_(slackClient, managerEmail);
     if (managerSlackId) {
       slackClient.postMessage(managerSlackId, blocks);
     }
@@ -276,16 +274,19 @@ function resolveChecklistOwnerDestination_(ownerTeam, ownerSlackId) {
 
 function resolveReminderChannelGetterName_(teamKey) {
   var normalizedKey = String(teamKey || '').trim().toUpperCase();
-  var routing = (Config && Config.CHANNEL_ROUTING) || {
-    ADMIN: 'getAdminTeamChannelId',
-    FINANCE: 'getFinanceTeamChannelId',
-    HR: 'getHrTeamChannelId',
-    IT: 'getItTeamChannelId',
-    LEGAL: 'getLegalTeamChannelId',
-    OPERATIONS: 'getOperationsTeamChannelId',
-    PEOPLE: 'getPeopleTeamChannelId',
-    'PEOPLE OPS': 'getPeopleTeamChannelId'
-  };
+  // Invalidation assumption: channel routing is ops-configurable and can change quickly; keep cache short (300s).
+  var routing = getOrLoadScriptCacheForReminder_('config_channel_routing_map', 300, function () {
+    return (Config && Config.CHANNEL_ROUTING) || {
+      ADMIN: 'getAdminTeamChannelId',
+      FINANCE: 'getFinanceTeamChannelId',
+      HR: 'getHrTeamChannelId',
+      IT: 'getItTeamChannelId',
+      LEGAL: 'getLegalTeamChannelId',
+      OPERATIONS: 'getOperationsTeamChannelId',
+      PEOPLE: 'getPeopleTeamChannelId',
+      'PEOPLE OPS': 'getPeopleTeamChannelId'
+    };
+  });
   if (routing[normalizedKey]) return routing[normalizedKey];
   if (normalizedKey.indexOf('FINANCE') > -1) return routing.FINANCE;
   if (normalizedKey.indexOf('ADMIN') > -1) return routing.ADMIN;
@@ -333,8 +334,7 @@ function checkBirthdaysAndAnniversaries() {
       continue;
     }
 
-    var userLookup = slackClient.lookupUserByEmail(email);
-    var userId = userLookup && userLookup.user ? userLookup.user.id : '';
+    var userId = lookupSlackIdByEmailWithCache_(slackClient, email);
     if (!userId) {
       continue;
     }
