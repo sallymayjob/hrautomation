@@ -1,4 +1,4 @@
-/* global ScriptApp */
+/* global ScriptApp, runEnvironmentPreflight */
 /**
  * @fileoverview Trigger setup and teardown helpers.
  * CONTRACT: no SpreadsheetApp writes in this file.
@@ -16,10 +16,12 @@ var TRIGGER_HANDLERS = {
 };
 
 function setupDailyTrigger() {
+  ensurePreflightPassBeforeTriggers_('setupDailyTrigger');
   ensureTimeTrigger_(TRIGGER_HANDLERS.DAILY_REMINDERS, 9);
 }
 
 function setupBirthdayTrigger() {
+  ensurePreflightPassBeforeTriggers_('setupBirthdayTrigger');
   ensureTimeTrigger_(TRIGGER_HANDLERS.BIRTHDAY_CHECK, 8);
 }
 
@@ -41,19 +43,33 @@ function teardownAllTriggers() {
 }
 
 function setupOnboardingBusinessHoursTrigger() {
+  ensurePreflightPassBeforeTriggers_('setupOnboardingBusinessHoursTrigger');
   ensureOnboardingTrigger_();
 }
 
 function setupAuditTriggers() {
+  ensurePreflightPassBeforeTriggers_('setupAuditTriggers');
   ensureTimeTrigger_(TRIGGER_HANDLERS.AUDIT_DAILY, 7);
   ensureWeeklyTrigger_(TRIGGER_HANDLERS.AUDIT_WEEKLY_DEEP, ScriptApp.WeekDay.SUNDAY, 6);
 }
 
 
 function setupTrainingTriggers() {
+  ensurePreflightPassBeforeTriggers_('setupTrainingTriggers');
   ensureTimeTrigger_(TRIGGER_HANDLERS.TRAINING_ASSIGNMENTS, 6);
   ensureWeekdayTrigger_(TRIGGER_HANDLERS.TRAINING_REMINDERS, 9);
   ensureEveryHoursTrigger_(TRIGGER_HANDLERS.TRAINING_SYNC, 4);
+}
+
+
+function ensurePreflightPassBeforeTriggers_(source) {
+  if (typeof runEnvironmentPreflight !== 'function') {
+    return;
+  }
+  var preflight = runEnvironmentPreflight({ source: source || 'trigger_setup' });
+  if (preflight && preflight.ok === false) {
+    throw new Error('Environment preflight failed. Fix reported issues before enabling triggers.');
+  }
 }
 
 function ensureTimeTrigger_(handlerName, hour) {

@@ -1,6 +1,7 @@
 describe('Triggers', () => {
   beforeEach(() => {
     jest.resetModules();
+    global.runEnvironmentPreflight = jest.fn(() => ({ ok: true }));
     global.ScriptApp = {
       WeekDay: { SUNDAY: 'SUNDAY', MONDAY: 'MONDAY', TUESDAY: 'TUESDAY', WEDNESDAY: 'WEDNESDAY', THURSDAY: 'THURSDAY', FRIDAY: 'FRIDAY' },
       getProjectTriggers: jest.fn(() => []),
@@ -18,6 +19,15 @@ describe('Triggers', () => {
         return chain;
       })
     };
+  });
+
+
+  test('setupDailyTrigger blocks trigger creation when preflight fails', () => {
+    global.runEnvironmentPreflight = jest.fn(() => ({ ok: false, failures: [{ code: 'SCRIPT_PROPERTY_MISSING' }] }));
+    const { setupDailyTrigger } = require('../../gas/Triggers.gs');
+
+    expect(() => setupDailyTrigger()).toThrow('Environment preflight failed');
+    expect(global.ScriptApp.newTrigger).not.toHaveBeenCalled();
   });
 
   test('setupOnboardingBusinessHoursTrigger creates 15-minute trigger', () => {
