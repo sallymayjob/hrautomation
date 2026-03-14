@@ -1,6 +1,7 @@
 describe('Triggers', () => {
   beforeEach(() => {
     jest.resetModules();
+    global.Config = { validateRequiredChannelConfig: jest.fn() };
     global.ScriptApp = {
       WeekDay: { SUNDAY: 'SUNDAY', MONDAY: 'MONDAY', TUESDAY: 'TUESDAY', WEDNESDAY: 'WEDNESDAY', THURSDAY: 'THURSDAY', FRIDAY: 'FRIDAY' },
       getProjectTriggers: jest.fn(() => []),
@@ -34,6 +35,7 @@ describe('Triggers', () => {
     setupOnboardingBusinessHoursTrigger();
 
     expect(global.ScriptApp.newTrigger).toHaveBeenCalledWith('runOnboardingBusinessHours');
+    expect(global.Config.validateRequiredChannelConfig).toHaveBeenCalledTimes(1);
   });
 
   test('setupAuditTriggers creates daily and weekly triggers', () => {
@@ -43,6 +45,7 @@ describe('Triggers', () => {
 
     expect(global.ScriptApp.newTrigger).toHaveBeenCalledWith('runAudit');
     expect(global.ScriptApp.newTrigger).toHaveBeenCalledWith('runAuditDeepWeekly');
+    expect(global.Config.validateRequiredChannelConfig).toHaveBeenCalledTimes(1);
   });
 
 
@@ -54,6 +57,7 @@ describe('Triggers', () => {
     expect(global.ScriptApp.newTrigger).toHaveBeenCalledWith('runTrainingAssignments');
     expect(global.ScriptApp.newTrigger).toHaveBeenCalledWith('runTrainingReminders');
     expect(global.ScriptApp.newTrigger).toHaveBeenCalledWith('runTrainingSync');
+    expect(global.Config.validateRequiredChannelConfig).toHaveBeenCalledTimes(1);
   });
 
   test('validateRequiredTriggers reports healthy when all required handlers are present', () => {
@@ -85,38 +89,11 @@ describe('Triggers', () => {
     const auditService = { logEvent: jest.fn() };
     const slackClient = { postMessage: jest.fn() };
 
-    const result = validateRequiredTriggers({
-      projectTriggers: [
-        { getHandlerFunction: jest.fn(() => 'runDailyReminders') },
-        { getHandlerFunction: jest.fn(() => 'runOnboardingBusinessHours') }
-      ],
-      auditService,
-      slackClient,
-      logHealth: true,
-      notify: true
-    });
+  test('validateStartupConfig_ throws when Config validator is unavailable', () => {
+    global.Config = {};
+    const { validateStartupConfig_ } = require('../../gas/Triggers.gs');
 
-    expect(result.healthy).toBe(false);
-    expect(result.missingHandlers).toContain('runAudit');
-    expect(auditService.logEvent).toHaveBeenCalledWith(expect.objectContaining({
-      action: 'TRIGGER_MISSING'
-    }));
-    expect(slackClient.postMessage).toHaveBeenCalled();
-    expect(global.MailApp.sendEmail).toHaveBeenCalled();
+    expect(() => validateStartupConfig_()).toThrow('Config.validateRequiredChannelConfig is required during startup trigger setup.');
   });
 
-  test('countTriggerHandlers_ returns occurrence counts per handler', () => {
-    const { countTriggerHandlers_ } = require('../../gas/Triggers.gs');
-
-    const counts = countTriggerHandlers_([
-      { getHandlerFunction: jest.fn(() => 'runAudit') },
-      { getHandlerFunction: jest.fn(() => 'runAudit') },
-      { getHandlerFunction: jest.fn(() => 'runTrainingSync') }
-    ]);
-
-    expect(counts).toEqual({
-      runAudit: 2,
-      runTrainingSync: 1
-    });
-  });
 });

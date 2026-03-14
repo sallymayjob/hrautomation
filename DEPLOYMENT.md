@@ -117,11 +117,16 @@ Add values carefully.
 - `SLACK_BOT_TOKEN`
 - `DEFAULT_ASSIGNMENTS_CHANNEL_ID`
 
-### Commonly required routing settings
+### Required channel routing settings (startup validation enforced)
+- `ADMIN_TEAM_CHANNEL_ID`
+- `FINANCE_TEAM_CHANNEL_ID`
 - `HR_TEAM_CHANNEL_ID`
 - `IT_TEAM_CHANNEL_ID`
-- `FINANCE_TEAM_CHANNEL_ID`
-- `ADMIN_TEAM_CHANNEL_ID`
+- `LEGAL_TEAM_CHANNEL_ID`
+- `OPERATIONS_TEAM_CHANNEL_ID`
+- `PEOPLE_TEAM_CHANNEL_ID`
+- `DEFAULT_ASSIGNMENTS_CHANNEL_ID`
+- `HR_OPS_ALERTS_CHANNEL_ID`
 
 ### Optional / environment-specific settings
 - `AUDIT_SPREADSHEET_ID` (falls back to training spreadsheet if not set)
