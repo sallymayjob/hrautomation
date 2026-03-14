@@ -1,5 +1,8 @@
 # Repository Architecture Map
 
+**Documentation status:** Refreshed for Apps Script-native operations baseline (configuration, security, trigger reconciliation, and governed workflows). Canonical deployment/run sequence lives in `DEPLOYMENT.md`.
+
+
 ## 1. System Purpose
 This repository implements an HR operations automation system centered on Google Apps Script + Google Sheets with Slack as the primary interaction surface.
 

@@ -1,5 +1,8 @@
 # Onboarding Dashboard Spec
 
+**Documentation status:** Refreshed for Apps Script-native operations baseline (configuration, security, trigger reconciliation, and governed workflows). Canonical deployment/run sequence lives in `DEPLOYMENT.md`.
+
+
 ## Spreadsheet Ownership
 - **Owning spreadsheet**: `ONBOARDING_SPREADSHEET_ID`.
 - **Data source policy**: This dashboard reads local tabs in the onboarding workbook only (`Onboarding`, `Checklist`, and dashboard tabs in this workbook).

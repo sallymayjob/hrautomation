@@ -1,5 +1,8 @@
 # Setup List for Slack Intake Form
 
+**Documentation status:** Refreshed for Apps Script-native operations baseline (configuration, security, trigger reconciliation, and governed workflows). Canonical deployment/run sequence lives in `DEPLOYMENT.md`.
+
+
 Use this list when configuring the **New Employee Name**, **Role**, **Brand**, **Region**, **Buddy Email**, and **Manager Email** questions in Slack Workflow Builder.
 
 ## Required step before the form

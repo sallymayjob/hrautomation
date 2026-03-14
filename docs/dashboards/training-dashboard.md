@@ -1,5 +1,8 @@
 # Training Dashboard Spec
 
+**Documentation status:** Refreshed for Apps Script-native operations baseline (configuration, security, trigger reconciliation, and governed workflows). Canonical deployment/run sequence lives in `DEPLOYMENT.md`.
+
+
 ## Spreadsheet Ownership
 - **Owning spreadsheet**: `TRAINING_SPREADSHEET_ID`.
 - **Data source policy**: This dashboard reads local tabs in the training workbook only (`Training` and dashboard tabs in this workbook).

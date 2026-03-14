@@ -1,5 +1,8 @@
 # HR Automation Rollback Plan
 
+**Documentation status:** Refreshed for Apps Script-native operations baseline (configuration, security, trigger reconciliation, and governed workflows). Canonical deployment/run sequence lives in `DEPLOYMENT.md`.
+
+
 Use this plan when production behavior regresses after a deployment, configuration change, or credential event.
 
 ## Severity Trigger

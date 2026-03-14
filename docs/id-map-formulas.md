@@ -1,5 +1,8 @@
 # Auto-generated ID scheme and cross-sheet ID map (OB 001 increment format)
 
+**Documentation status:** Refreshed for Apps Script-native operations baseline (configuration, security, trigger reconciliation, and governed workflows). Canonical deployment/run sequence lives in `DEPLOYMENT.md`.
+
+
 This version uses one simple format everywhere:
 
 - `OB 001`

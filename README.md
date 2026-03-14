@@ -1,5 +1,8 @@
 # HR New-Starter Automation Helper
 
+**Documentation status:** Refreshed for Apps Script-native operations baseline (configuration, security, trigger reconciliation, and governed workflows). Canonical deployment/run sequence lives in `DEPLOYMENT.md`.
+
+
 ## What is this?
 This project is a **helper system** for HR teams.
 

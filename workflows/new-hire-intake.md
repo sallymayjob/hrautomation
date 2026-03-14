@@ -1,5 +1,8 @@
 # New Hire Intake Workflow (Slack + Google Sheets)
 
+**Documentation status:** Refreshed for Apps Script-native operations baseline (configuration, security, trigger reconciliation, and governed workflows). Canonical deployment/run sequence lives in `DEPLOYMENT.md`.
+
+
 This runbook lets a Slack workspace admin create and publish a **no-code** intake workflow that writes onboarding data to Google Sheets through a Workflow Builder connector.
 
 ## 1) Create the workflow

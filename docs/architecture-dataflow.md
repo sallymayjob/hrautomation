@@ -1,5 +1,8 @@
 # Architecture Dataflow and Failure Behavior
 
+**Documentation status:** Refreshed for Apps Script-native operations baseline (configuration, security, trigger reconciliation, and governed workflows). Canonical deployment/run sequence lives in `DEPLOYMENT.md`.
+
+
 This document explains how data moves between sheets, who owns each part of that data, and what the automation does when something is wrong.
 
 ## System dataflow

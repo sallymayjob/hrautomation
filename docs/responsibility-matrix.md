@@ -1,5 +1,8 @@
 # HR Automation Responsibility Matrix (One Page)
 
+**Documentation status:** Refreshed for Apps Script-native operations baseline (configuration, security, trigger reconciliation, and governed workflows). Canonical deployment/run sequence lives in `DEPLOYMENT.md`.
+
+
 This matrix maps core workflow actions to the canonical spreadsheet of record and identifies which behaviors should live as shared utilities in the Apps Script library.
 
 ## Scope and naming baseline

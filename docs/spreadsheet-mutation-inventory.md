@@ -1,5 +1,8 @@
 # Spreadsheet Mutation Inventory
 
+**Documentation status:** Refreshed for Apps Script-native operations baseline (configuration, security, trigger reconciliation, and governed workflows). Canonical deployment/run sequence lives in `DEPLOYMENT.md`.
+
+
 This inventory was generated from:
 
 - `rg -n "\.(setValue|setValues|appendRow|deleteRow|insert(Row|Rows|Column|Columns|Sheet|Sheets)|clear(Content|Contents|Format|Formats|DataValidations|Note|Notes)?|clear\()\b|SpreadsheetApp\.openById" gas`

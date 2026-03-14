@@ -1,5 +1,8 @@
 # Management Analytics Dashboard Spec (BI Layer)
 
+**Documentation status:** Refreshed for Apps Script-native operations baseline (configuration, security, trigger reconciliation, and governed workflows). Canonical deployment/run sequence lives in `DEPLOYMENT.md`.
+
+
 ## Purpose
 This dashboard is intended for leadership and planning. It focuses on trends, forecasting, and cross-functional performance rather than operational task handling.
 

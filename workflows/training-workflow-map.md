@@ -1,5 +1,8 @@
 # Slack Workflow Builder Map — Training Operations (Google Sheets-backed)
 
+**Documentation status:** Refreshed for Apps Script-native operations baseline (configuration, security, trigger reconciliation, and governed workflows). Canonical deployment/run sequence lives in `DEPLOYMENT.md`.
+
+
 This map defines the Slack Workflow Builder / Workflow Apps flows for:
 
 1. Add a new course

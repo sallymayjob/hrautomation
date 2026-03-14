@@ -1,5 +1,8 @@
 # Slack Channels Setup Guide
 
+**Documentation status:** Refreshed for Apps Script-native operations baseline (configuration, security, trigger reconciliation, and governed workflows). Canonical deployment/run sequence lives in `DEPLOYMENT.md`.
+
+
 Use this guide to create and configure the Slack channels needed by RWR-HAF.
 
 ## Why these channels are required

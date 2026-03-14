@@ -1,5 +1,8 @@
 # HR Automation Runbook
 
+**Documentation status:** Refreshed for Apps Script-native operations baseline (configuration, security, trigger reconciliation, and governed workflows). Canonical deployment/run sequence lives in `DEPLOYMENT.md`.
+
+
 This runbook defines daily operations and incident handling for the HR automation workflow (triggered reminders, welcome DMs, and sheet-backed state). Use this document during normal production support.
 
 

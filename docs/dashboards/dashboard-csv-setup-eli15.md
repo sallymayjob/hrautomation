@@ -1,5 +1,8 @@
 # Dashboard CSV Templates + Setup Guide (Zero Tech / ELI15)
 
+**Documentation status:** Refreshed for Apps Script-native operations baseline (configuration, security, trigger reconciliation, and governed workflows). Canonical deployment/run sequence lives in `DEPLOYMENT.md`.
+
+
 This guide is written for non-technical users.
 You can set this up with copy/paste + clicks only.
 
