@@ -22,6 +22,20 @@ function runOnboardingManual() {
 }
 
 
+function onEdit(e) {
+  if (typeof applyManagedIdentityWriteGuard === 'function') {
+    return applyManagedIdentityWriteGuard(e);
+  }
+
+  if (typeof module !== 'undefined') {
+    var writeGuard = require('./SpreadsheetWriteGuard.gs');
+    return writeGuard.applyManagedIdentityWriteGuard(e);
+  }
+
+  return { ok: true, skipped: true, reason: 'write_guard_unavailable' };
+}
+
+
 function doPost(e) {
   if (typeof handleCommandsPost_ === 'function') {
     return handleCommandsPost_(e);
@@ -206,6 +220,7 @@ if (typeof module !== 'undefined') {
     doPost: doPost,
     onChangeHandler: onChangeHandler,
     runOnboardingManual: runOnboardingManual,
+    onEdit: onEdit,
     routeIngressEvent_: routeIngressEvent_,
     normalizeIngressPayload_: normalizeIngressPayload_,
     processOnboardingRow_: controller.processOnboardingRow_,

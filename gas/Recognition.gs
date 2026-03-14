@@ -1,4 +1,4 @@
-/* global SheetClient, SlackClient, BlockKit, COL, AuditService, LessonController, ReminderController, TrainingRepository, OnboardingRepository */
+/* global SheetClient, SlackClient, BlockKit, COL, AuditService, LessonController, ReminderController, TrainingRepository, OnboardingRepository, Config */
 /**
  * @fileoverview Recognition workflow for completed training.
  */
@@ -65,7 +65,7 @@ function handleTrainingComplete(trainingId) {
   var onboarding = trainingRepository.findOnboardingByEmployeeId(resolved.employeeId);
   var employeeName = onboarding ? onboarding.values[COL.ONBOARDING.FULL_NAME - 1] : resolved.employeeId;
 
-  slackClient.postMessage('#hr-alerts', BlockKit.recognitionPost({
+  slackClient.postMessage(Config.getHrOpsAlertsChannelId(), BlockKit.recognitionPost({
     employeeName: employeeName,
     moduleName: resolved.row[COL.TRAINING.MODULE_NAME - 1]
   }));

@@ -89,13 +89,15 @@ TrainingRepository.prototype.updateReminderMetadata = function (employeeId, modu
   var self = this;
   return this.withWriteLock_(function () {
     if (!self.sheetClient.getTrainingSheet_ || !self.sheetClient.findRowIndexByValues_) return self.sheetClient.updateTrainingReminderMetadata(employeeId, moduleCode, reminderCount, lastReminderAt);
-    var c = trainingCol_();
-    var sheet = self.sheetClient.getTrainingSheet_();
-    var rowIndex = self.sheetClient.findRowIndexByValues_(sheet, c.TRAINING.EMPLOYEE_ID, employeeId, c.TRAINING.MODULE_CODE, moduleCode);
-    if (rowIndex < 0) return false;
-    sheet.getRange(rowIndex, c.TRAINING.REMINDER_COUNT).setValue(Number(reminderCount || 0));
-    sheet.getRange(rowIndex, c.TRAINING.LAST_REMINDER_AT).setValue(lastReminderAt || new Date());
-    return true;
+    return self.sheetClient.safeWrite_(Config.getTrainingSheetName(), function () {
+      var c = trainingCol_();
+      var sheet = self.sheetClient.getTrainingSheet_();
+      var rowIndex = self.sheetClient.findRowIndexByValues_(sheet, c.TRAINING.EMPLOYEE_ID, employeeId, c.TRAINING.MODULE_CODE, moduleCode);
+      if (rowIndex < 0) return false;
+      sheet.getRange(rowIndex, c.TRAINING.REMINDER_COUNT).setValue(Number(reminderCount || 0));
+      sheet.getRange(rowIndex, c.TRAINING.LAST_REMINDER_AT).setValue(lastReminderAt || new Date());
+      return true;
+    }, { operation: 'updateTrainingReminderMetadata', employeeId: employeeId, moduleCode: moduleCode });
   });
 };
 
@@ -103,13 +105,15 @@ TrainingRepository.prototype.updateRecognitionMetadata = function (employeeId, m
   var self = this;
   return this.withWriteLock_(function () {
     if (!self.sheetClient.getTrainingSheet_ || !self.sheetClient.findRowIndexByValues_) return self.sheetClient.updateTrainingRecognitionMetadata(employeeId, moduleCode, celebrationPosted, lastUpdatedAt);
-    var c = trainingCol_();
-    var sheet = self.sheetClient.getTrainingSheet_();
-    var rowIndex = self.sheetClient.findRowIndexByValues_(sheet, c.TRAINING.EMPLOYEE_ID, employeeId, c.TRAINING.MODULE_CODE, moduleCode);
-    if (rowIndex < 0) return false;
-    sheet.getRange(rowIndex, c.TRAINING.CELEBRATION_POSTED).setValue(Boolean(celebrationPosted));
-    if (c.TRAINING.LAST_UPDATED_AT) sheet.getRange(rowIndex, c.TRAINING.LAST_UPDATED_AT).setValue(lastUpdatedAt || new Date());
-    return true;
+    return self.sheetClient.safeWrite_(Config.getTrainingSheetName(), function () {
+      var c = trainingCol_();
+      var sheet = self.sheetClient.getTrainingSheet_();
+      var rowIndex = self.sheetClient.findRowIndexByValues_(sheet, c.TRAINING.EMPLOYEE_ID, employeeId, c.TRAINING.MODULE_CODE, moduleCode);
+      if (rowIndex < 0) return false;
+      sheet.getRange(rowIndex, c.TRAINING.CELEBRATION_POSTED).setValue(Boolean(celebrationPosted));
+      if (c.TRAINING.LAST_UPDATED_AT) sheet.getRange(rowIndex, c.TRAINING.LAST_UPDATED_AT).setValue(lastUpdatedAt || new Date());
+      return true;
+    }, { operation: 'updateTrainingRecognitionMetadata', employeeId: employeeId, moduleCode: moduleCode });
   });
 };
 

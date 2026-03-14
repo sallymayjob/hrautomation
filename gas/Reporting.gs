@@ -1,4 +1,4 @@
-/* global SheetClient, COL, getDaysUntilDue, Utils, AuditRepository, ReportingRepository, generateId */
+/* global SheetClient, COL, getDaysUntilDue, Utils, AuditRepository, ReportingRepository, generateId, CoreConstants, normalizeTrainingStatus, normalizeOnboardingStatus, isChecklistDoneStatus */
 /**
  * @fileoverview Weekly reporting for HR alerting.
  */
@@ -60,13 +60,13 @@ function buildTrainingMetrics_(rows) {
   };
 
   for (var i = 0; i < rows.length; i += 1) {
-    var status = String(rows[i][COL.TRAINING.TRAINING_STATUS - 1] || '').toUpperCase();
+    var status = normalizeTrainingStatus(rows[i][COL.TRAINING.TRAINING_STATUS - 1]);
     var daysUntil = getDaysUntilViaUtilsForReporting_(rows[i][COL.TRAINING.DUE_DATE - 1]);
 
-    if (status === 'COMPLETED') {
+    if (status === CoreConstants.STATUSES.COMPLETED) {
       metrics.completed += 1;
     }
-    if (daysUntil !== null && daysUntil < 0 && status !== 'COMPLETED') {
+    if (daysUntil !== null && daysUntil < 0 && status !== CoreConstants.STATUSES.COMPLETED) {
       metrics.overdue += 1;
     }
     if (daysUntil !== null && daysUntil >= 0 && daysUntil <= 7) {
@@ -90,7 +90,7 @@ function buildOnboardingMetrics_(onboardingRows, checklistRows) {
     byOnboardingId[onboardingId] = {
       onboarding_id: onboardingId,
       employee_name: onboardingRow[COL.ONBOARDING.EMPLOYEE_NAME - 1],
-      status: onboardingRow[COL.ONBOARDING.STATUS - 1],
+      status: normalizeOnboardingStatus(onboardingRow[COL.ONBOARDING.STATUS - 1]),
       blocked_reason: onboardingRow[COL.ONBOARDING.BLOCKED_REASON - 1] || '',
       tasks_total: 0,
       tasks_done: 0,
@@ -107,9 +107,9 @@ function buildOnboardingMetrics_(onboardingRows, checklistRows) {
       continue;
     }
 
-    var status = String(taskRow[COL.CHECKLIST.STATUS - 1] || '').toUpperCase();
+    var status = taskRow[COL.CHECKLIST.STATUS - 1];
     var daysUntil = getDaysUntilViaUtilsForReporting_(taskRow[COL.CHECKLIST.DUE_DATE - 1]);
-    var isDone = status === 'COMPLETE' || status === 'DONE';
+    var isDone = isChecklistDoneStatus(status);
 
     byOnboardingId[taskOnboardingId].tasks_total += 1;
     if (isDone) {
@@ -142,7 +142,7 @@ function buildOnboardingMetrics_(onboardingRows, checklistRows) {
       return aScore - bScore;
     });
 
-    if (String(metrics.status || '').toUpperCase() === 'BLOCKED') {
+    if (metrics.status === CoreConstants.STATUSES.BLOCKED) {
       blocked.push(metrics);
     }
   }
@@ -228,7 +228,7 @@ function writeBlockedSummarySheet_(reportingRepository, byOnboardingId) {
 
   for (var i = 0; i < ids.length; i += 1) {
     var metrics = byOnboardingId[ids[i]];
-    if (String(metrics.status || '').toUpperCase() !== 'BLOCKED') {
+    if (normalizeOnboardingStatus(metrics.status) !== CoreConstants.STATUSES.BLOCKED) {
       continue;
     }
     rows.push([
@@ -256,8 +256,8 @@ function aggregateChecklist_(checklistRows, keyResolver, aggregation) {
       aggregation[key] = { total: 0, done: 0, overdue: 0 };
     }
 
-    var status = String(row[COL.CHECKLIST.STATUS - 1] || '').toUpperCase();
-    var isDone = status === 'COMPLETE' || status === 'DONE';
+    var status = row[COL.CHECKLIST.STATUS - 1];
+    var isDone = isChecklistDoneStatus(status);
     var daysUntil = getDaysUntilViaUtilsForReporting_(row[COL.CHECKLIST.DUE_DATE - 1]);
 
     aggregation[key].total += 1;

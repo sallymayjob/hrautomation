@@ -11,6 +11,13 @@ describe('LibraryWrappers', () => {
 
   beforeEach(() => {
     jest.resetModules();
+    const statusUtils = require('../../gas/CoreConstants.gs');
+    global.CoreConstants = statusUtils.CoreConstants;
+    global.normalizeOnboardingStatus = statusUtils.normalizeOnboardingStatus;
+    global.normalizeChecklistStatus = statusUtils.normalizeChecklistStatus;
+    global.normalizeTrainingStatus = statusUtils.normalizeTrainingStatus;
+    global.normalizeApprovalStatus = statusUtils.normalizeApprovalStatus;
+    global.isChecklistDoneStatus = statusUtils.isChecklistDoneStatus;
     global.Config = {
       getOnboardingSpreadsheetId: jest.fn(() => 'onboarding-spreadsheet-id'),
       getOnboardingSheetName: jest.fn(() => 'Onboarding'),
@@ -37,6 +44,7 @@ describe('LibraryWrappers', () => {
         releaseLock: jest.fn()
       }))
     };
+    global.SheetClient = jest.fn(() => ({ validateWriteSchema_: jest.fn(() => true) }));
   });
 
 
@@ -265,7 +273,7 @@ describe('LibraryWrappers', () => {
       [expect.objectContaining({ employee_id: 'E-2', training_status: 'COMPLETE' })],
       expect.any(Object)
     );
-    expect(exceptionsSheet.appendRow).toHaveBeenCalledWith(expect.arrayContaining([expect.any(String), 'Training', 'E-1', 'Training -> Audit requires TrainingStatus = COMPLETE.']));
+    expect(exceptionsSheet.appendRow).toHaveBeenCalledWith(expect.arrayContaining([expect.any(String), 'Training', 'E-1', 'Training -> Audit requires TrainingStatus = COMPLETED (alias COMPLETE accepted).']));
     expect(result.errorCount).toBe(1);
     expect(dashboardSheet.appendRow).toHaveBeenCalledWith(['stage', 'employee_id', 'days_stuck', 'sla_days', 'reason']);
   });
