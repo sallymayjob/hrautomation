@@ -58,12 +58,19 @@
       "type": "enum",
       "required": true,
       "allowedValues": [
-        "Not Started",
-        "In Progress",
-        "Completed",
-        "Overdue"
+        "NOT_STARTED",
+        "IN_PROGRESS",
+        "COMPLETED",
+        "OVERDUE"
       ],
-      "population": "script"
+      "population": "script",
+      "acceptedAliases": {
+        "Not Started": "NOT_STARTED",
+        "In Progress": "IN_PROGRESS",
+        "Completed": "COMPLETED",
+        "Overdue": "OVERDUE",
+        "COMPLETE": "COMPLETED"
+      }
     }
   ],
   "schemaConfigTab": "_sys_config",
