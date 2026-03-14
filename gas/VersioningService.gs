@@ -54,10 +54,28 @@ function assertImmutableHistoricalRows_(rows, keyField, keyValue, nextVersion, v
   return true;
 }
 
+
+function isSchemaVersionCompatible(expectedVersion, configuredVersion, options) {
+  var opts = options || {};
+  var expected = String(expectedVersion || '').trim();
+  var configured = String(configuredVersion || '').trim();
+  if (!configured) return false;
+  if (opts.allowPrefixMatch && configured.indexOf(expected) === 0) return true;
+  return expected === configured;
+}
+
+function assertSchemaVersionCompatibility(sheetName, expectedVersion, configuredVersion, options) {
+  if (!isSchemaVersionCompatible(expectedVersion, configuredVersion, options)) {
+    throw new Error('Schema version mismatch for sheet "' + sheetName + '". Expected ' + expectedVersion + ' but found ' + configuredVersion + '.');
+  }
+  return true;
+}
 var VersioningService = {
   normalizeVersion_: normalizeVersion_,
   calculateNextVersion_: calculateNextVersion_,
-  assertImmutableHistoricalRows_: assertImmutableHistoricalRows_
+  assertImmutableHistoricalRows_: assertImmutableHistoricalRows_,
+  isSchemaVersionCompatible: isSchemaVersionCompatible,
+  assertSchemaVersionCompatibility: assertSchemaVersionCompatibility
 };
 
 if (typeof module !== 'undefined') module.exports = VersioningService;
