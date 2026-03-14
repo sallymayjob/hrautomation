@@ -10,21 +10,40 @@ function submissionBuildId_(prefix) {
   return String(prefix || 'ID') + '-' + new Date().getTime();
 }
 
+function submissionNormalizeIdempotencyKey_(input, policy) {
+  var proposalInput = input || {};
+  var payload = proposalInput.payload || {};
+  var normalizedRequestId = String(proposalInput.request_id || payload.request_id || payload.idempotency_key || '').trim();
+  var normalizedTraceId = String(proposalInput.trace_id || payload.trace_id || '').trim();
+  if (normalizedRequestId) return normalizedRequestId;
+  if (normalizedTraceId) return normalizedTraceId;
+  return policy.submissionComputeProposalHash_({
+    action: policy.submissionNormalizeActionKey_(proposalInput.action || proposalInput.intent || payload.action || ''),
+    entity_type: String(proposalInput.entity_type || policy.submissionInferEntityType_(proposalInput)).toLowerCase(),
+    entity_key: String(proposalInput.entity_key || policy.submissionInferEntityKey_(proposalInput)),
+    payload: payload,
+    request_id: '',
+    trace_id: ''
+  });
+}
+
 function submissionCreateProposal_(input, policy, persistence) {
   var proposalInput = input || {};
   var action = policy.submissionNormalizeActionKey_(proposalInput.action || proposalInput.intent || '');
   var entityType = String(proposalInput.entity_type || policy.submissionInferEntityType_(proposalInput)).toLowerCase();
+  var idempotencyKey = String(proposalInput.idempotency_key || submissionNormalizeIdempotencyKey_(proposalInput, policy));
   var proposal = {
     id: String(proposalInput.id || submissionBuildId_('PROP')),
     source: String(proposalInput.source || 'unknown'),
     action: action,
     actor: String(proposalInput.actor || 'unknown'),
-    request_id: String(proposalInput.request_id || ''),
+    request_id: String(proposalInput.request_id || idempotencyKey),
     payload: proposalInput.payload || {},
     approval_status: String(proposalInput.approval_status || 'PENDING').toUpperCase(),
     approved_by: String(proposalInput.approved_by || ''),
     approved_at: proposalInput.approved_at || '',
-    trace_id: String(proposalInput.trace_id || submissionBuildId_('TRACE')),
+    trace_id: String(proposalInput.trace_id || idempotencyKey || submissionBuildId_('TRACE')),
+    idempotency_key: idempotencyKey,
     entity_type: entityType || 'proposal',
     entity_key: String(proposalInput.entity_key || policy.submissionInferEntityKey_(proposalInput)),
     requires_approval: policy.submissionRequiresApprovalForAction_(entityType, action),
@@ -62,6 +81,8 @@ function submissionUpdateProposalState_(proposalId, patch, persistence) {
 if (typeof module !== 'undefined') {
   module.exports = {
     ProposalStore_: ProposalStore_,
+    submissionBuildId_: submissionBuildId_,
+    submissionNormalizeIdempotencyKey_: submissionNormalizeIdempotencyKey_,
     submissionCreateProposal_: submissionCreateProposal_,
     submissionGetProposal_: submissionGetProposal_,
     submissionUpdateProposalState_: submissionUpdateProposalState_

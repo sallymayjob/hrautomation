@@ -148,7 +148,7 @@ var CoreConstants = {
       }
     },
     REPOSITORY_HEADERS: {
-      submissions: ['submission_id', 'entity_type', 'entity_key', 'payload_json', 'approval_status', 'submitted_by', 'approved_by', 'trace_id', 'version', 'source', 'submitted_at', 'approved_at', 'created_at', 'updated_at', 'action', 'request_id', 'requires_approval', 'proposal_hash', 'approval_hash', 'approval_version', 'rejection_reason', 'committed_at']
+      submissions: ['submission_id', 'entity_type', 'entity_key', 'payload_json', 'approval_status', 'submitted_by', 'approved_by', 'trace_id', 'version', 'source', 'submitted_at', 'approved_at', 'created_at', 'updated_at', 'action', 'request_id', 'idempotency_key', 'requires_approval', 'proposal_hash', 'approval_hash', 'approval_version', 'rejection_reason', 'committed_at']
     }
   }
 };

@@ -15,7 +15,7 @@ var SUBMISSION_HEADERS = (typeof CoreConstants !== 'undefined' && CoreConstants 
   'submission_id', 'entity_type', 'entity_key', 'payload_json', 'approval_status',
   'submitted_by', 'approved_by', 'trace_id', 'version', 'source',
   'submitted_at', 'approved_at', 'created_at', 'updated_at', 'action',
-  'request_id', 'requires_approval', 'proposal_hash', 'approval_hash', 'approval_version',
+  'request_id', 'idempotency_key', 'requires_approval', 'proposal_hash', 'approval_hash', 'approval_version',
   'rejection_reason', 'committed_at'
 ]);
 
@@ -39,6 +39,19 @@ SubmissionRepository.prototype.createProposal = function (proposal) {
 SubmissionRepository.prototype.getProposal = function (proposalId) {
   return this.getProposalById(proposalId);
 };
+
+SubmissionRepository.prototype.getProposalByIdempotencyKey = function (idempotencyKey) {
+  if (!this.sheetClient) return null;
+  var normalizedKey = String(idempotencyKey || '');
+  if (!normalizedKey) return null;
+  var sheet = this.ensureSheet_();
+  var keyColumn = this.sheetClient.getColumnIndexByHeaderKey_(sheet, 'idempotency_key', true);
+  var rowIndex = this.sheetClient.findRowIndexByValue_(sheet, keyColumn, normalizedKey);
+  if (rowIndex < 0) return null;
+  var values = sheet.getRange(rowIndex, 1, 1, SUBMISSION_HEADERS.length).getValues()[0];
+  return this.fromRow_(values);
+};
+
 
 SubmissionRepository.prototype.updateProposal = function (proposalId, patch) {
   var proposal = this.getProposalById(proposalId);
@@ -111,6 +124,13 @@ SubmissionRepository.prototype.saveProposal = function (proposal) {
   var sheet = this.ensureSheet_();
   var idColumn = this.sheetClient.getColumnIndexByHeaderKey_(sheet, 'submission_id', true);
   var existingRow = this.sheetClient.findRowIndexByValue_(sheet, idColumn, proposal.id);
+  var idempotencyKey = String(proposal.idempotency_key || proposal.request_id || proposal.trace_id || '');
+  var idempotencyColumn = this.sheetClient.getColumnIndexByHeaderKey_(sheet, 'idempotency_key', true);
+  var existingByKey = idempotencyKey ? this.sheetClient.findRowIndexByValue_(sheet, idempotencyColumn, idempotencyKey) : -1;
+  if (existingByKey > -1 && existingRow < 0) {
+    var existingValues = sheet.getRange(existingByKey, 1, 1, SUBMISSION_HEADERS.length).getValues()[0];
+    return this.fromRow_(existingValues);
+  }
   var row = this.toRow_(proposal);
   if (existingRow > -1) {
     this.sheetClient.writeRow_(sheet, existingRow, row);
@@ -155,6 +175,7 @@ SubmissionRepository.prototype.toRow_ = function (proposal) {
     String(proposal.updated_at || ''),
     String(proposal.action || ''),
     String(proposal.request_id || ''),
+    String(proposal.idempotency_key || proposal.request_id || proposal.trace_id || ''),
     proposal.requires_approval ? 'true' : 'false',
     String(proposal.proposal_hash || ''),
     String(proposal.approval_hash || ''),
@@ -188,12 +209,13 @@ SubmissionRepository.prototype.fromRow_ = function (row) {
     updated_at: String(row[13] || ''),
     action: String(row[14] || ''),
     request_id: String(row[15] || ''),
-    requires_approval: String(row[16] || '').toLowerCase() === 'true',
-    proposal_hash: String(row[17] || ''),
-    approval_hash: String(row[18] || ''),
-    approval_version: row[19] === '' ? undefined : Number(row[19]),
-    rejection_reason: String(row[20] || ''),
-    committed_at: String(row[21] || '')
+    idempotency_key: String(row[16] || row[15] || row[7] || ''),
+    requires_approval: String(row[17] || '').toLowerCase() === 'true',
+    proposal_hash: String(row[18] || ''),
+    approval_hash: String(row[19] || ''),
+    approval_version: row[20] === '' ? undefined : Number(row[20]),
+    rejection_reason: String(row[21] || ''),
+    committed_at: String(row[22] || '')
   };
 };
 

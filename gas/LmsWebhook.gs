@@ -192,6 +192,7 @@ function submitLmsProposal_(payload, action) {
     action: action,
     actor: String(payload.actor_slack_id || payload.user_id || 'workflow_builder'),
     request_id: String(payload.request_id || payload.idempotency_key || ''),
+    idempotency_key: String(payload.idempotency_key || payload.request_id || payload.trace_id || ''),
     payload: payload,
     approval_status: 'PENDING',
     trace_id: String(payload.trace_id || payload.request_id || payload.idempotency_key || ''),
@@ -212,7 +213,7 @@ function submitLmsProposal_(payload, action) {
     throw new Error('SubmissionController must provide createDraft or createProposal.');
   }
 
-  proposal.approval_status = 'PENDING';
+  proposal.approval_status = String(proposal.approval_status || 'PENDING').toUpperCase();
 
   var clarification = null;
   if (isGeminiValidationEnabled_() && typeof GeminiService !== 'undefined' && GeminiService && typeof GeminiService.validateAndClarify === 'function') {
@@ -229,7 +230,7 @@ function submitLmsProposal_(payload, action) {
     }
   }
 
-  if (typeof ApprovalController !== 'undefined' && ApprovalController) {
+  if (String(proposal.approval_status || 'PENDING').toUpperCase() === 'PENDING' && typeof ApprovalController !== 'undefined' && ApprovalController) {
     if (proposal.requires_approval && typeof ApprovalController.requestLiamApproval === 'function') {
       ApprovalController.requestLiamApproval({
         proposal: proposal,
@@ -247,7 +248,7 @@ function submitLmsProposal_(payload, action) {
 
   return {
     proposal_id: proposal.id || '',
-    approval_status: 'PENDING',
+    approval_status: String(proposal.approval_status || 'PENDING').toUpperCase(),
     commit_blocked: true,
     message: 'Proposal captured. Governed LMS content updates are blocked until ApprovalController marks this proposal approved.'
   };
@@ -296,6 +297,8 @@ function writeLmsAuditLog_(payload, action, status, details) {
   }
 
   var requestId = String(payload.request_id || payload.idempotency_key || '');
+  var traceId = String(payload.trace_id || requestId || '');
+  var idempotencyKey = String(payload.idempotency_key || payload.request_id || payload.trace_id || '');
   var actor = String(payload.actor_slack_id || payload.user_id || 'workflow_builder');
   var sheetClient = new SheetClient();
   var auditService = new AuditService(sheetClient);
@@ -308,7 +311,7 @@ function writeLmsAuditLog_(payload, action, status, details) {
     entityType: 'LmsWorkflow',
     entityId: requestId || action,
     action: status,
-    details: 'action=' + action + '; ' + details
+    details: 'action=' + action + '; outcome=' + String(status || '') + '; trace_id=' + traceId + '; idempotency_key=' + idempotencyKey + '; ' + details
   });
 }
 
