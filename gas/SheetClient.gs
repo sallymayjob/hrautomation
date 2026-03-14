@@ -1,4 +1,4 @@
-/* global SpreadsheetApp, Config, Utilities, computeHash, ValidationService */
+/* global SpreadsheetApp, Config, Utilities, computeHash, ValidationService, CoreConstants */
 /**
  * @fileoverview Spreadsheet data access helpers.
  */
@@ -81,9 +81,14 @@ var REQUIRED_NAMED_FUNCTIONS = {
   }
 };
 
-var SCHEMA_CONFIG_TAB = '_sys_config';
-var LIBRARY_SCHEMA_VERSION_KEY = 'version';
-var LIBRARY_SCHEMA_VERSION = 'schema_v1';
+var schemaConstants_ = (typeof CoreConstants !== 'undefined' && CoreConstants && CoreConstants.SCHEMA) ? CoreConstants.SCHEMA : null;
+if (!schemaConstants_ && typeof module !== 'undefined') {
+  schemaConstants_ = require('./CoreConstants.gs').CoreConstants.SCHEMA;
+}
+
+var SCHEMA_CONFIG_TAB = schemaConstants_ ? schemaConstants_.CONFIG_TAB : '_sys_config';
+var LIBRARY_SCHEMA_VERSION_KEY = schemaConstants_ ? schemaConstants_.VERSION_KEY : 'version';
+var LIBRARY_SCHEMA_VERSION = schemaConstants_ ? schemaConstants_.LIBRARY_SCHEMA_VERSION : 'schema_v1';
 var LIBRARY_ENTRY_SCHEMAS = {
   onboarding: {
     headers: [
@@ -133,92 +138,35 @@ var LIBRARY_ENTRY_SCHEMAS = {
   }
 };
 
-var SHEET_SCHEMA_SPECS = {
-  onboarding: {
-    expectedVersion: 3,
-    requiredHeaders: ['onboarding_id', 'employee_name', 'email', 'role', 'start_date', 'manager_email', 'status', 'checklist_completed', 'row_hash', 'blocked_reason'],
-    spreadsheetIdGetter: function () {
-      return Config.getOnboardingSpreadsheetId();
-    },
-    sheetNameGetter: function () {
-      return Config.getOnboardingSheetName();
-    }
-  },
-  training: {
-    expectedVersion: 1,
-    requiredHeaders: ['employee_id', 'module_code', 'module_name', 'assigned_date', 'due_date', 'completion_date', 'training_status', 'last_updated_at', 'completion_hash', 'celebration_posted'],
-    spreadsheetIdGetter: function () {
-      return Config.getTrainingSpreadsheetId();
-    },
-    sheetNameGetter: function () {
-      return Config.getTrainingSheetName();
-    }
-  },
-  audit: {
-    expectedVersion: 1,
-    requiredHeaders: ['audit_id', 'event_timestamp', 'actor_email', 'entity_type', 'entity_id', 'action', 'details', 'event_hash'],
-    spreadsheetIdGetter: function () {
-      return Config.getAuditSpreadsheetId();
-    },
-    sheetNameGetter: function () {
-      return Config.getAuditSheetName();
-    }
-  },
-  checklist: {
-    expectedVersion: 1,
-    requiredHeaders: ['task_id', 'onboarding_id', 'phase', 'task_name', 'owner_team', 'owner_slack_channel', 'status', 'due_date', 'updated_at', 'updated_by', 'notes'],
-    spreadsheetIdGetter: function () {
-      return Config.getChecklistSpreadsheetId();
-    },
-    sheetNameGetter: function () {
-      return Config.getChecklistSheetName();
-    }
-  },
-  lessons: {
-    expectedVersion: 1,
-    optional: true,
-    requiredHeaders: ['lesson_id', 'module_code', 'lesson_title', 'version', 'source', 'trace_id', 'approval_status', 'submitted_by', 'approved_by', 'submitted_at', 'approved_at', 'created_at', 'updated_at'],
-    spreadsheetIdGetter: function () {
-      return Config.getLessonsSpreadsheetId ? Config.getLessonsSpreadsheetId() : Config.getTrainingSpreadsheetId();
-    },
-    sheetNameGetter: function () {
-      return Config.getLessonsSheetName ? Config.getLessonsSheetName() : 'lessons';
-    }
-  },
-  mappings: {
-    expectedVersion: 1,
-    optional: true,
-    requiredHeaders: ['mapping_id', 'lesson_id', 'target_entity', 'target_key', 'version', 'source', 'trace_id', 'approval_status', 'submitted_by', 'approved_by', 'submitted_at', 'approved_at', 'created_at', 'updated_at'],
-    spreadsheetIdGetter: function () {
-      return Config.getMappingsSpreadsheetId ? Config.getMappingsSpreadsheetId() : Config.getTrainingSpreadsheetId();
-    },
-    sheetNameGetter: function () {
-      return Config.getMappingsSheetName ? Config.getMappingsSheetName() : 'mappings';
-    }
-  },
-  approvals: {
-    expectedVersion: 1,
-    optional: true,
-    requiredHeaders: ['approval_id', 'entity_type', 'entity_key', 'approval_status', 'submitted_by', 'approved_by', 'trace_id', 'version', 'source', 'submitted_at', 'approved_at', 'created_at', 'updated_at'],
-    spreadsheetIdGetter: function () {
-      return Config.getApprovalsSpreadsheetId ? Config.getApprovalsSpreadsheetId() : Config.getTrainingSpreadsheetId();
-    },
-    sheetNameGetter: function () {
-      return Config.getApprovalsSheetName ? Config.getApprovalsSheetName() : 'approvals';
-    }
-  },
-  submissions: {
-    expectedVersion: 1,
-    optional: true,
-    requiredHeaders: ['submission_id', 'entity_type', 'entity_key', 'payload_json', 'approval_status', 'submitted_by', 'approved_by', 'trace_id', 'version', 'source', 'submitted_at', 'approved_at', 'created_at', 'updated_at'],
-    spreadsheetIdGetter: function () {
-      return Config.getSubmissionsSpreadsheetId ? Config.getSubmissionsSpreadsheetId() : Config.getTrainingSpreadsheetId();
-    },
-    sheetNameGetter: function () {
-      return Config.getSubmissionsSheetName ? Config.getSubmissionsSheetName() : 'submissions';
-    }
+function getSchemaDefinition_(key) {
+  if (schemaConstants_ && schemaConstants_.SHEET_DEFINITIONS && schemaConstants_.SHEET_DEFINITIONS[key]) {
+    return schemaConstants_.SHEET_DEFINITIONS[key];
   }
+  return null;
+}
+
+function createSheetSchemaSpec_(schemaKey, spreadsheetIdGetter, sheetNameGetter) {
+  var schemaDefinition = getSchemaDefinition_(schemaKey) || {};
+  return {
+    expectedVersion: schemaDefinition.expectedVersion,
+    optional: Boolean(schemaDefinition.optional),
+    requiredHeaders: schemaDefinition.requiredHeaders || [],
+    spreadsheetIdGetter: spreadsheetIdGetter,
+    sheetNameGetter: sheetNameGetter
+  };
+}
+
+var SHEET_SCHEMA_SPECS = {
+  onboarding: createSheetSchemaSpec_('onboarding', function () { return Config.getOnboardingSpreadsheetId(); }, function () { return Config.getOnboardingSheetName(); }),
+  training: createSheetSchemaSpec_('training', function () { return Config.getTrainingSpreadsheetId(); }, function () { return Config.getTrainingSheetName(); }),
+  audit: createSheetSchemaSpec_('audit', function () { return Config.getAuditSpreadsheetId(); }, function () { return Config.getAuditSheetName(); }),
+  checklist: createSheetSchemaSpec_('checklist', function () { return Config.getChecklistSpreadsheetId(); }, function () { return Config.getChecklistSheetName(); }),
+  lessons: createSheetSchemaSpec_('lessons', function () { return Config.getLessonsSpreadsheetId ? Config.getLessonsSpreadsheetId() : Config.getTrainingSpreadsheetId(); }, function () { return Config.getLessonsSheetName ? Config.getLessonsSheetName() : 'lessons'; }),
+  mappings: createSheetSchemaSpec_('mappings', function () { return Config.getMappingsSpreadsheetId ? Config.getMappingsSpreadsheetId() : Config.getTrainingSpreadsheetId(); }, function () { return Config.getMappingsSheetName ? Config.getMappingsSheetName() : 'mappings'; }),
+  approvals: createSheetSchemaSpec_('approvals', function () { return Config.getApprovalsSpreadsheetId ? Config.getApprovalsSpreadsheetId() : Config.getTrainingSpreadsheetId(); }, function () { return Config.getApprovalsSheetName ? Config.getApprovalsSheetName() : 'approvals'; }),
+  submissions: createSheetSchemaSpec_('submissions', function () { return Config.getSubmissionsSpreadsheetId ? Config.getSubmissionsSpreadsheetId() : Config.getTrainingSpreadsheetId(); }, function () { return Config.getSubmissionsSheetName ? Config.getSubmissionsSheetName() : 'submissions'; })
 };
+
 
 
 var SheetClientRepoBindings_ = null;
@@ -228,7 +176,8 @@ if (typeof module !== 'undefined') {
     TrainingRepository: require('./TrainingRepository.gs').TrainingRepository,
     LessonRepository: require('./LessonRepository.gs').LessonRepository,
     AuditRepository: require('./AuditRepository.gs').AuditRepository,
-    ValidationService: require('./ValidationService.gs')
+    ValidationService: require('./ValidationService.gs'),
+    VersioningService: require('./VersioningService.gs')
   };
 }
 
@@ -242,6 +191,10 @@ function getValidationService_() {
     return ValidationService;
   }
   return SheetClientRepoBindings_ && SheetClientRepoBindings_.ValidationService;
+}
+
+function getVersioningService_() {
+  return SheetClientRepoBindings_ && SheetClientRepoBindings_.VersioningService;
 }
 var DASHBOARD_SCHEMAS = {
   onboarding: {
@@ -500,6 +453,25 @@ SheetClient.prototype.getSchemaVersionFromConfig_ = function (spreadsheet, sheet
   return '';
 };
 
+SheetClient.prototype.isSchemaVersionCompatible_ = function (expectedVersion, configuredVersion, options) {
+  var versioningService = getVersioningService_();
+  if (versioningService && typeof versioningService.isSchemaVersionCompatible === 'function') {
+    return versioningService.isSchemaVersionCompatible(expectedVersion, configuredVersion, options);
+  }
+  return String(expectedVersion || '') === String(configuredVersion || '');
+};
+
+SheetClient.prototype.assertSchemaVersionCompatibility_ = function (sheetName, expectedVersion, configuredVersion, options) {
+  var versioningService = getVersioningService_();
+  if (versioningService && typeof versioningService.assertSchemaVersionCompatibility === 'function') {
+    return versioningService.assertSchemaVersionCompatibility(sheetName, expectedVersion, configuredVersion, options);
+  }
+  if (!this.isSchemaVersionCompatible_(expectedVersion, configuredVersion, options)) {
+    throw new Error('Schema version mismatch for sheet "' + sheetName + '". Expected ' + expectedVersion + ' but found ' + configuredVersion + '.');
+  }
+  return true;
+};
+
 SheetClient.prototype.validateSheetSchema_ = function (sheet, expectedVersion, requiredHeaders) {
   var actualHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0] || [];
   var spreadsheet = sheet.getParent();
@@ -531,9 +503,10 @@ SheetClient.prototype.validateSheetSchema_ = function (sheet, expectedVersion, r
   if (!currentVersion) {
     throw new Error('Schema version metadata missing for sheet "' + sheet.getName() + '". Expected version ' + expectedVersion + '.');
   }
-  if (String(currentVersion) !== String(expectedVersion)) {
-    throw new Error('Schema version mismatch for sheet "' + sheet.getName() + '". Expected ' + expectedVersion + ' but found ' + currentVersion + '.');
-  }
+  this.assertSchemaVersionCompatibility_(sheet.getName(), expectedVersion, currentVersion, {
+    configTabName: SCHEMA_CONFIG_TAB,
+    strict: true
+  });
   return true;
 };
 

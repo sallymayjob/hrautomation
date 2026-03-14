@@ -1,9 +1,19 @@
-/* global PropertiesService */
+/* global LibraryConfigService, CoreConstants */
 /**
  * @fileoverview Script property accessors with typed getters.
  */
 
 var Config = (function () {
+  var core = (typeof CoreConstants !== 'undefined' && CoreConstants) ? CoreConstants : null;
+  var configHelpers = (typeof LibraryConfigService !== 'undefined' && LibraryConfigService) ? LibraryConfigService : null;
+
+  if (!configHelpers && typeof module !== 'undefined') {
+    configHelpers = require('./LibraryConfigService.gs').LibraryConfigService;
+  }
+  if (!core && typeof module !== 'undefined') {
+    core = require('./CoreConstants.gs').CoreConstants;
+  }
+
   var KEYS = {
     ONBOARDING_SPREADSHEET_ID: 'ONBOARDING_SPREADSHEET_ID',
     TRAINING_SPREADSHEET_ID: 'TRAINING_SPREADSHEET_ID',
@@ -45,32 +55,14 @@ var Config = (function () {
     GOVERNANCE_APPROVAL_REQUIRED: 'GOVERNANCE_APPROVAL_REQUIRED'
   };
 
-  var GOVERNED_ACTION_TYPES = {
-    LESSON_CREATE: 'lesson_create',
-    LESSON_EDIT: 'lesson_edit',
-    LESSON_OVERWRITE: 'lesson_overwrite',
-    LESSON_VERSION: 'lesson_version',
-    LESSON_MAPPING_CHANGE: 'lesson_mapping_change'
+  var GOVERNED_ACTION_TYPES = core ? core.ACTIONS : {
+    LESSON_CREATE: 'lesson_create', LESSON_EDIT: 'lesson_edit', LESSON_OVERWRITE: 'lesson_overwrite', LESSON_VERSION: 'lesson_version', LESSON_MAPPING_CHANGE: 'lesson_mapping_change'
   };
-
-  var APPROVAL_REQUIRED_ACTIONS = {
-    lesson_create: true,
-    lesson_edit: true,
-    lesson_overwrite: true,
-    lesson_version: true,
-    lesson_mapping_change: true,
-    create_lesson: true,
-    edit_lesson: true,
-    overwrite_lesson: true,
-    version_lesson: true,
-    update_lesson_mapping: true
+  var APPROVAL_REQUIRED_ACTIONS = core ? core.APPROVAL_REQUIRED_ACTIONS : {
+    lesson_create: true, lesson_edit: true, lesson_overwrite: true, lesson_version: true, lesson_mapping_change: true,
+    create_lesson: true, edit_lesson: true, overwrite_lesson: true, version_lesson: true, update_lesson_mapping: true
   };
-
-  var ENTITY_NAMES = {
-    LESSON: 'lesson',
-    LMS_ACTION: 'lms_action',
-    PROPOSAL: 'proposal'
-  };
+  var ENTITY_NAMES = core ? core.ENTITY_NAMES : { LESSON: 'lesson', LMS_ACTION: 'lms_action', PROPOSAL: 'proposal' };
 
   var CHANNEL_ROUTING = {
     ADMIN: 'getAdminTeamChannelId',
@@ -84,121 +76,18 @@ var Config = (function () {
   };
 
   var DATASETS = {
-    onboarding: {
-      spreadsheetIdKey: KEYS.ONBOARDING_SPREADSHEET_ID,
-      sheetNameKey: KEYS.ONBOARDING_SHEET_NAME
-    },
-    training: {
-      spreadsheetIdKey: KEYS.TRAINING_SPREADSHEET_ID,
-      sheetNameKey: KEYS.TRAINING_SHEET_NAME
-    },
-    audit: {
-      spreadsheetIdKey: KEYS.AUDIT_SPREADSHEET_ID,
-      sheetNameKey: KEYS.AUDIT_SHEET_NAME,
-      fallbackSpreadsheetIdKey: KEYS.TRAINING_SPREADSHEET_ID
-    },
-    checklist: {
-      spreadsheetIdKey: KEYS.CHECKLIST_SPREADSHEET_ID,
-      sheetNameKey: KEYS.CHECKLIST_SHEET_NAME
-    },
-    mapping: {
-      spreadsheetIdKey: KEYS.MAPPING_SPREADSHEET_ID,
-      sheetNameKey: KEYS.MAPPING_SHEET_NAME,
-      fallbackSpreadsheetIdKey: KEYS.TRAINING_SPREADSHEET_ID,
-      fallbackSheetName: 'lessons'
-    },
-    lessons: {
-      spreadsheetIdKey: KEYS.LESSONS_SPREADSHEET_ID,
-      sheetNameKey: KEYS.LESSONS_SHEET_NAME,
-      fallbackSpreadsheetIdKey: KEYS.TRAINING_SPREADSHEET_ID,
-      fallbackSheetName: 'lessons'
-    },
-    mappings: {
-      spreadsheetIdKey: KEYS.MAPPINGS_SPREADSHEET_ID,
-      sheetNameKey: KEYS.MAPPINGS_SHEET_NAME,
-      fallbackSpreadsheetIdKey: KEYS.TRAINING_SPREADSHEET_ID,
-      fallbackSheetName: 'mappings'
-    },
-    approvals: {
-      spreadsheetIdKey: KEYS.APPROVALS_SPREADSHEET_ID,
-      sheetNameKey: KEYS.APPROVALS_SHEET_NAME,
-      fallbackSpreadsheetIdKey: KEYS.TRAINING_SPREADSHEET_ID,
-      fallbackSheetName: 'approvals'
-    },
-    submissions: {
-      spreadsheetIdKey: KEYS.SUBMISSIONS_SPREADSHEET_ID,
-      sheetNameKey: KEYS.SUBMISSIONS_SHEET_NAME,
-      fallbackSpreadsheetIdKey: KEYS.TRAINING_SPREADSHEET_ID,
-      fallbackSheetName: 'submissions'
-    }
+    onboarding: { spreadsheetIdKey: KEYS.ONBOARDING_SPREADSHEET_ID, sheetNameKey: KEYS.ONBOARDING_SHEET_NAME },
+    training: { spreadsheetIdKey: KEYS.TRAINING_SPREADSHEET_ID, sheetNameKey: KEYS.TRAINING_SHEET_NAME },
+    audit: { spreadsheetIdKey: KEYS.AUDIT_SPREADSHEET_ID, sheetNameKey: KEYS.AUDIT_SHEET_NAME, fallbackSpreadsheetIdKey: KEYS.TRAINING_SPREADSHEET_ID },
+    checklist: { spreadsheetIdKey: KEYS.CHECKLIST_SPREADSHEET_ID, sheetNameKey: KEYS.CHECKLIST_SHEET_NAME },
+    mapping: { spreadsheetIdKey: KEYS.MAPPING_SPREADSHEET_ID, sheetNameKey: KEYS.MAPPING_SHEET_NAME, fallbackSpreadsheetIdKey: KEYS.TRAINING_SPREADSHEET_ID, fallbackSheetName: 'lessons' },
+    lessons: { spreadsheetIdKey: KEYS.LESSONS_SPREADSHEET_ID, sheetNameKey: KEYS.LESSONS_SHEET_NAME, fallbackSpreadsheetIdKey: KEYS.TRAINING_SPREADSHEET_ID, fallbackSheetName: 'lessons' },
+    mappings: { spreadsheetIdKey: KEYS.MAPPINGS_SPREADSHEET_ID, sheetNameKey: KEYS.MAPPINGS_SHEET_NAME, fallbackSpreadsheetIdKey: KEYS.TRAINING_SPREADSHEET_ID, fallbackSheetName: 'mappings' },
+    approvals: { spreadsheetIdKey: KEYS.APPROVALS_SPREADSHEET_ID, sheetNameKey: KEYS.APPROVALS_SHEET_NAME, fallbackSpreadsheetIdKey: KEYS.TRAINING_SPREADSHEET_ID, fallbackSheetName: 'approvals' },
+    submissions: { spreadsheetIdKey: KEYS.SUBMISSIONS_SPREADSHEET_ID, sheetNameKey: KEYS.SUBMISSIONS_SHEET_NAME, fallbackSpreadsheetIdKey: KEYS.TRAINING_SPREADSHEET_ID, fallbackSheetName: 'submissions' }
   };
 
-  function getRaw_(key) {
-    var value = PropertiesService.getScriptProperties().getProperty(key);
-    if (value === null || value === '') {
-      throw new Error('Missing required Script Property: ' + key + '. Configure it in Apps Script > Project Settings > Script Properties.');
-    }
-    return value;
-  }
-
-  function getString_(key) {
-    return String(getRaw_(key));
-  }
-
-  function getOptionalString_(key) {
-    var value = PropertiesService.getScriptProperties().getProperty(key);
-    if (value === null || value === '') {
-      return '';
-    }
-    return String(value);
-  }
-
-  function getBoolean_(key, fallback) {
-    var value = getOptionalString_(key);
-    if (!value) {
-      return Boolean(fallback);
-    }
-    var normalized = value.trim().toLowerCase();
-    return normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on';
-  }
-
-  function getNumber_(key) {
-    var value = Number(getRaw_(key));
-    if (isNaN(value)) {
-      throw new Error('Script Property ' + key + ' must be a valid number.');
-    }
-    return value;
-  }
-
-  function getDatasetSheetName_(datasetKey) {
-    var dataset = DATASETS[datasetKey];
-    if (!dataset) {
-      throw new Error('Unknown dataset key: ' + datasetKey);
-    }
-    var value = getOptionalString_(dataset.sheetNameKey);
-    if (value) {
-      return value;
-    }
-    if (dataset.fallbackSheetName) {
-      return dataset.fallbackSheetName;
-    }
-    return getString_(dataset.sheetNameKey);
-  }
-
-  function getDatasetSpreadsheetId_(datasetKey) {
-    var dataset = DATASETS[datasetKey];
-    if (!dataset) {
-      throw new Error('Unknown dataset key: ' + datasetKey);
-    }
-    var value = getOptionalString_(dataset.spreadsheetIdKey);
-    if (value) {
-      return value;
-    }
-    if (dataset.fallbackSpreadsheetIdKey) {
-      return getString_(dataset.fallbackSpreadsheetIdKey);
-    }
-    return getString_(dataset.spreadsheetIdKey);
-  }
+  var datasetResolver = configHelpers.createDatasetResolver_(DATASETS);
 
   return {
     KEYS: KEYS,
@@ -208,165 +97,54 @@ var Config = (function () {
     CHANNEL_ROUTING: CHANNEL_ROUTING,
     DATASETS: DATASETS,
 
-    getDatasetSpreadsheetId: function (datasetKey) {
-      return getDatasetSpreadsheetId_(datasetKey);
-    },
+    getDatasetSpreadsheetId: function (datasetKey) { return datasetResolver.getDatasetSpreadsheetId(datasetKey); },
+    getDatasetSheetName: function (datasetKey) { return datasetResolver.getDatasetSheetName(datasetKey); },
 
-    getDatasetSheetName: function (datasetKey) {
-      return getDatasetSheetName_(datasetKey);
-    },
+    getOnboardingSpreadsheetId: function () { return datasetResolver.getDatasetSpreadsheetId('onboarding'); },
+    getTrainingSpreadsheetId: function () { return datasetResolver.getDatasetSpreadsheetId('training'); },
+    getAuditSpreadsheetId: function () { return datasetResolver.getDatasetSpreadsheetId('audit'); },
+    getChecklistSpreadsheetId: function () { return datasetResolver.getDatasetSpreadsheetId('checklist'); },
+    getMappingSpreadsheetId: function () { return datasetResolver.getDatasetSpreadsheetId('mapping'); },
 
-    getOnboardingSpreadsheetId: function () {
-      return getDatasetSpreadsheetId_('onboarding');
-    },
+    getOnboardingSheetName: function () { return datasetResolver.getDatasetSheetName('onboarding'); },
+    getTrainingSheetName: function () { return datasetResolver.getDatasetSheetName('training'); },
+    getAuditSheetName: function () { return datasetResolver.getDatasetSheetName('audit'); },
+    getChecklistSheetName: function () { return datasetResolver.getDatasetSheetName('checklist'); },
+    getMappingSheetName: function () { return datasetResolver.getDatasetSheetName('mapping'); },
 
-    getTrainingSpreadsheetId: function () {
-      return getDatasetSpreadsheetId_('training');
-    },
+    getLessonsSpreadsheetId: function () { return datasetResolver.getDatasetSpreadsheetId('lessons'); },
+    getMappingsSpreadsheetId: function () { return datasetResolver.getDatasetSpreadsheetId('mappings'); },
+    getApprovalsSpreadsheetId: function () { return datasetResolver.getDatasetSpreadsheetId('approvals'); },
+    getSubmissionsSpreadsheetId: function () { return datasetResolver.getDatasetSpreadsheetId('submissions'); },
 
-    getAuditSpreadsheetId: function () {
-      return getDatasetSpreadsheetId_('audit');
-    },
+    getLessonsSheetName: function () { return datasetResolver.getDatasetSheetName('lessons'); },
+    getMappingsSheetName: function () { return datasetResolver.getDatasetSheetName('mappings'); },
+    getApprovalsSheetName: function () { return datasetResolver.getDatasetSheetName('approvals'); },
+    getSubmissionsSheetName: function () { return datasetResolver.getDatasetSheetName('submissions'); },
 
-    getChecklistSpreadsheetId: function () {
-      return getDatasetSpreadsheetId_('checklist');
-    },
+    getHrAlertEmail: function () { return configHelpers.getStringProperty_(KEYS.HR_ALERT_EMAIL); },
+    getAppTimezone: function () { return configHelpers.getStringProperty_(KEYS.APP_TIMEZONE); },
+    getRetryMaxAttempts: function () { return configHelpers.getNumberProperty_(KEYS.RETRY_MAX_ATTEMPTS); },
+    getRetryDelayMs: function () { return configHelpers.getNumberProperty_(KEYS.RETRY_DELAY_MS); },
+    getSlackBotToken: function () { return configHelpers.getStringProperty_(KEYS.SLACK_BOT_TOKEN); },
+    getSlackVerificationToken: function () { return configHelpers.getStringProperty_(KEYS.SLACK_VERIFICATION_TOKEN); },
 
-    getMappingSpreadsheetId: function () {
-      return getDatasetSpreadsheetId_('mapping');
-    },
+    getGeminiApiKey: function () { return configHelpers.getOptionalStringProperty_(KEYS.GEMINI_API_KEY); },
+    getGeminiModel: function () { return configHelpers.getOptionalStringProperty_(KEYS.GEMINI_MODEL) || 'gemini-1.5-flash'; },
+    isGeminiEnabled: function () { return configHelpers.getBooleanProperty_(KEYS.GEMINI_ENABLED, false); },
 
-    getOnboardingSheetName: function () {
-      return getDatasetSheetName_('onboarding');
-    },
+    isGovernanceEnabled: function () { return configHelpers.getBooleanProperty_(KEYS.GOVERNANCE_ENABLED, true); },
+    isGovernanceApprovalRequired: function () { return configHelpers.getBooleanProperty_(KEYS.GOVERNANCE_APPROVAL_REQUIRED, true); },
 
-    getTrainingSheetName: function () {
-      return getDatasetSheetName_('training');
-    },
-
-    getAuditSheetName: function () {
-      return getDatasetSheetName_('audit');
-    },
-
-    getChecklistSheetName: function () {
-      return getDatasetSheetName_('checklist');
-    },
-
-    getMappingSheetName: function () {
-      return getDatasetSheetName_('mapping');
-    },
-
-    getLessonsSpreadsheetId: function () {
-      return getDatasetSpreadsheetId_('lessons');
-    },
-
-    getMappingsSpreadsheetId: function () {
-      return getDatasetSpreadsheetId_('mappings');
-    },
-
-    getApprovalsSpreadsheetId: function () {
-      return getDatasetSpreadsheetId_('approvals');
-    },
-
-    getSubmissionsSpreadsheetId: function () {
-      return getDatasetSpreadsheetId_('submissions');
-    },
-
-    getLessonsSheetName: function () {
-      return getDatasetSheetName_('lessons');
-    },
-
-    getMappingsSheetName: function () {
-      return getDatasetSheetName_('mappings');
-    },
-
-    getApprovalsSheetName: function () {
-      return getDatasetSheetName_('approvals');
-    },
-
-    getSubmissionsSheetName: function () {
-      return getDatasetSheetName_('submissions');
-    },
-
-    getHrAlertEmail: function () {
-      return getString_(KEYS.HR_ALERT_EMAIL);
-    },
-
-    getAppTimezone: function () {
-      return getString_(KEYS.APP_TIMEZONE);
-    },
-
-    getRetryMaxAttempts: function () {
-      return getNumber_(KEYS.RETRY_MAX_ATTEMPTS);
-    },
-
-    getRetryDelayMs: function () {
-      return getNumber_(KEYS.RETRY_DELAY_MS);
-    },
-
-    getSlackBotToken: function () {
-      return getString_(KEYS.SLACK_BOT_TOKEN);
-    },
-
-    getSlackVerificationToken: function () {
-      return getString_(KEYS.SLACK_VERIFICATION_TOKEN);
-    },
-
-    getGeminiApiKey: function () {
-      return getOptionalString_(KEYS.GEMINI_API_KEY);
-    },
-
-    getGeminiModel: function () {
-      return getOptionalString_(KEYS.GEMINI_MODEL) || 'gemini-1.5-flash';
-    },
-
-    isGeminiEnabled: function () {
-      return getBoolean_(KEYS.GEMINI_ENABLED, false);
-    },
-
-    isGovernanceEnabled: function () {
-      return getBoolean_(KEYS.GOVERNANCE_ENABLED, true);
-    },
-
-    isGovernanceApprovalRequired: function () {
-      return getBoolean_(KEYS.GOVERNANCE_APPROVAL_REQUIRED, true);
-    },
-
-    getAdminTeamChannelId: function () {
-      return getString_(KEYS.ADMIN_TEAM_CHANNEL_ID);
-    },
-
-    getFinanceTeamChannelId: function () {
-      return getString_(KEYS.FINANCE_TEAM_CHANNEL_ID);
-    },
-
-    getHrTeamChannelId: function () {
-      return getString_(KEYS.HR_TEAM_CHANNEL_ID);
-    },
-
-    getItTeamChannelId: function () {
-      return getString_(KEYS.IT_TEAM_CHANNEL_ID);
-    },
-
-    getLegalTeamChannelId: function () {
-      return getString_(KEYS.LEGAL_TEAM_CHANNEL_ID);
-    },
-
-    getOperationsTeamChannelId: function () {
-      return getString_(KEYS.OPERATIONS_TEAM_CHANNEL_ID);
-    },
-
-    getPeopleTeamChannelId: function () {
-      return getString_(KEYS.PEOPLE_TEAM_CHANNEL_ID);
-    },
-
-    getDefaultAssignmentsChannelId: function () {
-      return getString_(KEYS.DEFAULT_ASSIGNMENTS_CHANNEL_ID);
-    },
-
-    getHrOpsAlertsChannelId: function () {
-      return getString_(KEYS.HR_OPS_ALERTS_CHANNEL_ID);
-    }
+    getAdminTeamChannelId: function () { return configHelpers.getStringProperty_(KEYS.ADMIN_TEAM_CHANNEL_ID); },
+    getFinanceTeamChannelId: function () { return configHelpers.getStringProperty_(KEYS.FINANCE_TEAM_CHANNEL_ID); },
+    getHrTeamChannelId: function () { return configHelpers.getStringProperty_(KEYS.HR_TEAM_CHANNEL_ID); },
+    getItTeamChannelId: function () { return configHelpers.getStringProperty_(KEYS.IT_TEAM_CHANNEL_ID); },
+    getLegalTeamChannelId: function () { return configHelpers.getStringProperty_(KEYS.LEGAL_TEAM_CHANNEL_ID); },
+    getOperationsTeamChannelId: function () { return configHelpers.getStringProperty_(KEYS.OPERATIONS_TEAM_CHANNEL_ID); },
+    getPeopleTeamChannelId: function () { return configHelpers.getStringProperty_(KEYS.PEOPLE_TEAM_CHANNEL_ID); },
+    getDefaultAssignmentsChannelId: function () { return configHelpers.getStringProperty_(KEYS.DEFAULT_ASSIGNMENTS_CHANNEL_ID); },
+    getHrOpsAlertsChannelId: function () { return configHelpers.getStringProperty_(KEYS.HR_OPS_ALERTS_CHANNEL_ID); }
   };
 })();
 

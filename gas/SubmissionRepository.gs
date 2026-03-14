@@ -1,4 +1,4 @@
-/* global Config */
+/* global Config, CoreConstants */
 /**
  * @fileoverview Durable proposal persistence for governance submissions/approvals sheets.
  */
@@ -6,21 +6,26 @@
 var SubmissionRepoBindings_ = null;
 if (typeof module !== 'undefined') {
   SubmissionRepoBindings_ = {
-    SheetClient: require('./SheetClient.gs').SheetClient
+    SheetClient: require('./SheetClient.gs').SheetClient,
+    VersioningService: require('./VersioningService.gs')
   };
 }
 
-var SUBMISSION_HEADERS = [
+var SUBMISSION_HEADERS = (typeof CoreConstants !== 'undefined' && CoreConstants && CoreConstants.SCHEMA && CoreConstants.SCHEMA.REPOSITORY_HEADERS && CoreConstants.SCHEMA.REPOSITORY_HEADERS.submissions ? CoreConstants.SCHEMA.REPOSITORY_HEADERS.submissions.slice() : [
   'submission_id', 'entity_type', 'entity_key', 'payload_json', 'approval_status',
   'submitted_by', 'approved_by', 'trace_id', 'version', 'source',
   'submitted_at', 'approved_at', 'created_at', 'updated_at', 'action',
   'request_id', 'requires_approval', 'proposal_hash', 'approval_hash', 'approval_version',
   'rejection_reason', 'committed_at'
-];
+]);
 
 function getSheetClientForSubmission_() {
   if (typeof SheetClient !== 'undefined' && SheetClient) return SheetClient;
   return SubmissionRepoBindings_ ? SubmissionRepoBindings_.SheetClient : null;
+}
+
+function getVersioningServiceForSubmission_() {
+  return SubmissionRepoBindings_ ? SubmissionRepoBindings_.VersioningService : null;
 }
 
 function SubmissionRepository(sheetClient) {
@@ -85,7 +90,20 @@ SubmissionRepository.prototype.writeProposal = function (proposal) {
 
 SubmissionRepository.prototype.ensureSheet_ = function () {
   if (!this.sheetClient) return null;
-  return this.sheetClient.ensureSheetWithHeaders(Config.getSubmissionsSheetName(), SUBMISSION_HEADERS);
+  var sheet = this.sheetClient.ensureSheetWithHeaders(Config.getSubmissionsSheetName(), SUBMISSION_HEADERS);
+  var expectedVersion = (typeof CoreConstants !== 'undefined' && CoreConstants && CoreConstants.SCHEMA && CoreConstants.SCHEMA.SHEET_DEFINITIONS && CoreConstants.SCHEMA.SHEET_DEFINITIONS.submissions) ? CoreConstants.SCHEMA.SHEET_DEFINITIONS.submissions.expectedVersion : 1;
+  if (typeof this.sheetClient.getSchemaVersionFromConfig_ === 'function' && typeof this.sheetClient.assertSchemaVersionCompatibility_ === 'function') {
+    var configuredVersion = this.sheetClient.getSchemaVersionFromConfig_(sheet.getParent(), sheet.getName());
+    if (configuredVersion) {
+      this.sheetClient.assertSchemaVersionCompatibility_(sheet.getName(), expectedVersion, configuredVersion, { strict: true });
+    }
+  } else {
+    var versioning = getVersioningServiceForSubmission_();
+    if (versioning && typeof versioning.assertSchemaVersionCompatibility === 'function') {
+      versioning.assertSchemaVersionCompatibility(sheet.getName(), expectedVersion, String(expectedVersion), { strict: true });
+    }
+  }
+  return sheet;
 };
 
 SubmissionRepository.prototype.saveProposal = function (proposal) {

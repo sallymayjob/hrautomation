@@ -1,0 +1,115 @@
+/* global */
+/**
+ * @fileoverview Shared immutable constants/enums for governance, datasets, channels, and schema headers.
+ */
+
+var CoreConstants = {
+  ACTIONS: {
+    LESSON_CREATE: 'lesson_create',
+    LESSON_EDIT: 'lesson_edit',
+    LESSON_OVERWRITE: 'lesson_overwrite',
+    LESSON_VERSION: 'lesson_version',
+    LESSON_MAPPING_CHANGE: 'lesson_mapping_change'
+  },
+
+  APPROVAL_REQUIRED_ACTIONS: {
+    lesson_create: true,
+    lesson_edit: true,
+    lesson_overwrite: true,
+    lesson_version: true,
+    lesson_mapping_change: true,
+    create_lesson: true,
+    edit_lesson: true,
+    overwrite_lesson: true,
+    version_lesson: true,
+    update_lesson_mapping: true
+  },
+
+  STATUSES: {
+    PENDING: 'PENDING',
+    APPROVED: 'APPROVED',
+    REJECTED: 'REJECTED',
+    COMPLETE: 'COMPLETE',
+    COMPLETED: 'COMPLETED',
+    BLOCKED: 'BLOCKED',
+    DONE: 'DONE'
+  },
+
+  ENTITY_NAMES: {
+    LESSON: 'lesson',
+    LMS_ACTION: 'lms_action',
+    PROPOSAL: 'proposal'
+  },
+
+  DATASET_KEYS: {
+    ONBOARDING: 'onboarding',
+    TRAINING: 'training',
+    AUDIT: 'audit',
+    CHECKLIST: 'checklist',
+    MAPPING: 'mapping',
+    LESSONS: 'lessons',
+    MAPPINGS: 'mappings',
+    APPROVALS: 'approvals',
+    SUBMISSIONS: 'submissions'
+  },
+
+  CHANNEL_KEYS: {
+    ADMIN: 'ADMIN',
+    FINANCE: 'FINANCE',
+    HR: 'HR',
+    IT: 'IT',
+    LEGAL: 'LEGAL',
+    OPERATIONS: 'OPERATIONS',
+    PEOPLE: 'PEOPLE',
+    PEOPLE_OPS: 'PEOPLE OPS'
+  },
+
+  SCHEMA: {
+    CONFIG_TAB: '_sys_config',
+    VERSION_KEY: 'version',
+    LIBRARY_SCHEMA_VERSION: 'schema_v1',
+    SHEET_DEFINITIONS: {
+      onboarding: {
+        expectedVersion: 3,
+        requiredHeaders: ['onboarding_id', 'employee_name', 'email', 'role', 'start_date', 'manager_email', 'status', 'checklist_completed', 'row_hash', 'blocked_reason']
+      },
+      training: {
+        expectedVersion: 1,
+        requiredHeaders: ['employee_id', 'module_code', 'module_name', 'assigned_date', 'due_date', 'completion_date', 'training_status', 'last_updated_at', 'completion_hash', 'celebration_posted']
+      },
+      audit: {
+        expectedVersion: 1,
+        requiredHeaders: ['audit_id', 'event_timestamp', 'actor_email', 'entity_type', 'entity_id', 'action', 'details', 'event_hash']
+      },
+      checklist: {
+        expectedVersion: 1,
+        requiredHeaders: ['task_id', 'onboarding_id', 'phase', 'task_name', 'owner_team', 'owner_slack_channel', 'status', 'due_date', 'updated_at', 'updated_by', 'notes']
+      },
+      lessons: {
+        expectedVersion: 1,
+        optional: true,
+        requiredHeaders: ['lesson_id', 'module_code', 'lesson_title', 'version', 'source', 'trace_id', 'approval_status', 'submitted_by', 'approved_by', 'submitted_at', 'approved_at', 'created_at', 'updated_at']
+      },
+      mappings: {
+        expectedVersion: 1,
+        optional: true,
+        requiredHeaders: ['mapping_id', 'lesson_id', 'target_entity', 'target_key', 'version', 'source', 'trace_id', 'approval_status', 'submitted_by', 'approved_by', 'submitted_at', 'approved_at', 'created_at', 'updated_at']
+      },
+      approvals: {
+        expectedVersion: 1,
+        optional: true,
+        requiredHeaders: ['approval_id', 'entity_type', 'entity_key', 'approval_status', 'submitted_by', 'approved_by', 'trace_id', 'version', 'source', 'submitted_at', 'approved_at', 'created_at', 'updated_at']
+      },
+      submissions: {
+        expectedVersion: 1,
+        optional: true,
+        requiredHeaders: ['submission_id', 'entity_type', 'entity_key', 'payload_json', 'approval_status', 'submitted_by', 'approved_by', 'trace_id', 'version', 'source', 'submitted_at', 'approved_at', 'created_at', 'updated_at']
+      }
+    },
+    REPOSITORY_HEADERS: {
+      submissions: ['submission_id', 'entity_type', 'entity_key', 'payload_json', 'approval_status', 'submitted_by', 'approved_by', 'trace_id', 'version', 'source', 'submitted_at', 'approved_at', 'created_at', 'updated_at', 'action', 'request_id', 'requires_approval', 'proposal_hash', 'approval_hash', 'approval_version', 'rejection_reason', 'committed_at']
+    }
+  }
+};
+
+if (typeof module !== 'undefined') module.exports = { CoreConstants: CoreConstants };
