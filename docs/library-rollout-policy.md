@@ -1,5 +1,8 @@
 # Shared Library Rollout Policy
 
+**Documentation status:** Refreshed for Apps Script-native operations baseline (configuration, security, trigger reconciliation, and governed workflows). Canonical deployment/run sequence lives in `DEPLOYMENT.md`.
+
+
 This policy controls how shared Apps Script library changes are released to production workbooks.
 
 ## 1) Publish a version with changelog before any workbook upgrade

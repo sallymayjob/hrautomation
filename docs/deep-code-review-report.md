@@ -1,5 +1,8 @@
 # Code Review Report
 
+**Documentation status:** Refreshed for Apps Script-native operations baseline (configuration, security, trigger reconciliation, and governed workflows). Canonical deployment/run sequence lives in `DEPLOYMENT.md`.
+
+
 ## 1. Executive Verdict
 The codebase is **partially production-ready for internal automation**, but it is **not production-ready for internet-exposed Slack ingress**. The largest blocker is that both Slack-facing endpoints (`doPost` and `doPostLms`) accept requests without cryptographic verification, so requests can be forged. Governance architecture exists, but proposal state is in-memory and therefore non-durable across Apps Script executions, which undermines approval integrity for governed writes.
 

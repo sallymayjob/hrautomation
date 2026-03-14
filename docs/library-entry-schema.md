@@ -1,5 +1,8 @@
 # Shared HR Library API Entry Schema
 
+**Documentation status:** Refreshed for Apps Script-native operations baseline (configuration, security, trigger reconciliation, and governed workflows). Canonical deployment/run sequence lives in `DEPLOYMENT.md`.
+
+
 This document defines the **versionable public API surface** exposed by `gas/SharedHrLibrary.gs`.
 
 ## Compatibility policy

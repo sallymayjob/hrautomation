@@ -1,5 +1,8 @@
 # SOP: Run Onboarding, Training, and Audit **now** (plain-language)
 
+**Documentation status:** Refreshed for Apps Script-native operations baseline (configuration, security, trigger reconciliation, and governed workflows). Canonical deployment/run sequence lives in `DEPLOYMENT.md`.
+
+
 Use this when you need to run HR workflow steps immediately (instead of waiting for scheduled triggers).
 
 > Screenshot note: these images are example click maps so users know exactly where to click.

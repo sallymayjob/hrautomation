@@ -1,5 +1,8 @@
 # Audit Dashboard Spec
 
+**Documentation status:** Refreshed for Apps Script-native operations baseline (configuration, security, trigger reconciliation, and governed workflows). Canonical deployment/run sequence lives in `DEPLOYMENT.md`.
+
+
 ## Spreadsheet Ownership
 - **Owning spreadsheet**: `AUDIT_SPREADSHEET_ID` when configured; otherwise `TRAINING_SPREADSHEET_ID`.
 - **Data source policy**: This dashboard reads local tabs in the resolved audit workbook only (`Audit` and dashboard tabs in this workbook); this workbook is the canonical audit ledger of record.

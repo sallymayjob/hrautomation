@@ -1,5 +1,8 @@
 # Named Functions Reference
 
+**Documentation status:** Refreshed for Apps Script-native operations baseline (configuration, security, trigger reconciliation, and governed workflows). Canonical deployment/run sequence lives in `DEPLOYMENT.md`.
+
+
 This document defines the canonical Google Sheets named functions used by HR Automation templates.
 
 ## `SYS_MAKE_ID(prefix, dt, seq, trigger)`

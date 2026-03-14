@@ -1,5 +1,8 @@
 # Deployment Guide (Zero-Tech Friendly)
 
+**Documentation status:** Refreshed for Apps Script-native operations baseline (configuration, security, trigger reconciliation, and governed workflows). Canonical deployment/run sequence lives in `DEPLOYMENT.md`.
+
+
 ## 1) What are we deploying?
 You are setting up an HR helper system that:
 - reads onboarding/training/checklist data from Google Sheets,
@@ -8,6 +11,24 @@ You are setting up an HR helper system that:
 - and keeps an audit history.
 
 This system runs in **Google Apps Script** and connects to **Slack** and **Google Sheets**.
+
+---
+
+
+## 0) 2026 documentation refresh scope
+This deployment guide is now the canonical sequence for production setup and repeatable redeploys.
+
+What was clarified in this refresh:
+- Script Properties are treated as the single config source of truth (no hardcoded secrets).
+- Trigger setup is preflight-gated (run preflight, then install/reconcile triggers).
+- Slack ingress is documented as security-critical and should be validated before enabling write-like flows.
+- Governance/proposal behavior is documented as default for write-intent actions.
+- Rollback and smoke-test expectations are explicitly required for every deployment.
+
+Use this guide together with:
+- `docs/runbook.md` for day-2 operations.
+- `docs/rollback-plan.md` for safe rollback execution.
+- `docs/setup-list.md` for copy/paste setup checklist.
 
 ---
 

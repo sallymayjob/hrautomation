@@ -1,5 +1,8 @@
 # AppSheet Operational Dashboard Spec (Internal Workflow)
 
+**Documentation status:** Refreshed for Apps Script-native operations baseline (configuration, security, trigger reconciliation, and governed workflows). Canonical deployment/run sequence lives in `DEPLOYMENT.md`.
+
+
 ## Purpose
 This dashboard is designed for in-app, day-to-day execution. It prioritizes actions (approvals, escalations, and follow-ups) over long-term analysis.
 

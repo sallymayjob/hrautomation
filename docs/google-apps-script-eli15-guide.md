@@ -1,5 +1,8 @@
 # Google Apps Script (GAS) Guide — Zero Tech Background (ELI15)
 
+**Documentation status:** Refreshed for Apps Script-native operations baseline (configuration, security, trigger reconciliation, and governed workflows). Canonical deployment/run sequence lives in `DEPLOYMENT.md`.
+
+
 This guide explains Google Apps Script in plain language.
 If you can copy/paste text and click Save, you can do this.
 
