@@ -5,7 +5,8 @@
   "description": "HR automation schemas and Google Apps Script scaffolding.",
   "scripts": {
     "test": "jest",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test:ci-gate": "jest --runInBand tests/unit/Commands.test.js tests/integration/onboarding-flow.test.js tests/unit/Reminders.test.js tests/integration/approval-flow.test.js tests/unit/Reporting.test.js"
   },
   "devDependencies": {
     "eslint": "^9.0.0",

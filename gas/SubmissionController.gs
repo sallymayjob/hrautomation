@@ -15,6 +15,11 @@ if (typeof module !== 'undefined') {
   };
 }
 
+var SubmissionRepositoryOverride_ = null;
+var ProposalStore_ = (SubmissionControllerBindings_ && SubmissionControllerBindings_.ingress && SubmissionControllerBindings_.ingress.ProposalStore_)
+  ? SubmissionControllerBindings_.ingress.ProposalStore_
+  : { proposals: {} };
+
 function getSubmissionPolicy_() {
   return typeof submissionNormalizeActionKey_ === 'function'
     ? this
@@ -34,23 +39,31 @@ function getSubmissionPersistence_() {
 }
 
 
-function buildSubmissionId_(prefix) {
+function normalizeActionKey_(action) {
+  return getSubmissionPolicy_().submissionNormalizeActionKey_(action);
+}
+
+function inferEntityType_(input) {
+  return getSubmissionPolicy_().submissionInferEntityType_(input);
+}
+
+function inferEntityKey_(input) {
+  return getSubmissionPolicy_().submissionInferEntityKey_(input);
+}
+
+function getGovernanceConfig_() {
+  return getSubmissionPolicy_().submissionGetGovernanceConfig_();
+}
+
+function buildId_(prefix) {
+  var ingress = getSubmissionIngress_();
+  if (ingress && typeof ingress.submissionBuildId_ === 'function') {
+    return ingress.submissionBuildId_(prefix);
+  }
   if (typeof generateId === 'function') {
     return generateId(prefix);
   }
   return String(prefix || 'ID') + '-' + new Date().getTime();
-}
-
-function normalizeActionKeyForSubmission_(action) {
-  return getSubmissionPolicy_().submissionNormalizeActionKey_(action);
-}
-
-function inferEntityTypeForSubmission_(input) {
-  return getSubmissionPolicy_().submissionInferEntityType_(input);
-}
-
-function inferEntityKeyForSubmission_(input) {
-  return getSubmissionPolicy_().submissionInferEntityKey_(input);
 }
 
 function createProposal(input) {
@@ -369,6 +382,7 @@ function requiresApprovalForAction_(entityType, action) {
   return getSubmissionPolicy_().submissionRequiresApprovalForAction_(entityType, action);
 }
 function setSubmissionRepositoryForTests_(repository) {
+  SubmissionRepositoryOverride_ = repository || null;
   return getSubmissionPersistence_().submissionSetRepositoryForTests_(repository);
 }
 

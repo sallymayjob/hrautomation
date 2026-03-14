@@ -161,6 +161,7 @@ See `DEPLOYMENT.md` for the full checklist and setup order.
 If a technical person is updating code:
 - Run tests: `npm test -- --runInBand`
 - Run lint: `npm run lint`
+- Required pre-merge hardening gate: `npm run test:ci-gate` (must pass before production hardening merges).
 
 If you are non-technical, you can ignore this section.
 
