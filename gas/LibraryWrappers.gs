@@ -1,4 +1,4 @@
-/* global Config, SpreadsheetApp, MailApp, Session, HRLib, console, LockService, WorkflowSheetRepository, runWorkflowController_, runOnboardingBusinessHours_ */
+/* global Config, SpreadsheetApp, MailApp, Session, HRLib, console, WorkflowSheetRepository, runWorkflowController_, runOnboardingBusinessHours_, runWorkflowRunner_ */
 /**
  * @fileoverview Thin spreadsheet wrappers around shared HR library entry points.
  */
@@ -18,7 +18,8 @@ if (typeof require === 'function') {
   WorkflowRunBindings_ = {
     repository: require('./WorkflowSheetRepository.gs'),
     controller: require('./WorkflowRunController.gs'),
-    onboardingController: require('./OnboardingController.gs')
+    onboardingController: require('./OnboardingController.gs'),
+    runnerService: require('./WorkflowRunnerService.gs')
   };
 }
 
@@ -34,6 +35,25 @@ function getWorkflowControllerFn_() {
     return runWorkflowController_;
   }
   return WorkflowRunBindings_ && WorkflowRunBindings_.controller && WorkflowRunBindings_.controller.runWorkflowController_;
+}
+
+function getWorkflowRunnerFn_() {
+  if (typeof runWorkflowRunner_ !== 'undefined') {
+    return runWorkflowRunner_;
+  }
+  return WorkflowRunBindings_ && WorkflowRunBindings_.runnerService && WorkflowRunBindings_.runnerService.runWorkflowRunner_;
+}
+
+function getWorkflowRunnerService_() {
+  return WorkflowRunBindings_ && WorkflowRunBindings_.runnerService;
+}
+
+function resolveRunnerHelper_(helperName) {
+  if (typeof globalThis !== 'undefined' && typeof globalThis[helperName] === 'function') {
+    return globalThis[helperName];
+  }
+  var service = getWorkflowRunnerService_();
+  return service && service[helperName];
 }
 
 function getOnboardingBusinessHoursRunner_() {
@@ -132,79 +152,72 @@ function runTrainingSync() {
 
 function runLibraryWorkflow_(options) {
   var opts = options || {};
-  assertLibraryAvailable_();
-  var runId = createRunId_();
-  var runContext = {
-    trace_id: runId,
-    run_id: runId,
-    source: String(opts.workflowName || 'unknown')
-  };
-  var startedAtMs = new Date().getTime();
-  var lock = acquireWorkflowLock_(opts.workflowName, runId, opts.lockWaitMs || DEFAULT_LOCK_WAIT_MS);
+  var WorkflowSheetRepositoryCtor = getWorkflowSheetRepositoryCtor_();
+  var workflowController = getWorkflowControllerFn_();
+  var workflowRunner = getWorkflowRunnerFn_();
 
-  try {
-    var spreadsheet = SpreadsheetApp.openById(opts.spreadsheetId);
-    var WorkflowSheetRepositoryCtor = getWorkflowSheetRepositoryCtor_();
-    var workflowRepository = new WorkflowSheetRepositoryCtor(spreadsheet);
-    var workflowController = getWorkflowControllerFn_();
-    var sheet = spreadsheet.getSheetByName(opts.sheetName);
-    if (!sheet) {
-      throw new Error('Sheet not found: ' + opts.sheetName);
-    }
-
-    var rowPayload = readSheetRows_(sheet, opts.batchLimit || DEFAULT_BATCH_LIMIT);
-    var dateWindow = createDateWindow_(opts.dateWindowMinutes, new Date());
-    enforceRuntimeBudget_(opts.workflowName, startedAtMs, opts.maxRuntimeMs || DEFAULT_MAX_RUNTIME_MS);
-    var executionResult = workflowController({
-      workflowName: opts.workflowName,
-      sheetName: opts.sheetName,
-      libraryMethodName: opts.libraryMethodName,
-      runMode: opts.runMode,
-      runContext: runContext,
-      rowPayload: rowPayload,
-      dateWindow: dateWindow,
-      handoffSlaDays: HANDOFF_SLA_DAYS,
-      statusWriterOptions: {
-        repository: workflowRepository,
-        sheet: sheet,
-        statusColumnName: opts.statusColumnName
+  return workflowRunner({
+    workflowName: opts.workflowName,
+    spreadsheetId: opts.spreadsheetId,
+    sheetName: opts.sheetName,
+    batchLimit: opts.batchLimit || DEFAULT_BATCH_LIMIT,
+    maxRuntimeMs: opts.maxRuntimeMs || DEFAULT_MAX_RUNTIME_MS,
+    lockWaitMs: opts.lockWaitMs || DEFAULT_LOCK_WAIT_MS,
+    dateWindowMinutes: opts.dateWindowMinutes,
+    rowAdapter: opts.rowAdapter,
+    callbacks: {
+      assertReady: function () {
+        assertLibraryAvailable_();
       },
-      appendException: function (entry) {
-        appendExceptionLog_(workflowRepository, entry);
+      onTelemetry: function (phase, details) {
+        logWorkflowEvent_(opts.workflowName, details.runId, phase, 'elapsed_ms=' + Number(details.elapsedMs || 0));
       },
-      writeHandoffDashboard: function (stage, rows) {
-        writeHandoffDashboard_(workflowRepository, stage, rows);
+      onCompleted: function (runnerContext) {
+        var executionResult = runnerContext.executionResult;
+        var result = executionResult.result;
+        var executionPayload = executionResult.executionPayload;
+        var workflowRepository = new WorkflowSheetRepositoryCtor(runnerContext.spreadsheet);
+        appendRunSummaryToLogsTab_(workflowRepository, opts, runnerContext.runId, executionPayload.rows.length, result, 'COMPLETED');
+        sendWorkflowSummaryEmail_(opts.workflowName, executionPayload.rows.length, result, runnerContext.runId);
       },
-      writeExecutionLog: function (phase, details) {
-        writeWorkflowExecutionLog_(spreadsheet, opts, runId, phase, details);
+      onFailed: function (runnerContext) {
+        var failedSpreadsheet = SpreadsheetApp.openById(opts.spreadsheetId);
+        writeWorkflowExecutionLog_(failedSpreadsheet, opts, runnerContext.runId, 'FAILED', {
+          rowCount: 0,
+          result: null,
+          errors: [{ code: 'WORKFLOW_FAILED', rowIndex: 0, message: String(runnerContext.error && runnerContext.error.message ? runnerContext.error.message : runnerContext.error), technicalDetails: '' }]
+        });
+        appendRunSummaryToLogsTab_(new WorkflowSheetRepositoryCtor(failedSpreadsheet), opts, runnerContext.runId, 0, null, 'FAILED');
       }
-    });
-    enforceRuntimeBudget_(opts.workflowName, startedAtMs, opts.maxRuntimeMs || DEFAULT_MAX_RUNTIME_MS);
-    var result = executionResult.result;
-    var executionPayload = executionResult.executionPayload;
-    appendRunSummaryToLogsTab_(workflowRepository, opts, runId, executionPayload.rows.length, result, 'COMPLETED');
-    logWorkflowEvent_(opts.workflowName, runId, 'COMPLETED', 'success=' + Number(result.successCount || 0) + ', errors=' + Number(result.errorCount || 0));
-    sendWorkflowSummaryEmail_(opts.workflowName, executionPayload.rows.length, result, runId);
-
-    return result;
-  } catch (err) {
-    if (opts && opts.spreadsheetId) {
-      var failedSpreadsheet = SpreadsheetApp.openById(opts.spreadsheetId);
-      writeWorkflowExecutionLog_(failedSpreadsheet, opts, runId, 'FAILED', {
-        rowCount: 0,
-        result: null,
-        errors: [{ code: 'WORKFLOW_FAILED', rowIndex: 0, message: String(err && err.message ? err.message : err), technicalDetails: '' }]
+    },
+    execute: function (runnerContext) {
+      var workflowRepository = new WorkflowSheetRepositoryCtor(runnerContext.spreadsheet);
+      return workflowController({
+        workflowName: opts.workflowName,
+        sheetName: opts.sheetName,
+        libraryMethodName: opts.libraryMethodName,
+        runMode: opts.runMode,
+        runContext: runnerContext.runContext,
+        rowPayload: runnerContext.rowPayload,
+        dateWindow: runnerContext.dateWindow,
+        handoffSlaDays: HANDOFF_SLA_DAYS,
+        statusWriterOptions: {
+          repository: workflowRepository,
+          sheet: runnerContext.sheet,
+          statusColumnName: opts.statusColumnName
+        },
+        appendException: function (entry) {
+          appendExceptionLog_(workflowRepository, entry);
+        },
+        writeHandoffDashboard: function (stage, rows) {
+          writeHandoffDashboard_(workflowRepository, stage, rows);
+        },
+        writeExecutionLog: function (phase, details) {
+          writeWorkflowExecutionLog_(runnerContext.spreadsheet, opts, runnerContext.runId, phase, details);
+        }
       });
-      var FailedRepoCtor = getWorkflowSheetRepositoryCtor_();
-      appendRunSummaryToLogsTab_(new FailedRepoCtor(failedSpreadsheet), opts, runId, 0, null, 'FAILED');
     }
-    logWorkflowEvent_(opts.workflowName, runId, 'FAILED', String(err && err.message ? err.message : err));
-    throw err;
-  } finally {
-    if (lock) {
-      lock.releaseLock();
-    }
-  }
+  });
 }
 
 function mergeHandoffFailuresIntoResult_(result, handoffFailures, fallbackTraceId) {
@@ -283,74 +296,20 @@ function appendRunSummaryToLogsTab_(repository, workflowOptions, runId, rowCount
   ]);
 }
 
+
+
+
+
 function readSheetRows_(sheet, batchLimit) {
-  var range = sheet.getDataRange();
-  var values = range.getValues();
-  if (values.length < 2) {
-    return {
-      headers: values.length === 1 ? values[0] : [],
-      rows: [],
-      rowIndexes: []
-    };
-  }
-
-  var headers = values[0];
-  var rows = [];
-  var rowIndexes = [];
-  var safeBatchLimit = Number(batchLimit || DEFAULT_BATCH_LIMIT);
-  for (var row = 1; row < values.length; row += 1) {
-    var source = values[row];
-    if (isBlankRow_(source)) {
-      continue;
-    }
-
-    rows.push(mapRowToObject_(headers, source));
-    rowIndexes.push(row + 1);
-
-    if (rows.length >= safeBatchLimit) {
-      break;
-    }
-  }
-
-  return {
-    headers: headers,
-    rows: rows,
-    rowIndexes: rowIndexes
-  };
+  return resolveRunnerHelper_('readSheetRows_')(sheet, batchLimit);
 }
 
 function mapRowToObject_(headers, values) {
-  var mapped = {};
-  for (var col = 0; col < headers.length; col += 1) {
-    var key = normalizeHeaderKey_(headers[col]);
-    if (!key) {
-      continue;
-    }
-    mapped[key] = values[col];
-  }
-  return mapped;
+  return resolveRunnerHelper_('mapRowToObject_')(headers, values);
 }
 
 function normalizeHeaderKey_(headerValue) {
-  var normalized = String(headerValue || '').trim();
-  if (!normalized) {
-    return '';
-  }
-
-  return normalized
-    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
-    .replace(/[^A-Za-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .toLowerCase();
-}
-
-function isBlankRow_(rowValues) {
-  for (var i = 0; i < rowValues.length; i += 1) {
-    if (String(rowValues[i] || '').trim() !== '') {
-      return false;
-    }
-  }
-  return true;
+  return resolveRunnerHelper_('normalizeHeaderKey_')(headerValue);
 }
 
 function writeWorkflowExecutionLog_(spreadsheet, workflowOptions, runId, phase, details) {
@@ -421,22 +380,6 @@ function sendWorkflowSummaryEmail_(workflowName, rowCount, result, runId) {
   });
 }
 
-function createDateWindow_(windowMinutes, anchorDate) {
-  var effectiveWindowMinutes = Number(windowMinutes || 0);
-  if (effectiveWindowMinutes <= 0) {
-    effectiveWindowMinutes = 60;
-  }
-  var windowMs = effectiveWindowMinutes * 60 * 1000;
-  var now = anchorDate instanceof Date ? anchorDate : new Date();
-  var nowMs = now.getTime();
-  var windowEndMs = Math.floor(nowMs / windowMs) * windowMs;
-  var windowStartMs = windowEndMs - windowMs;
-
-  return {
-    startIso: new Date(windowStartMs).toISOString(),
-    endIso: new Date(windowEndMs).toISOString()
-  };
-}
 
 function applyIdempotencyKeys_(rows, dateWindow) {
   for (var i = 0; i < rows.length; i += 1) {
@@ -450,30 +393,8 @@ function buildIdempotencyKey_(row, dateWindow) {
   return entityId + '|' + String(dateWindow.startIso || '') + '|' + String(dateWindow.endIso || '');
 }
 
-function createRunId_() {
-  return 'RUN-' + new Date().toISOString() + '-' + Math.floor(Math.random() * 1000000);
-}
 
-function acquireWorkflowLock_(workflowName, runId, waitMs) {
-  if (typeof LockService === 'undefined' || !LockService || typeof LockService.getScriptLock !== 'function') {
-    return null;
-  }
 
-  var lock = LockService.getScriptLock();
-  var locked = lock.tryLock(Number(waitMs || DEFAULT_LOCK_WAIT_MS));
-  if (!locked) {
-    throw new Error('Skipped ' + workflowName + ' run (' + runId + ') because another run is in progress.');
-  }
-  return lock;
-}
-
-function enforceRuntimeBudget_(workflowName, startedAtMs, maxRuntimeMs) {
-  var elapsed = new Date().getTime() - Number(startedAtMs || 0);
-  var budget = Number(maxRuntimeMs || DEFAULT_MAX_RUNTIME_MS);
-  if (elapsed > budget) {
-    throw new Error(workflowName + ' exceeded max runtime budget of ' + budget + 'ms.');
-  }
-}
 
 function logWorkflowEvent_(workflowName, runId, phase, message) {
   console.log('[Workflow:' + workflowName + '][' + runId + '][' + phase + '] ' + message);
