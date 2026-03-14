@@ -1,13 +1,47 @@
 describe('integration approval flow', () => {
   let submission;
   let approval;
+  let repository;
+
+
+function makeRepository() {
+  const persisted = {};
+  return {
+    createProposal: jest.fn((proposal) => {
+      persisted[proposal.id] = JSON.parse(JSON.stringify(proposal));
+      return proposal;
+    }),
+    getProposalById: jest.fn((id) => persisted[id] ? JSON.parse(JSON.stringify(persisted[id])) : null),
+    updateProposal: jest.fn((id, patch) => {
+      const existing = persisted[id] ? JSON.parse(JSON.stringify(persisted[id])) : null;
+      if (!existing) return null;
+      const next = Object.assign(existing, patch);
+      persisted[id] = JSON.parse(JSON.stringify(next));
+      return next;
+    }),
+    commitProposal: jest.fn((proposal, options) => {
+      const existing = persisted[proposal.id];
+      if (!existing) throw new Error('Proposal not found: ' + proposal.id);
+      if (options && options.expectedProposalVersion !== undefined && Number(existing.proposal_version || 1) !== Number(options.expectedProposalVersion)) {
+        throw new Error('Optimistic commit failed: proposal version mismatch for ' + proposal.id + '.');
+      }
+      if (options && options.expectedProposalHash && String(existing.proposal_hash || '') !== String(options.expectedProposalHash)) {
+        throw new Error('Optimistic commit failed: proposal hash mismatch for ' + proposal.id + '.');
+      }
+      persisted[proposal.id] = JSON.parse(JSON.stringify(proposal));
+      return proposal;
+    })
+  };
+}
+
 
   beforeEach(() => {
     jest.resetModules();
     global.generateId = jest.fn((prefix) => prefix + '-1');
     submission = require('../../gas/SubmissionController.gs');
     approval = require('../../gas/ApprovalController.gs');
-    submission.ProposalStore_.proposals = {};
+    repository = makeRepository();
+    submission.setSubmissionRepositoryForTests_(repository);
   });
 
   test('approve path updates proposal state only until commit step', () => {
@@ -15,7 +49,8 @@ describe('integration approval flow', () => {
       action: 'lesson_create',
       entity_type: 'lesson',
       entity_key: 'lesson:SEC101:v1',
-      actor: 'author@example.com'
+      actor: 'author@example.com',
+      repository
     });
 
     const approved = approval.approveProposal({
@@ -27,7 +62,6 @@ describe('integration approval flow', () => {
     expect(approved.approval_status).toBe('APPROVED');
     expect(approved.approved_by).toBe('manager@example.com');
 
-    const repository = { commitProposal: jest.fn() };
     const auditService = { logEvent: jest.fn() };
     const committed = submission.commitApprovedProposal(proposal.id, { repository, auditService });
     expect(repository.commitProposal).toHaveBeenCalledTimes(1);
@@ -39,7 +73,8 @@ describe('integration approval flow', () => {
     const proposal = submission.createProposal({
       action: 'lesson_edit',
       entity_type: 'lesson',
-      entity_key: 'lesson:SEC101:v2'
+      entity_key: 'lesson:SEC101:v2',
+      repository
     });
 
     const rejected = approval.rejectProposal({
@@ -53,7 +88,7 @@ describe('integration approval flow', () => {
     expect(rejected.rejection_reason).toBe('Needs updates');
 
     expect(() => submission.commitApprovedProposal(proposal.id, {
-      repository: { commitProposal: jest.fn() }
+      repository
     })).toThrow('Governed action cannot commit without APPROVED state.');
   });
 
@@ -61,7 +96,8 @@ describe('integration approval flow', () => {
     const proposal = submission.createProposal({
       action: 'lesson_mapping_change',
       entity_type: 'lesson',
-      entity_key: 'lesson:SEC101:mapping'
+      entity_key: 'lesson:SEC101:mapping',
+      repository
     });
 
     expect(() => approval.approveProposal({
@@ -82,7 +118,8 @@ describe('integration approval flow', () => {
       action: 'lesson_edit',
       entity_type: 'lesson',
       entity_key: 'lesson:SEC101:v3',
-      payload: { lesson_id: 'SEC101', title: 'Original' }
+      payload: { lesson_id: 'SEC101', title: 'Original' },
+      repository
     });
 
     approval.approveProposal({
@@ -94,10 +131,10 @@ describe('integration approval flow', () => {
     submission.updateProposalState(proposal.id, {
       payload: { lesson_id: 'SEC101', title: 'Changed after approval' },
       proposal_version: 2
-    });
+    }, { repository });
 
     expect(() => submission.commitApprovedProposal(proposal.id, {
-      repository: { commitProposal: jest.fn() }
+      repository
     })).toThrow('Governed action cannot commit because proposal version changed after approval.');
   });
 });
