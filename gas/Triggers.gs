@@ -1,4 +1,4 @@
-/* global ScriptApp */
+/* global ScriptApp, runEnvironmentPreflight */
 /**
  * @fileoverview Trigger setup and teardown helpers.
  * CONTRACT: no SpreadsheetApp writes in this file.
@@ -12,14 +12,25 @@ var TRIGGER_HANDLERS = {
   AUDIT_WEEKLY_DEEP: 'runAuditDeepWeekly',
   TRAINING_ASSIGNMENTS: 'runTrainingAssignments',
   TRAINING_REMINDERS: 'runTrainingReminders',
-  TRAINING_SYNC: 'runTrainingSync'
+  TRAINING_SYNC: 'runTrainingSync',
+  PERIODIC_VALIDATOR: 'runPeriodicValidator'
 };
 
+
+function validateStartupConfig_() {
+  if (!Config || typeof Config.validateRequiredChannelConfig !== 'function') {
+    throw new Error('Config.validateRequiredChannelConfig is required during startup trigger setup.');
+  }
+  Config.validateRequiredChannelConfig();
+}
+
 function setupDailyTrigger() {
+  ensurePreflightPassBeforeTriggers_('setupDailyTrigger');
   ensureTimeTrigger_(TRIGGER_HANDLERS.DAILY_REMINDERS, 9);
 }
 
 function setupBirthdayTrigger() {
+  ensurePreflightPassBeforeTriggers_('setupBirthdayTrigger');
   ensureTimeTrigger_(TRIGGER_HANDLERS.BIRTHDAY_CHECK, 8);
 }
 
@@ -34,26 +45,46 @@ function teardownAllTriggers() {
       handler === TRIGGER_HANDLERS.AUDIT_WEEKLY_DEEP ||
       handler === TRIGGER_HANDLERS.TRAINING_ASSIGNMENTS ||
       handler === TRIGGER_HANDLERS.TRAINING_REMINDERS ||
-      handler === TRIGGER_HANDLERS.TRAINING_SYNC) {
+      handler === TRIGGER_HANDLERS.TRAINING_SYNC ||
+      handler === TRIGGER_HANDLERS.PERIODIC_VALIDATOR) {
       ScriptApp.deleteTrigger(triggers[i]);
     }
   }
 }
 
 function setupOnboardingBusinessHoursTrigger() {
+  ensurePreflightPassBeforeTriggers_('setupOnboardingBusinessHoursTrigger');
   ensureOnboardingTrigger_();
 }
 
 function setupAuditTriggers() {
+  ensurePreflightPassBeforeTriggers_('setupAuditTriggers');
   ensureTimeTrigger_(TRIGGER_HANDLERS.AUDIT_DAILY, 7);
   ensureWeeklyTrigger_(TRIGGER_HANDLERS.AUDIT_WEEKLY_DEEP, ScriptApp.WeekDay.SUNDAY, 6);
 }
 
 
+
+function setupPeriodicValidatorTrigger() {
+  ensureTimeTrigger_(TRIGGER_HANDLERS.PERIODIC_VALIDATOR, 5);
+}
+
 function setupTrainingTriggers() {
+  ensurePreflightPassBeforeTriggers_('setupTrainingTriggers');
   ensureTimeTrigger_(TRIGGER_HANDLERS.TRAINING_ASSIGNMENTS, 6);
   ensureWeekdayTrigger_(TRIGGER_HANDLERS.TRAINING_REMINDERS, 9);
   ensureEveryHoursTrigger_(TRIGGER_HANDLERS.TRAINING_SYNC, 4);
+}
+
+
+function ensurePreflightPassBeforeTriggers_(source) {
+  if (typeof runEnvironmentPreflight !== 'function') {
+    return;
+  }
+  var preflight = runEnvironmentPreflight({ source: source || 'trigger_setup' });
+  if (preflight && preflight.ok === false) {
+    throw new Error('Environment preflight failed. Fix reported issues before enabling triggers.');
+  }
 }
 
 function ensureTimeTrigger_(handlerName, hour) {
@@ -157,6 +188,7 @@ if (typeof module !== 'undefined') {
     teardownAllTriggers: teardownAllTriggers,
     setupOnboardingBusinessHoursTrigger: setupOnboardingBusinessHoursTrigger,
     setupAuditTriggers: setupAuditTriggers,
-    setupTrainingTriggers: setupTrainingTriggers
+    setupTrainingTriggers: setupTrainingTriggers,
+    setupPeriodicValidatorTrigger: setupPeriodicValidatorTrigger
   };
 }

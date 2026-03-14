@@ -1,4 +1,4 @@
-/* global Config, SpreadsheetApp, MailApp, Session, HRLib, console, WorkflowSheetRepository, runWorkflowController_, runOnboardingBusinessHours_, runWorkflowRunner_ */
+/* global Config, SpreadsheetApp, MailApp, Session, HRLib, console, WorkflowSheetRepository, runWorkflowController_, runOnboardingBusinessHours_, runWorkflowRunner_, SheetClient */
 /**
  * @fileoverview Thin spreadsheet wrappers around shared HR library entry points.
  */
@@ -19,7 +19,8 @@ if (typeof require === 'function') {
     repository: require('./WorkflowSheetRepository.gs'),
     controller: require('./WorkflowRunController.gs'),
     onboardingController: require('./OnboardingController.gs'),
-    runnerService: require('./WorkflowRunnerService.gs')
+    runnerService: require('./WorkflowRunnerService.gs'),
+    periodicValidator: require('./SpreadsheetPeriodicValidator.gs')
   };
 }
 
@@ -136,6 +137,14 @@ function runTrainingReminders() {
   });
 }
 
+
+function runPeriodicValidator() {
+  var validator = (typeof runPeriodicManagedRowsValidation === 'function')
+    ? runPeriodicManagedRowsValidation
+    : (WorkflowRunBindings_ && WorkflowRunBindings_.periodicValidator && WorkflowRunBindings_.periodicValidator.runPeriodicManagedRowsValidation);
+  return validator();
+}
+
 function runTrainingSync() {
   return runLibraryWorkflow_({
     workflowName: 'Training Sync',
@@ -168,6 +177,8 @@ function runLibraryWorkflow_(options) {
     callbacks: {
       assertReady: function () {
         assertLibraryAvailable_();
+        var sheetClient = new SheetClient();
+        sheetClient.validateWriteSchema_(opts.sheetName, { operation: 'workflow_wrapper_preflight', workflowName: opts.workflowName });
       },
       onTelemetry: function (phase, details) {
         logWorkflowEvent_(opts.workflowName, details.runId, phase, 'elapsed_ms=' + Number(details.elapsedMs || 0));
@@ -440,6 +451,7 @@ if (typeof module !== 'undefined') module.exports = {
   runTrainingAssignments: runTrainingAssignments,
   runTrainingReminders: runTrainingReminders,
   runTrainingSync: runTrainingSync,
+  runPeriodicValidator: runPeriodicValidator,
   runLibraryWorkflow_: runLibraryWorkflow_,
   readSheetRows_: readSheetRows_,
   mapRowToObject_: mapRowToObject_,

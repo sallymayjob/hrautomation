@@ -1,4 +1,4 @@
-/* global SheetClient, SlackClient, BlockKit, COL, Config, computeHash, generateId, getDaysUntilDue, Utils, TrainingRepository, OnboardingRepository, AuditRepository, LessonRepository, sanitizeTextForLog */
+/* global SheetClient, SlackClient, BlockKit, COL, Config, computeHash, generateId, getDaysUntilDue, Utils, TrainingRepository, OnboardingRepository, AuditRepository, LessonRepository, sanitizeTextForLog, CoreConstants, normalizeTrainingStatus, isChecklistDoneStatus */
 /**
  * @fileoverview Daily reminder, escalation, and celebration reminder flows.
  */
@@ -30,8 +30,8 @@ function processTrainingReminders_(sheetClient, trainingRepository, onboardingRe
   var trainingRows = trainingRepository.getRows();
   for (var i = 0; i < trainingRows.length; i += 1) {
     var row = trainingRows[i];
-    var status = String(row[COL.TRAINING.TRAINING_STATUS - 1] || '').toUpperCase();
-    if (status === 'COMPLETED') {
+    var status = normalizeTrainingStatus(row[COL.TRAINING.TRAINING_STATUS - 1]);
+    if (status === CoreConstants.STATUSES.COMPLETED) {
       continue;
     }
 
@@ -54,8 +54,7 @@ function processChecklistReminders_(sheetClient, lessonRepository, onboardingRep
   var checklistRows = lessonRepository.getRows();
   for (var i = 0; i < checklistRows.length; i += 1) {
     var row = checklistRows[i];
-    var status = String(row[COL.CHECKLIST.STATUS - 1] || '').toUpperCase();
-    if (status === 'COMPLETE' || status === 'DONE') {
+    if (isChecklistDoneStatus(row[COL.CHECKLIST.STATUS - 1])) {
       continue;
     }
 

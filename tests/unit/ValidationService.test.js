@@ -83,6 +83,28 @@ describe('ValidationService', () => {
   });
 
 
+
+  test('validateManagedKeyStatusPattern_ flags missing keys and invalid statuses', () => {
+    const { validateManagedKeyStatusPattern_ } = require('../../gas/ValidationService.gs');
+
+    const policy = {
+      keyColumns: ['employee_id', 'module_code'],
+      statusColumn: 'training_status',
+      allowedStatuses: ['PENDING', 'COMPLETED']
+    };
+
+    const errors = validateManagedKeyStatusPattern_({
+      employee_id: '',
+      module_code: 'SEC-101',
+      training_status: 'UNKNOWN'
+    }, 0, policy);
+
+    expect(errors.map((error) => error.code)).toEqual(expect.arrayContaining([
+      'MANAGED_KEY_MISSING',
+      'MANAGED_STATUS_INVALID'
+    ]));
+  });
+
   test('assertSchemaConformance validates required headers, order, and config version markers', () => {
     const { assertSchemaConformance } = require('../../gas/ValidationService.gs');
     const requiredHeaders = ['employee_id', 'module_code', 'training_status'];

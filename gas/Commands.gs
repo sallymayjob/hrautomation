@@ -1,24 +1,9 @@
-/* global SheetClient, AuditService, ContentService, SlackClient, Config, SubmissionController, GeminiService, ApprovalController, verifySlackIngressRequest_, sanitizeTextForLog, sanitizePayloadForLog, parseSlackIngressEnvelope_, verifySlackIngressWithHooks_, createSlackIngressErrorResponse_, createSlackEphemeralResponse_, guardSlackInteractivityShape_ */
+/* global handleCommandsPost_, routeSlackCommand_, handleOnboardingStatusCommand_, extractSlackJsonBodyForChallenge_, parseSlackPayloadEnvelope_, handleSlackInteractivePayload_, detectWriteIntent_, formatCommandOutput_, toSlackChallengeOutput_, parseStatusCommandInput_, resolveOnboardingCandidates_, buildPhaseSnapshot_, formatOnboardingStatusSummary_, prioritizeDueItemsForTeam_, formatDisambiguationMessage_, scoreFuzzyNameMatch_, normalizeForMatch_, parseSlackUserIdFromQuery_, performOnboardingStatusLookup_, logOnboardingStatusRead_, READ_ONLY_COMMANDS, TEAM_VIEW_CONFIG, COMMAND_NAME_ONBOARDING_STATUS, COMMAND_NAME_IT_STATUS, COMMAND_NAME_FINANCE_STATUS, COMMAND_NAME_HR_STATUS, COMMAND_NAME_CHECKLIST_STATUS, COMMAND_NAME_CHECKLIST_PROGRESS, formatDateForDisplay_ */
 /**
- * @fileoverview Local integration adapter for Slack command ingress.
+ * @fileoverview Compatibility facade for command modules.
  */
 
-var COMMAND_NAME_ONBOARDING_STATUS = '/onboarding-status';
-var COMMAND_NAME_IT_STATUS = '/it-onboarding-status';
-var COMMAND_NAME_FINANCE_STATUS = '/finance-onboarding-status';
-var COMMAND_NAME_HR_STATUS = '/hr-onboarding-status';
-var COMMAND_NAME_CHECKLIST_STATUS = '/checklist-status';
-var COMMAND_NAME_CHECKLIST_PROGRESS = '/checklist-progress';
-var READ_ONLY_COMMANDS = [
-  COMMAND_NAME_ONBOARDING_STATUS,
-  COMMAND_NAME_IT_STATUS,
-  COMMAND_NAME_FINANCE_STATUS,
-  COMMAND_NAME_HR_STATUS,
-  COMMAND_NAME_CHECKLIST_STATUS,
-  COMMAND_NAME_CHECKLIST_PROGRESS
-];
-var MAX_DISAMBIGUATION_RESULTS = 5;
-var MAX_DUE_ITEMS = 3;
+var CommandsBindings_ = null;
 
 var CommandSecurityBindings_ = null;
 var CommandIngressBindings_ = null;
@@ -399,29 +384,54 @@ function parseSlackUserIdFromQuery_(query) {
 function performOnboardingStatusLookup_(query, sheetClient) {
   var resolution = resolveOnboardingCandidates_(query, sheetClient);
 
-  if (resolution.candidates.length !== 1) {
-    return {
-      matchType: resolution.matchType,
-      candidates: resolution.candidates,
-      snapshot: null
+  if (typeof module !== 'undefined') {
+    CommandsBindings_ = {
+      ingress: require('./CommandsIngress.gs'),
+      policy: require('./CommandsPolicy.gs'),
+      persistence: require('./CommandsPersistenceAdapter.gs')
     };
+    return CommandsBindings_;
   }
 
-  var checklistRows = sheetClient.getChecklistRows();
-  return {
-    matchType: resolution.matchType,
-    candidates: resolution.candidates,
-    snapshot: buildPhaseSnapshot_(resolution.candidates[0].onboardingId, checklistRows)
+  CommandsBindings_ = {
+    ingress: {
+      handleCommandsPost_: handleCommandsPost_,
+      routeSlackCommand_: routeSlackCommand_,
+      handleOnboardingStatusCommand_: handleOnboardingStatusCommand_,
+      extractSlackJsonBodyForChallenge_: extractSlackJsonBodyForChallenge_,
+      parseSlackPayloadEnvelope_: parseSlackPayloadEnvelope_,
+      handleSlackInteractivePayload_: handleSlackInteractivePayload_,
+      detectWriteIntent_: detectWriteIntent_,
+      formatCommandOutput_: formatCommandOutput_,
+      toSlackChallengeOutput_: toSlackChallengeOutput_
+    },
+    policy: {
+      TEAM_VIEW_CONFIG: TEAM_VIEW_CONFIG,
+      READ_ONLY_COMMANDS: READ_ONLY_COMMANDS,
+      COMMAND_NAME_ONBOARDING_STATUS: COMMAND_NAME_ONBOARDING_STATUS,
+      COMMAND_NAME_IT_STATUS: COMMAND_NAME_IT_STATUS,
+      COMMAND_NAME_FINANCE_STATUS: COMMAND_NAME_FINANCE_STATUS,
+      COMMAND_NAME_HR_STATUS: COMMAND_NAME_HR_STATUS,
+      COMMAND_NAME_CHECKLIST_STATUS: COMMAND_NAME_CHECKLIST_STATUS,
+      COMMAND_NAME_CHECKLIST_PROGRESS: COMMAND_NAME_CHECKLIST_PROGRESS,
+      parseStatusCommandInput_: parseStatusCommandInput_,
+      resolveOnboardingCandidates_: resolveOnboardingCandidates_,
+      buildPhaseSnapshot_: buildPhaseSnapshot_,
+      formatOnboardingStatusSummary_: formatOnboardingStatusSummary_,
+      prioritizeDueItemsForTeam_: prioritizeDueItemsForTeam_,
+      formatDisambiguationMessage_: formatDisambiguationMessage_,
+      scoreFuzzyNameMatch_: scoreFuzzyNameMatch_,
+      normalizeForMatch_: normalizeForMatch_,
+      parseSlackUserIdFromQuery_: parseSlackUserIdFromQuery_,
+      formatDateForDisplay_: formatDateForDisplay_
+    },
+    persistence: {
+      performOnboardingStatusLookup_: performOnboardingStatusLookup_,
+      logOnboardingStatusRead_: logOnboardingStatusRead_
+    }
   };
-}
 
-function getCommandsBindings_() {
-  if (CommandsBindings_) return CommandsBindings_;
-  return {
-    ingress: this,
-    policy: this,
-    persistence: this
-  };
+  return CommandsBindings_;
 }
 
 function doPost(e) {
@@ -430,44 +440,48 @@ function doPost(e) {
 }
 
 if (typeof module !== 'undefined') {
-  function routeSlackCommand(payload) {
+  function routeSlackCommandFacade_(payload) {
     var b = getCommandsBindings_();
     return b.ingress.routeSlackCommand_(payload, b.policy, b.persistence);
   }
-  function handleOnboardingStatusCommand(payload, teamViewKey, sheetClient, auditService, slackClient) {
+
+  function handleOnboardingStatusCommandFacade_(payload, teamViewKey, sheetClient, auditService, slackClient) {
     var b = getCommandsBindings_();
     return b.ingress.handleOnboardingStatusCommand_(payload, teamViewKey, sheetClient, auditService, slackClient, b.policy, b.persistence);
-  }
-  function resolveOnboardingCandidates(query, sheetClient) {
-    return getCommandsBindings_().policy.resolveOnboardingCandidates_(query, sheetClient.getOnboardingRows());
-  }
-  function performOnboardingStatusLookup(query, sheetClient) {
-    var b = getCommandsBindings_();
-    return b.persistence.performOnboardingStatusLookup_(query, sheetClient, b.policy);
   }
 
   module.exports = {
     doPost: doPost,
     handleCommandsPost_: doPost,
-    routeSlackCommand_: routeSlackCommand,
-    handleOnboardingStatusCommand_: handleOnboardingStatusCommand,
-    parseStatusCommandInput_: getCommandsBindings_().policy.parseStatusCommandInput_,
-    performOnboardingStatusLookup_: performOnboardingStatusLookup,
-    resolveOnboardingCandidates_: resolveOnboardingCandidates,
-    buildPhaseSnapshot_: getCommandsBindings_().policy.buildPhaseSnapshot_,
-    formatOnboardingStatusSummary_: getCommandsBindings_().policy.formatOnboardingStatusSummary_,
-    prioritizeDueItemsForTeam_: getCommandsBindings_().policy.prioritizeDueItemsForTeam_,
-    formatDisambiguationMessage_: getCommandsBindings_().policy.formatDisambiguationMessage_,
-    scoreFuzzyNameMatch_: getCommandsBindings_().policy.scoreFuzzyNameMatch_,
-    normalizeForMatch_: getCommandsBindings_().policy.normalizeForMatch_,
-    logOnboardingStatusRead_: getCommandsBindings_().persistence.logOnboardingStatusRead_,
-    extractSlackJsonBodyForChallenge_: getCommandsBindings_().ingress.extractSlackJsonBodyForChallenge_,
-    parseSlackPayloadEnvelope_: getCommandsBindings_().ingress.parseSlackPayloadEnvelope_,
-    handleSlackInteractivePayload_: getCommandsBindings_().ingress.handleSlackInteractivePayload_,
-    parseSlackUserIdFromQuery_: getCommandsBindings_().policy.parseSlackUserIdFromQuery_,
-    detectWriteIntent_: function (text) { return getCommandsBindings_().ingress.detectWriteIntent_(text, getCommandsBindings_().policy); },
-    formatCommandOutput_: getCommandsBindings_().ingress.formatCommandOutput_,
-    toSlackChallengeOutput_: getCommandsBindings_().ingress.toSlackChallengeOutput_,
+    routeSlackCommand_: routeSlackCommandFacade_,
+    handleOnboardingStatusCommand_: handleOnboardingStatusCommandFacade_,
+    parseStatusCommandInput_: function (rawText) { return getCommandsBindings_().policy.parseStatusCommandInput_(rawText); },
+    performOnboardingStatusLookup_: function (query, sheetClient) {
+      var b = getCommandsBindings_();
+      return b.persistence.performOnboardingStatusLookup_(query, sheetClient, b.policy);
+    },
+    resolveOnboardingCandidates_: function (query, sheetClient) {
+      return getCommandsBindings_().policy.resolveOnboardingCandidates_(query, sheetClient.getOnboardingRows());
+    },
+    buildPhaseSnapshot_: function (onboardingId, checklistRows) { return getCommandsBindings_().policy.buildPhaseSnapshot_(onboardingId, checklistRows); },
+    formatOnboardingStatusSummary_: function (candidate, snapshot, teamView) { return getCommandsBindings_().policy.formatOnboardingStatusSummary_(candidate, snapshot, teamView); },
+    prioritizeDueItemsForTeam_: function (dueItems, focusTeams) { return getCommandsBindings_().policy.prioritizeDueItemsForTeam_(dueItems, focusTeams); },
+    formatDisambiguationMessage_: function (query, candidates) { return getCommandsBindings_().policy.formatDisambiguationMessage_(query, candidates); },
+    scoreFuzzyNameMatch_: function (candidateName, query) { return getCommandsBindings_().policy.scoreFuzzyNameMatch_(candidateName, query); },
+    normalizeForMatch_: function (value) { return getCommandsBindings_().policy.normalizeForMatch_(value); },
+    logOnboardingStatusRead_: function (auditService, actor, query, teamLabel, matchType, resultCount, commandName) {
+      return getCommandsBindings_().persistence.logOnboardingStatusRead_(auditService, actor, query, teamLabel, matchType, resultCount, commandName);
+    },
+    extractSlackJsonBodyForChallenge_: function (event) { return getCommandsBindings_().ingress.extractSlackJsonBodyForChallenge_(event); },
+    parseSlackPayloadEnvelope_: function (envelope) { return getCommandsBindings_().ingress.parseSlackPayloadEnvelope_(envelope); },
+    handleSlackInteractivePayload_: function (payload) { return getCommandsBindings_().ingress.handleSlackInteractivePayload_(payload); },
+    parseSlackUserIdFromQuery_: function (query) { return getCommandsBindings_().policy.parseSlackUserIdFromQuery_(query); },
+    detectWriteIntent_: function (text) {
+      var b = getCommandsBindings_();
+      return b.ingress.detectWriteIntent_(text, b.policy);
+    },
+    formatCommandOutput_: function (responsePayload) { return getCommandsBindings_().ingress.formatCommandOutput_(responsePayload); },
+    toSlackChallengeOutput_: function (payload) { return getCommandsBindings_().ingress.toSlackChallengeOutput_(payload); },
     READ_ONLY_COMMANDS: getCommandsBindings_().policy.READ_ONLY_COMMANDS
   };
 }

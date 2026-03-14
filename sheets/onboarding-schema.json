@@ -118,7 +118,11 @@
         "BLOCKED",
         "COMPLETE"
       ],
-      "population": "script"
+      "population": "script",
+      "acceptedAliases": {
+        "COMPLETED": "COMPLETE",
+        "DONE": "COMPLETE"
+      }
     },
     {
       "index": 15,

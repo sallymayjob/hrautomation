@@ -134,4 +134,43 @@ describe('SubmissionController commit gates', () => {
     expect(loaded).toBeTruthy();
     expect(loaded.entity_key).toBe('lesson:persist');
   });
+
+  test('requires durable repository in production mode for create/get/update', () => {
+    const controller = require('../../gas/SubmissionController.gs');
+
+    expect(() => controller.createProposal({
+      id: 'PROP-PROD-1',
+      action: 'lesson_edit',
+      entity_type: 'lesson',
+      entity_key: 'lesson:prod',
+      productionMode: true
+    })).toThrow('Durable repository is required for persistProposal.');
+
+    expect(() => controller.getProposal('PROP-PROD-1', { productionMode: true }))
+      .toThrow('Durable repository is required for getProposal.');
+
+    expect(() => controller.updateProposalState('PROP-PROD-1', { approval_status: 'APPROVED' }, { productionMode: true }))
+      .toThrow('Durable repository is required for updateProposalState.');
+  });
+
+  test('uses durable repository as source of truth instead of in-memory cache', () => {
+    const controller = require('../../gas/SubmissionController.gs');
+    const repository = makeRepository();
+
+    const created = controller.createProposal({
+      id: 'PROP-CACHE-1',
+      entity_type: 'lesson',
+      entity_key: 'lesson:cache',
+      action: 'lesson_edit',
+      approval_status: 'PENDING',
+      payload: { version: 1 },
+      repository
+    });
+
+    controller.ProposalStore_.proposals[created.id] = Object.assign({}, created, { payload: { version: 999 } });
+
+    const loaded = controller.getProposal(created.id, { repository });
+    expect(loaded.payload.version).toBe(1);
+  });
+
 });

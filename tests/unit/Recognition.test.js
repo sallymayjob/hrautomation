@@ -17,6 +17,7 @@ describe('Recognition', () => {
     };
     global.generateId = jest.fn(() => 'AUD_1');
     global.BlockKit = { recognitionPost: jest.fn(() => []) };
+    global.Config = { getHrOpsAlertsChannelId: jest.fn(() => 'C_HR_ALERTS') };
     global.AuditService = jest.fn(() => ({ logRecognitionAction: jest.fn() }));
   });
 
@@ -28,10 +29,12 @@ describe('Recognition', () => {
       updateTrainingRecognitionMetadata: jest.fn()
     };
     global.SheetClient = jest.fn(() => client);
-    global.SlackClient = jest.fn(() => ({ postMessage: jest.fn() }));
+    var postMessage = jest.fn();
+    global.SlackClient = jest.fn(() => ({ postMessage: postMessage }));
 
     const { handleTrainingComplete } = require('../../gas/Recognition.gs');
     expect(handleTrainingComplete('E1:M1')).toBe(true);
+    expect(postMessage).toHaveBeenCalledWith('C_HR_ALERTS', expect.any(Array));
     expect(client.updateTrainingRecognitionMetadata).toHaveBeenCalledWith('E1', 'M1', true, expect.any(Date));
     expect(global.AuditService).toHaveBeenCalledTimes(1);
   });

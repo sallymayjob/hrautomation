@@ -68,10 +68,10 @@ function buildId_(prefix) {
 
 function createProposal(input) {
   var proposalInput = input || {};
-  var normalizedAction = normalizeActionKey_(proposalInput.action || proposalInput.intent || '');
-  var entityType = String(proposalInput.entity_type || inferEntityType_(proposalInput)).toLowerCase();
+  var normalizedAction = normalizeActionKeyForSubmission_(proposalInput.action || proposalInput.intent || '');
+  var entityType = String(proposalInput.entity_type || inferEntityTypeForSubmission_(proposalInput)).toLowerCase();
   var proposal = {
-    id: String(proposalInput.id || buildId_('PROP')),
+    id: String(proposalInput.id || buildSubmissionId_('PROP')),
     source: String(proposalInput.source || 'unknown'),
     action: normalizedAction,
     actor: String(proposalInput.actor || 'unknown'),
@@ -80,9 +80,9 @@ function createProposal(input) {
     approval_status: String(proposalInput.approval_status || 'PENDING').toUpperCase(),
     approved_by: String(proposalInput.approved_by || ''),
     approved_at: proposalInput.approved_at || '',
-    trace_id: String(proposalInput.trace_id || buildId_('TRACE')),
-    entity_type: entityType || getGovernanceConfig_().ENTITY_NAMES.PROPOSAL,
-    entity_key: String(proposalInput.entity_key || inferEntityKey_(proposalInput)),
+    trace_id: String(proposalInput.trace_id || buildSubmissionId_('TRACE')),
+    entity_type: entityType || 'proposal',
+    entity_key: String(proposalInput.entity_key || inferEntityKeyForSubmission_(proposalInput)),
     requires_approval: requiresApprovalForAction_(entityType, normalizedAction),
     proposal_version: Number(proposalInput.proposal_version || 1),
     proposal_hash: String(proposalInput.proposal_hash || ''),
@@ -93,51 +93,64 @@ function createProposal(input) {
     proposal.proposal_hash = computeProposalHash_(proposal);
   }
 
-  return createProposalInRepository_(proposal, proposalInput.repository);
+  return createProposalInRepository_(proposal, proposalInput.repository, proposalInput);
 }
 
 function createDraft(input) { return createProposal(input); }
 
 function persistIngressDraft(input, options) {
-  var proposal = createDraft(input);
   var opts = options || {};
   var repository = opts.repository || getDefaultSubmissionRepository_();
-  if (!repository) {
-    return proposal;
+  if (isDurableRepositoryRequired_(opts)) {
+    assertDurableRepository_(repository, 'persistIngressDraft');
   }
+  var proposal = createDraft(input);
+  if (!repository) return proposal;
+
   if (typeof repository.writeDraftProposal === 'function') {
-    return repository.writeDraftProposal(proposal, opts);
+    repository.writeDraftProposal(proposal, opts);
+    return loadPersistedProposal_(proposal.id, repository) || proposal;
   }
   if (typeof repository.writeProposalDraft === 'function') {
-    return repository.writeProposalDraft(proposal, opts);
+    repository.writeProposalDraft(proposal, opts);
+    return loadPersistedProposal_(proposal.id, repository) || proposal;
   }
   if (typeof repository.writeProposal === 'function') {
-    return repository.writeProposal(proposal, opts);
+    repository.writeProposal(proposal, opts);
+    return loadPersistedProposal_(proposal.id, repository) || proposal;
   }
   if (typeof repository.createProposal === 'function') {
-    return repository.createProposal(proposal, opts);
+    repository.createProposal(proposal, opts);
+    return loadPersistedProposal_(proposal.id, repository) || proposal;
   }
-  return persistProposal_(proposal, repository);
+  persistProposal_(proposal, repository, opts);
+  return loadPersistedProposal_(proposal.id, repository) || proposal;
 }
 
 function getProposal(proposalId, options) {
-  var repository = getRepositoryFromOptions_(options);
+  var opts = options || {};
+  var repository = getRepositoryFromOptions_(opts);
+  if (isDurableRepositoryRequired_(opts)) {
+    assertDurableRepository_(repository, 'getProposal');
+  }
   var normalizedId = String(proposalId || '');
   var proposal = loadPersistedProposal_(normalizedId, repository);
-  if (proposal && shouldUseProposalCache_(options)) {
-    ProposalStore_.proposals[normalizedId] = proposal;
+  if (proposal && shouldUseProposalCache_(opts)) {
+    getSubmissionIngress_().ProposalStore_.proposals[normalizedId] = proposal;
   }
-  if (proposal) {
-    return proposal;
-  }
-  if (!repository || (!repository.getProposal && !repository.getProposalById)) {
-    return ProposalStore_.proposals[normalizedId] || null;
+  if (proposal) return proposal;
+  if (!isDurableRepositoryRequired_(opts) && (!repository || (!repository.getProposal && !repository.getProposalById))) {
+    return getSubmissionIngress_().ProposalStore_.proposals[normalizedId] || null;
   }
   return null;
 }
 
 function updateProposalState(proposalId, patch, options) {
-  var repository = getRepositoryFromOptions_(options);
+  var opts = options || {};
+  var repository = getRepositoryFromOptions_(opts);
+  if (isDurableRepositoryRequired_(opts)) {
+    assertDurableRepository_(repository, 'updateProposalState');
+  }
   var proposal = getProposal(proposalId, { repository: repository, useCache: false });
   if (!proposal) {
     throw new Error('Proposal not found: ' + proposalId);
@@ -153,9 +166,9 @@ function updateProposalState(proposalId, patch, options) {
     proposal.proposal_hash = computeProposalHash_(proposal);
   }
 
-  var updated = updateProposalInRepository_(proposal.id, proposal, repository);
-  if (shouldUseProposalCache_(options)) {
-    ProposalStore_.proposals[updated.id] = updated;
+  var updated = updateProposalInRepository_(proposal.id, proposal, repository, opts);
+  if (shouldUseProposalCache_(opts)) {
+    getSubmissionIngress_().ProposalStore_.proposals[updated.id] = updated;
   }
   return updated;
 }
@@ -194,6 +207,9 @@ function revalidateProposalForCommit(proposal, persistedProposal) {
 function commitApprovedProposal(proposalId, options) {
   var opts = options || {};
   var repository = opts.repository;
+  if (isDurableRepositoryRequired_(opts)) {
+    assertDurableRepository_(repository, 'commitApprovedProposal');
+  }
   if (!repository || typeof repository.commitProposal !== 'function') {
     throw new Error('Repository with commitProposal is required for final commit.');
   }
@@ -225,25 +241,13 @@ function commitApprovedProposal(proposalId, options) {
   }
 
   if (shouldUseProposalCache_(opts)) {
-    ProposalStore_.proposals[proposal.id] = committed;
+    getSubmissionIngress_().ProposalStore_.proposals[proposal.id] = committed;
   }
   return committed;
 }
 
 function getDefaultSubmissionRepository_() {
-  if (SubmissionRepositoryOverride_) {
-    return SubmissionRepositoryOverride_;
-  }
-  if (typeof SpreadsheetApp === 'undefined') {
-    return null;
-  }
-  if (typeof SubmissionRepository !== 'undefined' && SubmissionRepository && typeof SheetClient !== 'undefined' && SheetClient) {
-    return new SubmissionRepository(new SheetClient());
-  }
-  if (SubmissionControllerBindings_ && SubmissionControllerBindings_.SubmissionRepository && SubmissionControllerBindings_.SheetClient) {
-    return new SubmissionControllerBindings_.SubmissionRepository(new SubmissionControllerBindings_.SheetClient());
-  }
-  return null;
+  return getSubmissionPersistence_().submissionGetDefaultRepository_();
 }
 
 function getRepositoryFromOptions_(options) {
@@ -253,17 +257,20 @@ function getRepositoryFromOptions_(options) {
   return getDefaultSubmissionRepository_();
 }
 
-function createProposalInRepository_(proposal, repository) {
+function createProposalInRepository_(proposal, repository, options) {
   var repo = repository || getDefaultSubmissionRepository_();
-  var persisted = persistProposal_(proposal, repo);
+  var persisted = persistProposal_(proposal, repo, options);
   if (shouldUseProposalCache_({ repository: repo })) {
-    ProposalStore_.proposals[persisted.id] = persisted;
+    getSubmissionIngress_().ProposalStore_.proposals[persisted.id] = persisted;
   }
   return persisted;
 }
 
-function persistProposal_(proposal, repository) {
+function persistProposal_(proposal, repository, options) {
   var repo = repository || getDefaultSubmissionRepository_();
+  if (isDurableRepositoryRequired_(options)) {
+    assertDurableRepository_(repo, 'persistProposal');
+  }
   if (!repo) {
     return proposal;
   }
@@ -276,8 +283,11 @@ function persistProposal_(proposal, repository) {
   return proposal;
 }
 
-function updateProposalInRepository_(proposalId, proposal, repository) {
+function updateProposalInRepository_(proposalId, proposal, repository, options) {
   var repo = repository || getDefaultSubmissionRepository_();
+  if (isDurableRepositoryRequired_(options)) {
+    assertDurableRepository_(repo, 'updateProposalInRepository');
+  }
   if (!repo) {
     return proposal;
   }
@@ -306,6 +316,28 @@ function loadPersistedProposal_(proposalId, repository) {
 
 function shouldUseProposalCache_(options) {
   return !options || options.useCache !== false;
+}
+
+function isDurableRepositoryRequired_(options) {
+  if (options && options.requireDurableRepository !== undefined) {
+    return !!options.requireDurableRepository;
+  }
+  if (options && options.productionMode !== undefined) {
+    return !!options.productionMode;
+  }
+  return typeof SpreadsheetApp !== 'undefined';
+}
+
+function assertDurableRepository_(repository, operation) {
+  if (!repository) {
+    throw new Error('Durable repository is required for ' + operation + '.');
+  }
+  var supportsRead = typeof repository.getProposal === 'function' || typeof repository.getProposalById === 'function';
+  var supportsCreate = typeof repository.createProposal === 'function' || typeof repository.saveProposal === 'function' || typeof repository.writeDraftProposal === 'function' || typeof repository.writeProposalDraft === 'function' || typeof repository.writeProposal === 'function';
+  var supportsUpdate = typeof repository.updateProposal === 'function' || typeof repository.saveProposal === 'function';
+  if (!supportsRead || !supportsCreate || !supportsUpdate) {
+    throw new Error('Durable repository missing required proposal persistence operations for ' + operation + '.');
+  }
 }
 
 function getVersioningService_(opts) {

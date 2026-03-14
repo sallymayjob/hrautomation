@@ -137,4 +137,64 @@ function makeRepository() {
       repository
     })).toThrow('Governed action cannot commit because proposal version changed after approval.');
   });
+
+  test('persistIngressDraft and approval updates survive restart with durable state', () => {
+    const draft = submission.persistIngressDraft({
+      id: 'PROP-RESTART-1',
+      action: 'lesson_edit',
+      entity_type: 'lesson',
+      entity_key: 'lesson:restart',
+      payload: { lesson_id: 'SEC201', title: 'Restart Durable' },
+      repository
+    }, { repository });
+
+    expect(draft.id).toBe('PROP-RESTART-1');
+
+    const approved = approval.approveProposal({
+      proposal_id: draft.id,
+      actor: 'manager@example.com',
+      allowed_actors: ['manager@example.com']
+    });
+    expect(approved.approval_status).toBe('APPROVED');
+
+    jest.resetModules();
+    submission = require('../../gas/SubmissionController.gs');
+    approval = require('../../gas/ApprovalController.gs');
+    submission.setSubmissionRepositoryForTests_(repository);
+
+    const reloaded = submission.getProposal('PROP-RESTART-1', { repository });
+    expect(reloaded).toBeTruthy();
+    expect(reloaded.approval_status).toBe('APPROVED');
+    expect(reloaded.approved_by).toBe('manager@example.com');
+  });
+
+  test('commit validation uses durable state when cache is stale', () => {
+    const proposal = submission.createProposal({
+      id: 'PROP-COMMIT-RT-1',
+      action: 'lesson_edit',
+      entity_type: 'lesson',
+      entity_key: 'lesson:commit-rt',
+      payload: { lesson_id: 'SEC301', title: 'Durable Commit' },
+      repository
+    });
+
+    approval.approveProposal({
+      proposal_id: proposal.id,
+      actor: 'manager@example.com',
+      allowed_actors: ['manager@example.com']
+    });
+
+    submission.ProposalStore_.proposals[proposal.id] = Object.assign({}, submission.ProposalStore_.proposals[proposal.id], {
+      approval_status: 'APPROVED',
+      approval_version: 1,
+      proposal_version: 1
+    });
+
+    repository.updateProposal(proposal.id, { proposal_version: 2 });
+
+    expect(() => submission.commitApprovedProposal(proposal.id, {
+      repository
+    })).toThrow('Governed action cannot commit because proposal version changed after approval.');
+  });
+
 });
