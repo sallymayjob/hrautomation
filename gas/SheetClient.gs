@@ -266,6 +266,13 @@ var DASHBOARD_SCHEMAS = {
 
 function SheetClient() {}
 
+SheetClient.prototype.writeCellValue = function (sheet, rowIndex, columnIndex, value) {
+  if (!sheet || !rowIndex || !columnIndex) {
+    return;
+  }
+  sheet.getRange(rowIndex, columnIndex).setValue(value);
+};
+
 SheetClient.prototype.getDatasetConfig_ = function (datasetKey) {
   if (Config && typeof Config.getDatasetSpreadsheetId === 'function' && typeof Config.getDatasetSheetName === 'function') {
     return {

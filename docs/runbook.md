@@ -264,3 +264,33 @@ Operational checks:
 - Confirm commit logs show repository commit action and matching proposal hash/version.
 - If approval/hash/version mismatch occurs, do not bypass guardrails; re-open proposal review.
 
+
+## 11) Manual vs Automation-Owned Field Matrix
+
+Use this matrix when operators request sheet edits. "Manual-safe" means operators may update during remediation. "Automation-owned" means edits should be avoided and guarded by write policies.
+
+| Tab | Manual-safe fields | Automation-owned fields |
+| --- | --- | --- |
+| Onboarding | `employee_name`, `email`, `role`, `start_date`, `manager_email`, `brand`, `region`, `dob` | `onboarding_id`, `slack_id`, `manager_slack_id`, `buddy_slack_id`, `status`, `dm_sent_at`, `checklist_completed`, `row_hash`, `blocked_reason` |
+| Checklist Tasks | `status`, `updated_by`, `notes`, `due_date` | `task_id`, `onboarding_id`, `phase`, `task_name`, `owner_team`, `owner_slack_channel`, `updated_at` |
+| Training | `completion_date`, `celebration_posted`, `owner_email`, `reminder_count`, `last_reminder_at` | `employee_id`, `module_code`, `module_name`, `assigned_date`, `due_date`, `training_status`, `completion_hash`, `last_updated_at` |
+| Audit | _None_ (treat as append-only automation ledger) | `audit_id`, `event_timestamp`, `actor_email`, `entity_type`, `entity_id`, `action`, `details`, `event_hash` |
+
+### Write guard behavior
+
+- Manual edits to managed identity fields (`onboarding_id`, `row_hash`, and cross-sheet join keys) can be configured in either:
+  - `log` mode: allow edit and record audit event.
+  - `reject` mode: revert the change and record audit event.
+- Toggle with script properties:
+  - `MANAGED_WRITE_GUARD_ENABLED` (`true`/`false`)
+  - `MANAGED_WRITE_GUARD_MODE` (`log`/`reject`)
+
+### Periodic managed-field validator
+
+- Schedule `runPeriodicValidator` daily to scan Onboarding, Checklist Tasks, Training, and Audit tabs.
+- Validator flags rows with:
+  - missing managed keys,
+  - missing status values (when status column is required),
+  - invalid status values outside policy allowlists.
+- Review results in execution logs and remediate in owner sheets.
+

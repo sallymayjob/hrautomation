@@ -148,6 +148,49 @@ function validateTrainingCompletionRow_(row, index) {
   return errors;
 }
 
+
+function validateManagedKeyStatusPattern_(row, index, policy) {
+  var errors = [];
+  var sourceRow = row || {};
+  var patternPolicy = policy || {};
+  var keyColumns = patternPolicy.keyColumns || [];
+  var statusColumn = String(patternPolicy.statusColumn || '').trim();
+  var allowedStatuses = patternPolicy.allowedStatuses || [];
+
+  for (var i = 0; i < keyColumns.length; i += 1) {
+    var keyName = String(keyColumns[i] || '').trim();
+    if (!keyName) {
+      continue;
+    }
+    if (!sourceRow[keyName]) {
+      errors.push(buildOperatorError_('MANAGED_KEY_MISSING', index,
+        'Row ' + (index + 1) + ' is missing required key field "' + keyName + '".'));
+    }
+  }
+
+  if (statusColumn) {
+    var normalizedStatus = String(sourceRow[statusColumn] || '').trim().toUpperCase();
+    if (!normalizedStatus) {
+      errors.push(buildOperatorError_('MANAGED_STATUS_MISSING', index,
+        'Row ' + (index + 1) + ' is missing status field "' + statusColumn + '".'));
+    } else if (allowedStatuses.length > 0) {
+      var isAllowed = false;
+      for (var s = 0; s < allowedStatuses.length; s += 1) {
+        if (String(allowedStatuses[s] || '').trim().toUpperCase() === normalizedStatus) {
+          isAllowed = true;
+          break;
+        }
+      }
+      if (!isAllowed) {
+        errors.push(buildOperatorError_('MANAGED_STATUS_INVALID', index,
+          'Row ' + (index + 1) + ' has invalid status "' + normalizedStatus + '" for column "' + statusColumn + '".'));
+      }
+    }
+  }
+
+  return errors;
+}
+
 function normalizeTemplateMappingSources_(mappingValue) {
   if (Array.isArray(mappingValue)) {
     return mappingValue;
@@ -278,6 +321,7 @@ var ValidationService = {
   validateTrainingAssignmentRow_: validateTrainingAssignmentRow_,
   validateTrainingReminderRow_: validateTrainingReminderRow_,
   validateTrainingCompletionRow_: validateTrainingCompletionRow_,
+  validateManagedKeyStatusPattern_: validateManagedKeyStatusPattern_,
   validateTemplateToChecklistMapping_: validateTemplateToChecklistMapping_,
   assertSchemaConformance: assertSchemaConformance
 };

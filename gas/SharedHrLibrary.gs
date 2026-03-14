@@ -186,6 +186,29 @@ function syncTrainingCompletion(rows, options) {
 
 
 
+
+function runPeriodicManagedRowValidator(rows, options) {
+  var validationService = getValidationService_();
+  var normalizedRows = Array.isArray(rows) ? rows : [];
+  var opts = options || {};
+  var traceId = getTraceId_(opts.traceId);
+  var errors = [];
+  var successCount = 0;
+  var policy = opts.policy || {};
+
+  for (var i = 0; i < normalizedRows.length; i += 1) {
+    var row = normalizedRows[i] || {};
+    var rowErrors = validationService.validateManagedKeyStatusPattern_(row, i, policy);
+    if (rowErrors.length > 0) {
+      errors = errors.concat(rowErrors);
+      continue;
+    }
+    successCount += 1;
+  }
+
+  return buildResult_(traceId, successCount, errors);
+}
+
 function resolveOnboardingCandidates(rows, query) {
   var onboardingRows = Array.isArray(rows) ? rows : [];
   if (typeof resolveOnboardingCandidates_ === 'function') {
@@ -227,6 +250,7 @@ if (typeof module !== 'undefined') module.exports = {
   processTrainingAssignments: processTrainingAssignments,
   runTrainingReminders: runTrainingReminders,
   syncTrainingCompletion: syncTrainingCompletion,
+  runPeriodicManagedRowValidator: runPeriodicManagedRowValidator,
   resolveOnboardingCandidates: resolveOnboardingCandidates,
   computeGovernedProposalHash: computeGovernedProposalHash
 };

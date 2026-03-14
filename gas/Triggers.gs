@@ -12,7 +12,8 @@ var TRIGGER_HANDLERS = {
   AUDIT_WEEKLY_DEEP: 'runAuditDeepWeekly',
   TRAINING_ASSIGNMENTS: 'runTrainingAssignments',
   TRAINING_REMINDERS: 'runTrainingReminders',
-  TRAINING_SYNC: 'runTrainingSync'
+  TRAINING_SYNC: 'runTrainingSync',
+  PERIODIC_VALIDATOR: 'runPeriodicValidator'
 };
 
 
@@ -44,7 +45,8 @@ function teardownAllTriggers() {
       handler === TRIGGER_HANDLERS.AUDIT_WEEKLY_DEEP ||
       handler === TRIGGER_HANDLERS.TRAINING_ASSIGNMENTS ||
       handler === TRIGGER_HANDLERS.TRAINING_REMINDERS ||
-      handler === TRIGGER_HANDLERS.TRAINING_SYNC) {
+      handler === TRIGGER_HANDLERS.TRAINING_SYNC ||
+      handler === TRIGGER_HANDLERS.PERIODIC_VALIDATOR) {
       ScriptApp.deleteTrigger(triggers[i]);
     }
   }
@@ -61,6 +63,11 @@ function setupAuditTriggers() {
   ensureWeeklyTrigger_(TRIGGER_HANDLERS.AUDIT_WEEKLY_DEEP, ScriptApp.WeekDay.SUNDAY, 6);
 }
 
+
+
+function setupPeriodicValidatorTrigger() {
+  ensureTimeTrigger_(TRIGGER_HANDLERS.PERIODIC_VALIDATOR, 5);
+}
 
 function setupTrainingTriggers() {
   validateStartupConfig_();
@@ -322,6 +329,6 @@ if (typeof module !== 'undefined') {
     setupOnboardingBusinessHoursTrigger: setupOnboardingBusinessHoursTrigger,
     setupAuditTriggers: setupAuditTriggers,
     setupTrainingTriggers: setupTrainingTriggers,
-    validateStartupConfig_: validateStartupConfig_
+    setupPeriodicValidatorTrigger: setupPeriodicValidatorTrigger
   };
 }
