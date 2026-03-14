@@ -18,6 +18,14 @@ describe('Triggers', () => {
         return chain;
       })
     };
+    global.Config = {
+      getHrOpsAlertsChannelId: jest.fn(() => 'C-HR-OPS'),
+      getHrAlertEmail: jest.fn(() => 'alerts@example.com')
+    };
+    global.SlackClient = jest.fn(() => ({ postMessage: jest.fn() }));
+    global.MailApp = { sendEmail: jest.fn() };
+    global.AuditService = jest.fn(() => ({ logEvent: jest.fn() }));
+    global.SheetClient = jest.fn(() => ({}));
   });
 
   test('setupOnboardingBusinessHoursTrigger creates 15-minute trigger', () => {
@@ -48,5 +56,67 @@ describe('Triggers', () => {
     expect(global.ScriptApp.newTrigger).toHaveBeenCalledWith('runTrainingSync');
   });
 
+  test('validateRequiredTriggers reports healthy when all required handlers are present', () => {
+    const { validateRequiredTriggers, listRequiredTriggerHandlers_ } = require('../../gas/Triggers.gs');
+    const handlers = listRequiredTriggerHandlers_();
 
+    const triggers = handlers.map((handler) => ({
+      getHandlerFunction: jest.fn(() => handler)
+    }));
+    const auditService = { logEvent: jest.fn() };
+
+    const result = validateRequiredTriggers({
+      projectTriggers: triggers,
+      auditService,
+      logHealth: true,
+      notify: false
+    });
+
+    expect(result.healthy).toBe(true);
+    expect(result.missingHandlers).toEqual([]);
+    expect(auditService.logEvent).toHaveBeenCalledWith(expect.objectContaining({
+      entityType: 'Trigger',
+      action: 'TRIGGER_HEALTHY'
+    }));
+  });
+
+  test('validateRequiredTriggers reports missing handlers and can notify ops', () => {
+    const { validateRequiredTriggers } = require('../../gas/Triggers.gs');
+    const auditService = { logEvent: jest.fn() };
+    const slackClient = { postMessage: jest.fn() };
+
+    const result = validateRequiredTriggers({
+      projectTriggers: [
+        { getHandlerFunction: jest.fn(() => 'runDailyReminders') },
+        { getHandlerFunction: jest.fn(() => 'runOnboardingBusinessHours') }
+      ],
+      auditService,
+      slackClient,
+      logHealth: true,
+      notify: true
+    });
+
+    expect(result.healthy).toBe(false);
+    expect(result.missingHandlers).toContain('runAudit');
+    expect(auditService.logEvent).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'TRIGGER_MISSING'
+    }));
+    expect(slackClient.postMessage).toHaveBeenCalled();
+    expect(global.MailApp.sendEmail).toHaveBeenCalled();
+  });
+
+  test('countTriggerHandlers_ returns occurrence counts per handler', () => {
+    const { countTriggerHandlers_ } = require('../../gas/Triggers.gs');
+
+    const counts = countTriggerHandlers_([
+      { getHandlerFunction: jest.fn(() => 'runAudit') },
+      { getHandlerFunction: jest.fn(() => 'runAudit') },
+      { getHandlerFunction: jest.fn(() => 'runTrainingSync') }
+    ]);
+
+    expect(counts).toEqual({
+      runAudit: 2,
+      runTrainingSync: 1
+    });
+  });
 });
