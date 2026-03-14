@@ -1,4 +1,4 @@
-/* global HRLib */
+/* global HRLib, CoreConstants, normalizeTrainingStatus */
 /**
  * @fileoverview Controller/services for workflow wrapper execution concerns.
  */
@@ -80,8 +80,8 @@ function applyWorkflowHandoffChecks_(options) {
       }
     } else if (opts.workflowName === 'Training Sync') {
       stage = 'Training -> Audit';
-      if (String(row.trainingstatus || row.training_status || '').toUpperCase() !== 'COMPLETE') {
-        failureReason = 'Training -> Audit requires TrainingStatus = COMPLETE.';
+      if (normalizeTrainingStatus(row.trainingstatus || row.training_status) !== CoreConstants.STATUSES.COMPLETED) {
+        failureReason = 'Training -> Audit requires TrainingStatus = COMPLETED (alias COMPLETE accepted).';
       }
     }
 
@@ -144,7 +144,7 @@ function writeWorkflowStatuses_(options, rowPayload, result) {
     var rowError = errorByRow[i];
 
     if (statusColumnIndex) {
-      var status = rowError ? 'BLOCKED' : (i < successCount ? 'COMPLETE' : 'PENDING');
+      var status = rowError ? CoreConstants.STATUSES.BLOCKED : (i < successCount ? CoreConstants.STATUSES.COMPLETE : CoreConstants.STATUSES.PENDING);
       opts.repository.setCellValue(opts.sheet, rowNumber, statusColumnIndex, status);
     }
     if (traceColumnIndex) {
