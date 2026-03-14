@@ -1,4 +1,4 @@
-/* global ContentService, AuditService, SheetClient, Utilities, Config, verifySlackIngressRequest_, sanitizeTextForLog */
+/* global ContentService, AuditService, SheetClient, Utilities, Config, verifySlackIngressRequest_, sanitizeTextForLog, parseSlackIngressEnvelope_, verifySlackIngressWithHooks_, guardLmsHandshakeShape_, sanitizeSlackIngressLogText_ */
 /**
  * @fileoverview LMS webhook entrypoint for Slack Workflow Builder initiated handshakes.
  */
@@ -6,11 +6,19 @@
 var LMS_HANDSHAKE_SOURCE = 'slack_workflow_builder';
 
 var LmsSecurityBindings_ = null;
+var LmsIngressBindings_ = null;
 if (typeof module !== 'undefined') {
   LmsSecurityBindings_ = require('./SecurityUtils.gs');
+  LmsIngressBindings_ = require('./SlackIngress.gs');
 }
 
 function verifySlackRequestForLms_(event) {
+  if (typeof verifySlackIngressWithHooks_ === 'function') {
+    return verifySlackIngressWithHooks_(event, { route: 'lms' });
+  }
+  if (LmsIngressBindings_ && typeof LmsIngressBindings_.verifySlackIngressWithHooks_ === 'function') {
+    return LmsIngressBindings_.verifySlackIngressWithHooks_(event, { route: 'lms' });
+  }
   if (typeof verifySlackIngressRequest_ === 'function') {
     return verifySlackIngressRequest_(event, { route: 'lms' });
   }
@@ -18,10 +26,10 @@ function verifySlackRequestForLms_(event) {
 }
 
 function sanitizeForLmsLog_(value) {
-  if (typeof sanitizeTextForLog === 'function') return sanitizeTextForLog(value);
-  return LmsSecurityBindings_ && LmsSecurityBindings_.sanitizeTextForLog
-    ? LmsSecurityBindings_.sanitizeTextForLog(value)
-    : String(value || '');
+  if (typeof sanitizeSlackIngressLogText_ === 'function') return sanitizeSlackIngressLogText_(value);
+  return LmsIngressBindings_ && LmsIngressBindings_.sanitizeSlackIngressLogText_
+    ? LmsIngressBindings_.sanitizeSlackIngressLogText_(value)
+    : (typeof sanitizeTextForLog === 'function' ? sanitizeTextForLog(value) : String(value || ''));
 }
 
 var LMS_ACTIONS = {
@@ -42,6 +50,10 @@ var LMS_ACTIONS = {
 };
 
 function doPostLms(e) {
+  var parsedIngress = (typeof parseSlackIngressEnvelope_ === 'function')
+    ? parseSlackIngressEnvelope_(e)
+    : (LmsIngressBindings_ ? LmsIngressBindings_.parseSlackIngressEnvelope_(e) : { payload: parseLmsEnvelope_(e) });
+
   var verification = verifySlackRequestForLms_(e);
   if (!verification.ok) {
     console.warn('LMS ingress rejected: ' + sanitizeForLmsLog_(verification.errorCode + ' ' + verification.reason));
@@ -53,7 +65,7 @@ function doPostLms(e) {
     });
   }
 
-  var payload = verification.parsedPayload || parseLmsEnvelope_(e);
+  var payload = verification.parsedPayload || (parsedIngress && parsedIngress.payload) || parseLmsEnvelope_(e);
   var validation = validateLmsHandshake_(payload);
 
   if (!validation.ok) {
@@ -68,34 +80,18 @@ function doPostLms(e) {
 }
 
 function parseLmsEnvelope_(e) {
-  var empty = {};
-  if (!e) {
-    return empty;
+  var parsed = (typeof parseSlackIngressEnvelope_ === 'function')
+    ? parseSlackIngressEnvelope_(e)
+    : (LmsIngressBindings_ ? LmsIngressBindings_.parseSlackIngressEnvelope_(e) : { payload: (e && e.parameter) || {}, parseError: '' });
+
+  if (parsed.parseError && parsed.rawBody) {
+    return {
+      parse_error: 'INVALID_JSON',
+      raw_payload: String(parsed.rawBody || '')
+    };
   }
 
-  if (e.postData && e.postData.contents) {
-    try {
-      return JSON.parse(e.postData.contents);
-    } catch (err) {
-      return {
-        parse_error: 'INVALID_JSON',
-        raw_payload: String(e.postData.contents || '')
-      };
-    }
-  }
-
-  if (e.parameter && e.parameter.payload) {
-    try {
-      return JSON.parse(e.parameter.payload);
-    } catch (parseErr) {
-      return {
-        parse_error: 'INVALID_JSON',
-        raw_payload: String(e.parameter.payload || '')
-      };
-    }
-  }
-
-  return e.parameter || empty;
+  return parsed.payload || {};
 }
 
 function validateLmsHandshake_(payload) {
@@ -116,7 +112,13 @@ function validateLmsHandshake_(payload) {
     };
   }
 
-  if (!payload.action) {
+  var hasActionShape = (typeof guardLmsHandshakeShape_ === 'function')
+    ? guardLmsHandshakeShape_(payload)
+    : (LmsIngressBindings_ && LmsIngressBindings_.guardLmsHandshakeShape_
+      ? LmsIngressBindings_.guardLmsHandshakeShape_(payload)
+      : Boolean(payload && payload.action));
+
+  if (!hasActionShape) {
     return {
       ok: false,
       code: 'MISSING_ACTION',

@@ -1,4 +1,4 @@
-/* global SheetClient, AuditService, ContentService, SlackClient, Config, SubmissionController, GeminiService, ApprovalController, verifySlackIngressRequest_, sanitizeTextForLog, sanitizePayloadForLog */
+/* global SheetClient, AuditService, ContentService, SlackClient, Config, SubmissionController, GeminiService, ApprovalController, verifySlackIngressRequest_, sanitizeTextForLog, sanitizePayloadForLog, parseSlackIngressEnvelope_, verifySlackIngressWithHooks_, createSlackIngressErrorResponse_, createSlackEphemeralResponse_, guardSlackInteractivityShape_ */
 /**
  * @fileoverview Slack slash command handlers for read-only onboarding lookups.
  */
@@ -21,11 +21,19 @@ var MAX_DISAMBIGUATION_RESULTS = 5;
 var MAX_DUE_ITEMS = 3;
 
 var CommandSecurityBindings_ = null;
+var CommandIngressBindings_ = null;
 if (typeof module !== 'undefined') {
   CommandSecurityBindings_ = require('./SecurityUtils.gs');
+  CommandIngressBindings_ = require('./SlackIngress.gs');
 }
 
 function verifySlackRequestForCommands_(event) {
+  if (typeof verifySlackIngressWithHooks_ === 'function') {
+    return verifySlackIngressWithHooks_(event, { route: 'commands' });
+  }
+  if (CommandIngressBindings_ && typeof CommandIngressBindings_.verifySlackIngressWithHooks_ === 'function') {
+    return CommandIngressBindings_.verifySlackIngressWithHooks_(event, { route: 'commands' });
+  }
   if (typeof verifySlackIngressRequest_ === 'function') {
     return verifySlackIngressRequest_(event, { route: 'commands' });
   }
@@ -33,10 +41,10 @@ function verifySlackRequestForCommands_(event) {
 }
 
 function sanitizeForCommandLog_(value) {
-  if (typeof sanitizeTextForLog === 'function') return sanitizeTextForLog(value);
-  return CommandSecurityBindings_ && CommandSecurityBindings_.sanitizeTextForLog
-    ? CommandSecurityBindings_.sanitizeTextForLog(value)
-    : String(value || '');
+  if (typeof sanitizeSlackIngressLogText_ === 'function') return sanitizeSlackIngressLogText_(value);
+  return CommandIngressBindings_ && CommandIngressBindings_.sanitizeSlackIngressLogText_
+    ? CommandIngressBindings_.sanitizeSlackIngressLogText_(value)
+    : (typeof sanitizeTextForLog === 'function' ? sanitizeTextForLog(value) : String(value || ''));
 }
 
 function sanitizePayloadForCommandLog_(payload) {
@@ -108,7 +116,11 @@ var TEAM_VIEW_CONFIG = {
 };
 
 function handleCommandsPost_(e) {
-  var preflightPayload = extractSlackJsonBodyForChallenge_(e);
+  var parsedIngress = (typeof parseSlackIngressEnvelope_ === 'function')
+    ? parseSlackIngressEnvelope_(e)
+    : (CommandIngressBindings_ ? CommandIngressBindings_.parseSlackIngressEnvelope_(e) : { payload: {} });
+
+  var preflightPayload = parsedIngress && parsedIngress.payload;
   if (preflightPayload && preflightPayload.type === 'url_verification') {
     return toSlackChallengeOutput_(preflightPayload);
   }
@@ -116,22 +128,30 @@ function handleCommandsPost_(e) {
   var verification = verifySlackRequestForCommands_(e);
   if (!verification.ok) {
     console.warn('Slack ingress rejected: ' + sanitizeForCommandLog_(verification.errorCode + ' ' + verification.reason));
-    return toSlackTextOutput_({
-      ok: false,
-      code: verification.errorCode,
-      response_type: 'ephemeral',
-      text: 'Unauthorized Slack request (' + verification.errorCode + ').'
-    });
+    var ingressErrorResponse = typeof createSlackIngressErrorResponse_ === 'function'
+      ? createSlackIngressErrorResponse_(verification.errorCode, verification.reason)
+      : (CommandIngressBindings_ && CommandIngressBindings_.createSlackIngressErrorResponse_
+        ? CommandIngressBindings_.createSlackIngressErrorResponse_(verification.errorCode, verification.reason)
+        : { response_type: 'ephemeral', text: 'Unauthorized Slack request (' + verification.errorCode + ').' });
+    ingressErrorResponse.ok = false;
+    ingressErrorResponse.code = verification.errorCode;
+    return toSlackTextOutput_(ingressErrorResponse);
   }
 
-  var payload = verification.parsedPayload || {};
+  var payload = verification.parsedPayload || (parsedIngress && parsedIngress.payload) || {};
   if (payload && payload.type === 'url_verification') {
     return toSlackChallengeOutput_(payload);
   }
 
+  var isInteractivityPayload = (typeof guardSlackInteractivityShape_ === 'function')
+    ? guardSlackInteractivityShape_(payload)
+    : (CommandIngressBindings_ && CommandIngressBindings_.guardSlackInteractivityShape_
+      ? CommandIngressBindings_.guardSlackInteractivityShape_(payload)
+      : Boolean(payload && payload.type));
+
   var response = payload && payload.directResponse
     ? payload.directResponse
-    : (payload && payload.type
+    : (isInteractivityPayload
       ? handleSlackInteractivePayload_(payload)
       : routeSlackCommand_(payload));
   return toSlackTextOutput_(response);
@@ -151,27 +171,31 @@ function extractSlackJsonBodyForChallenge_(event) {
 }
 
 function parseSlackPayloadEnvelope_(envelope) {
-  if (!envelope || !envelope.payload) {
-    return envelope || {};
+  var parsed = (typeof parseSlackIngressEnvelope_ === 'function')
+    ? parseSlackIngressEnvelope_({ parameter: envelope || {} })
+    : (CommandIngressBindings_ ? CommandIngressBindings_.parseSlackIngressEnvelope_({ parameter: envelope || {} }) : { payload: envelope || {}, parseError: '' });
+
+  if (!parsed.parseError) {
+    return parsed.payload || {};
   }
 
-  try {
-    return JSON.parse(envelope.payload);
-  } catch (err) {
-    return {
-      directResponse: {
-        response_type: 'ephemeral',
-        text: 'Unable to parse Slack payload. Slack commands are read-only; edit statuses directly in Google Sheets.'
-      }
-    };
-  }
+  return {
+    directResponse: {
+      response_type: 'ephemeral',
+      text: 'Unable to parse Slack payload. Slack commands are read-only; edit statuses directly in Google Sheets.'
+    }
+  };
 }
 
 function handleSlackInteractivePayload_(payload) {
-  return {
-    response_type: 'ephemeral',
-    text: 'Slack interactions are read-only in this workflow. To edit onboarding or checklist statuses, use Google Sheets.'
-  };
+  var responseText = 'Slack interactions are read-only in this workflow. To edit onboarding or checklist statuses, use Google Sheets.';
+  if (typeof createSlackEphemeralResponse_ === 'function') {
+    return createSlackEphemeralResponse_(responseText);
+  }
+  if (CommandIngressBindings_ && typeof CommandIngressBindings_.createSlackEphemeralResponse_ === 'function') {
+    return CommandIngressBindings_.createSlackEphemeralResponse_(responseText);
+  }
+  return { response_type: 'ephemeral', text: responseText };
 }
 
 function routeSlackCommand_(payload) {
