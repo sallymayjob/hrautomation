@@ -16,6 +16,13 @@ var TRIGGER_HANDLERS = {
   PERIODIC_VALIDATOR: 'runPeriodicValidator'
 };
 
+var WEEKDAY_SEQUENCE_ = [
+  ScriptApp.WeekDay.MONDAY,
+  ScriptApp.WeekDay.TUESDAY,
+  ScriptApp.WeekDay.WEDNESDAY,
+  ScriptApp.WeekDay.THURSDAY,
+  ScriptApp.WeekDay.FRIDAY
+];
 
 function validateStartupConfig_() {
   if (!Config || typeof Config.validateRequiredChannelConfig !== 'function') {
@@ -88,97 +95,145 @@ function ensurePreflightPassBeforeTriggers_(source) {
 }
 
 function ensureTimeTrigger_(handlerName, hour) {
-  var triggers = ScriptApp.getProjectTriggers();
-  for (var i = 0; i < triggers.length; i += 1) {
-    if (triggers[i].getHandlerFunction() === handlerName) {
-      return;
-    }
-  }
-
-  ScriptApp.newTrigger(handlerName)
-    .timeBased()
-    .everyDays(1)
-    .atHour(hour)
-    .create();
+  reconcileTriggerSpecs_(handlerName, [
+    { frequencyType: 'DAILY', hour: hour, weekday: null }
+  ]);
 }
 
 function ensureOnboardingTrigger_() {
-  var triggers = ScriptApp.getProjectTriggers();
-  for (var i = 0; i < triggers.length; i += 1) {
-    if (triggers[i].getHandlerFunction() === TRIGGER_HANDLERS.ONBOARDING) {
-      return;
-    }
-  }
-
-  ScriptApp.newTrigger(TRIGGER_HANDLERS.ONBOARDING)
-    .timeBased()
-    .everyMinutes(15)
-    .create();
+  reconcileTriggerSpecs_(TRIGGER_HANDLERS.ONBOARDING, [
+    { frequencyType: 'EVERY_MINUTES', interval: 15, hour: null, weekday: null }
+  ]);
 }
 
 function ensureWeeklyTrigger_(handlerName, weekDay, hour) {
-  var triggers = ScriptApp.getProjectTriggers();
-  for (var i = 0; i < triggers.length; i += 1) {
-    if (triggers[i].getHandlerFunction() === handlerName) {
-      return;
-    }
-  }
-
-  ScriptApp.newTrigger(handlerName)
-    .timeBased()
-    .onWeekDay(weekDay)
-    .atHour(hour)
-    .create();
+  reconcileTriggerSpecs_(handlerName, [
+    { frequencyType: 'WEEKLY', hour: hour, weekday: weekDay }
+  ]);
 }
 
 
 function ensureWeekdayTrigger_(handlerName, hour) {
-  var triggers = ScriptApp.getProjectTriggers();
-  for (var i = 0; i < triggers.length; i += 1) {
-    if (triggers[i].getHandlerFunction() === handlerName) {
-      return;
-    }
+  var desiredSpecs = [];
+  for (var i = 0; i < WEEKDAY_SEQUENCE_.length; i += 1) {
+    desiredSpecs.push({ frequencyType: 'WEEKLY', hour: hour, weekday: WEEKDAY_SEQUENCE_[i] });
   }
-
-  ScriptApp.newTrigger(handlerName)
-    .timeBased()
-    .onWeekDay(ScriptApp.WeekDay.MONDAY)
-    .atHour(hour)
-    .create();
-  ScriptApp.newTrigger(handlerName)
-    .timeBased()
-    .onWeekDay(ScriptApp.WeekDay.TUESDAY)
-    .atHour(hour)
-    .create();
-  ScriptApp.newTrigger(handlerName)
-    .timeBased()
-    .onWeekDay(ScriptApp.WeekDay.WEDNESDAY)
-    .atHour(hour)
-    .create();
-  ScriptApp.newTrigger(handlerName)
-    .timeBased()
-    .onWeekDay(ScriptApp.WeekDay.THURSDAY)
-    .atHour(hour)
-    .create();
-  ScriptApp.newTrigger(handlerName)
-    .timeBased()
-    .onWeekDay(ScriptApp.WeekDay.FRIDAY)
-    .atHour(hour)
-    .create();
+  reconcileTriggerSpecs_(handlerName, desiredSpecs);
 }
 
 function ensureEveryHoursTrigger_(handlerName, hours) {
+  reconcileTriggerSpecs_(handlerName, [
+    { frequencyType: 'EVERY_HOURS', interval: hours, hour: null, weekday: null }
+  ]);
+}
+
+function reconcileTriggerSpecs_(handlerName, desiredSpecs) {
   var triggers = ScriptApp.getProjectTriggers();
-  for (var i = 0; i < triggers.length; i += 1) {
+  var existing = [];
+  var i;
+  for (i = 0; i < triggers.length; i += 1) {
     if (triggers[i].getHandlerFunction() === handlerName) {
-      return;
+      existing.push({
+        trigger: triggers[i],
+        descriptor: buildTriggerDescriptor_(triggers[i]),
+        matched: false
+      });
     }
   }
 
-  ScriptApp.newTrigger(handlerName)
-    .timeBased()
-    .everyHours(hours)
-    .create();
+  for (i = 0; i < desiredSpecs.length; i += 1) {
+    var desiredDescriptor = buildTriggerDescriptorFromSpec_(handlerName, desiredSpecs[i]);
+    var matchedEntry = findUnmatchedDescriptor_(existing, desiredDescriptor);
+    if (matchedEntry) {
+      matchedEntry.matched = true;
+    } else {
+      createTriggerForSpec_(handlerName, desiredSpecs[i]);
+    }
+  }
+
+  for (i = 0; i < existing.length; i += 1) {
+    if (!existing[i].matched) {
+      ScriptApp.deleteTrigger(existing[i].trigger);
+    }
+  }
+}
+
+function findUnmatchedDescriptor_(existingEntries, desiredDescriptor) {
+  for (var i = 0; i < existingEntries.length; i += 1) {
+    if (!existingEntries[i].matched && areTriggerDescriptorsEqual_(existingEntries[i].descriptor, desiredDescriptor)) {
+      return existingEntries[i];
+    }
+  }
+  return null;
+}
+
+function buildTriggerDescriptor_(trigger) {
+  var frequencyType = safeCall_(trigger, 'getFrequencyType', null);
+  var hour = safeCall_(trigger, 'getHour', null);
+  var weekday = safeCall_(trigger, 'getWeekDay', null);
+  var interval = safeCall_(trigger, 'getInterval', null);
+
+  if (!frequencyType) {
+    if (weekday !== null && weekday !== undefined) {
+      frequencyType = 'WEEKLY';
+    } else if (hour !== null && hour !== undefined) {
+      frequencyType = 'DAILY';
+    }
+  }
+
+  return {
+    handler: trigger.getHandlerFunction(),
+    frequencyType: frequencyType || 'UNKNOWN',
+    hour: hour === undefined ? null : hour,
+    weekday: weekday === undefined ? null : weekday,
+    interval: interval === undefined ? null : interval
+  };
+}
+
+function buildTriggerDescriptorFromSpec_(handlerName, spec) {
+  return {
+    handler: handlerName,
+    frequencyType: spec.frequencyType,
+    hour: spec.hour === undefined ? null : spec.hour,
+    weekday: spec.weekday === undefined ? null : spec.weekday,
+    interval: spec.interval === undefined ? null : spec.interval
+  };
+}
+
+function areTriggerDescriptorsEqual_(a, b) {
+  return a.handler === b.handler &&
+    a.frequencyType === b.frequencyType &&
+    a.hour === b.hour &&
+    a.weekday === b.weekday &&
+    a.interval === b.interval;
+}
+
+function createTriggerForSpec_(handlerName, spec) {
+  var builder = ScriptApp.newTrigger(handlerName).timeBased();
+  if (spec.frequencyType === 'DAILY') {
+    builder.everyDays(1).atHour(spec.hour).create();
+    return;
+  }
+  if (spec.frequencyType === 'WEEKLY') {
+    builder.onWeekDay(spec.weekday).atHour(spec.hour).create();
+    return;
+  }
+  if (spec.frequencyType === 'EVERY_HOURS') {
+    builder.everyHours(spec.interval).create();
+    return;
+  }
+  if (spec.frequencyType === 'EVERY_MINUTES') {
+    builder.everyMinutes(spec.interval).create();
+    return;
+  }
+  throw new Error('Unsupported trigger frequency type: ' + spec.frequencyType);
+}
+
+function safeCall_(obj, methodName, fallback) {
+  if (!obj || typeof obj[methodName] !== 'function') {
+    return fallback;
+  }
+  return obj[methodName]();
 }
 
 if (typeof module !== 'undefined') {
@@ -189,6 +244,7 @@ if (typeof module !== 'undefined') {
     setupOnboardingBusinessHoursTrigger: setupOnboardingBusinessHoursTrigger,
     setupAuditTriggers: setupAuditTriggers,
     setupTrainingTriggers: setupTrainingTriggers,
-    setupPeriodicValidatorTrigger: setupPeriodicValidatorTrigger
+    setupPeriodicValidatorTrigger: setupPeriodicValidatorTrigger,
+    validateStartupConfig_: validateStartupConfig_
   };
 }
