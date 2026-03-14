@@ -1,41 +1,49 @@
-# Library Entry Schema (Canonical)
+# Shared HR Library API Entry Schema
 
-This project defines one canonical row contract for **library entry points** that ingest or emit onboarding audit rows.
+This document defines the **versionable public API surface** exposed by `gas/SharedHrLibrary.gs`.
 
-## Config tab requirements
+## Compatibility policy
 
-- Tab name: `_sys_config`
-- Required key/value row: `version` = `schema_v1`
+- Public methods listed below are semver-stable (`v1`) and may be consumed by external scripts.
+- Helper/internal functions use trailing `_` and are explicitly non-contract.
+- Entrypoint adapters (`gas/Code.gs`, `gas/LmsWebhook.gs`, `gas/Triggers.gs`) remain local integration boundaries.
 
-`SheetClient.ensureSchemaVersionMetadata()` now ensures this marker is present in each workbook `_sys_config` tab.
+## Public methods (`v1`)
 
-## Canonical required columns
+### `processOnboardingBatch(rows, options?)`
+- Input: `Array<Object>` rows with onboarding fields.
+- Output: `{ successCount, errorCount, errors[], traceId }`.
+- Notes: Validation-only processing; no sheet writes.
 
-The `SheetClient.validateSchema(headers)` guard enforces this **exact order** and **exact header names**:
+### `runAuditChecks(rows, options?)`
+- Input: `Array<Object>` audit rows.
+- Output: `{ successCount, errorCount, errors[], traceId }`.
 
-1. `EmployeeID` (`string`)
-2. `FullName` (`string`)
-3. `WorkEmail` (`string(email)`)
-4. `StartDate` (`date`)
-5. `Department` (`string`)
-6. `ManagerEmail` (`string(email)`)
-7. `OnboardingStatus` (`string(enum)`)
-8. `AuditStatus` (`string(enum)`)
-9. `LastUpdated` (`datetime`)
+### `processTrainingAssignments(rows, options?)`
+- Input: `Array<Object>` assignment rows.
+- Output: `{ successCount, errorCount, errors[], traceId, counts: { assigned, skipped } }`.
 
-If headers drift, the guard throws a human-readable error that includes:
+### `runTrainingReminders(rows, options?)`
+- Input: `Array<Object>` reminder rows.
+- Output: `{ successCount, errorCount, errors[], traceId, counts: { dueSoon, overdue, notDue } }`.
 
-- expected header order
-- expected data type map
-- per-column mismatch details
+### `syncTrainingCompletion(rows, options?)`
+- Input: `Array<Object>` completion rows.
+- Output: `{ successCount, errorCount, errors[], traceId, counts, updates[] }`.
 
-## Operational tab names used by library functions
+### `resolveOnboardingCandidates(rows, query)`
+- Input: onboarding sheet-like rows (`Array<Array<any>>`) plus query string.
+- Output: `{ matchType, candidates[] }`.
+- Notes: Pure matching helper for reusable status lookup policy.
 
-These tabs are the sheet names expected by existing `SheetClient` workflows (resolved from Script Properties):
+### `computeGovernedProposalHash(proposal)`
+- Input: proposal object.
+- Output: deterministic hash string used for approval/commit integrity.
 
-- Onboarding tab: `Config.getOnboardingSheetName()`
-- Training tab: `Config.getTrainingSheetName()`
-- Audit tab: `Config.getAuditSheetName()`
-- Checklist tab: `Config.getChecklistSheetName()`
+## Non-contract helpers
 
-Those functions continue using their existing per-sheet schemas (`SHEET_SCHEMA_SPECS`) for write safety and version checks.
+Examples of intentionally private helpers:
+- `getTraceId_`
+- `buildResult_`
+- Any method with trailing `_` in internal modules.
+

@@ -17,8 +17,10 @@ var STATUS = {
 
 
 var RepositoryBindings_ = null;
+var OnboardingPolicyBindings_ = null;
 if (typeof module !== 'undefined') {
   RepositoryBindings_ = require('./OnboardingRepositories.gs');
+  OnboardingPolicyBindings_ = require('./OnboardingPolicy.gs');
 }
 
 function getRepositoryCtor_(name, globalCtor) {
@@ -490,13 +492,15 @@ function dispatchTaskAssignment_(deps, task) {
 }
 
 function resolveTaskOwnerDestination_(ownerTeam, ownerSlackId) {
+  if (OnboardingPolicyBindings_ && OnboardingPolicyBindings_.resolveTaskOwnerDestination_) {
+    return OnboardingPolicyBindings_.resolveTaskOwnerDestination_(ownerTeam, ownerSlackId);
+  }
   var cleanedDestination = String(ownerSlackId || '').trim();
   if (/^[CDGU][A-Z0-9]{8,}$/.test(cleanedDestination)) {
     return { channelId: cleanedDestination, ownerLabel: cleanedDestination, rule: 'direct_slack_id' };
   }
   var teamKey = String(ownerTeam || '').trim().toUpperCase();
   var resolverName = resolveTeamChannelGetterName_(teamKey);
-
   if (resolverName && typeof Config[resolverName] === 'function') {
     return { channelId: Config[resolverName](), ownerLabel: cleanedDestination || ownerTeam || 'Team', rule: 'team_channel_map' };
   }
@@ -529,18 +533,16 @@ function resolveTeamChannelGetterName_(teamKey) {
 }
 
 function runOnboardingBusinessHours_(onboardingRunner, nowProvider) {
+  if (OnboardingPolicyBindings_ && OnboardingPolicyBindings_.runOnboardingBusinessHours_) {
+    return OnboardingPolicyBindings_.runOnboardingBusinessHours_(onboardingRunner, nowProvider);
+  }
   var current = nowProvider ? nowProvider() : new Date();
   var day = current.getDay();
   var hour = current.getHours();
   var isBusinessDay = day >= 1 && day <= 5;
   var isBusinessHour = hour >= 8 && hour < 18;
   if (!isBusinessDay || !isBusinessHour) {
-    return {
-      ok: true,
-      status: 'skipped',
-      data: { skipped: true, reason: 'outside_business_hours' },
-      error: null
-    };
+    return { ok: true, status: 'skipped', data: { skipped: true, reason: 'outside_business_hours' }, error: null };
   }
   return onboardingRunner();
 }
