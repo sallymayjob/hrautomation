@@ -17,9 +17,21 @@ describe('LmsWebhook', () => {
     global.AuditLogger = jest.fn(() => ({ log: jest.fn() }));
     global.Config = { getSlackVerificationToken: jest.fn(() => 'verif-token-123') };
     global.SheetClient = jest.fn(() => ({}));
+    const idempotencyMap = {};
     global.SubmissionController = {
       createProposal: jest.fn(() => ({ id: 'PROP-1' })),
-      persistIngressDraft: jest.fn(() => ({ id: 'PROP-1', approval_status: 'PENDING', requires_approval: false }))
+      persistIngressDraft: jest.fn((input) => {
+        const key = String((input && (input.idempotency_key || input.request_id || input.trace_id)) || '');
+        if (key && idempotencyMap[key]) return idempotencyMap[key];
+        const proposal = {
+          id: key === 'REQ-APPROVED-1' ? 'PROP-APPROVED-1' : 'PROP-1',
+          approval_status: key === 'REQ-APPROVED-1' ? 'APPROVED' : 'PENDING',
+          requires_approval: false,
+          idempotency_key: key
+        };
+        if (key) idempotencyMap[key] = proposal;
+        return proposal;
+      })
     };
     global.ApprovalController = {
       requestApproval: jest.fn(() => ({ ok: true })),
@@ -102,6 +114,30 @@ describe('LmsWebhook', () => {
 
     expect(global.ApprovalController.requestLiamApproval).toHaveBeenCalledTimes(1);
     expect(result.ok).toBe(true);
+  });
+
+
+  test('replayed webhook returns same proposal identifier and status', () => {
+    const { routeLmsAction_ } = require('../../gas/LmsWebhook.gs');
+
+    const payload = {
+      token: 'verif-token-123',
+      source: 'slack_workflow_builder',
+      action: 'create_course',
+      actor_slack_id: 'UHR1',
+      request_id: 'REQ-APPROVED-1',
+      idempotency_key: 'REQ-APPROVED-1'
+    };
+
+    const first = routeLmsAction_(payload);
+    const replay = routeLmsAction_(payload);
+
+    expect(first.ok).toBe(true);
+    expect(replay.ok).toBe(true);
+    expect(first.data.proposal_id).toBe('PROP-APPROVED-1');
+    expect(replay.data.proposal_id).toBe('PROP-APPROVED-1');
+    expect(first.data.approval_status).toBe('APPROVED');
+    expect(replay.data.approval_status).toBe('APPROVED');
   });
 
   test('doPostLms rejects missing verification token', () => {

@@ -105,6 +105,69 @@
       "header": "updated_at",
       "type": "datetime",
       "required": true
+    },
+    {
+      "index": 15,
+      "key": "action",
+      "header": "action",
+      "type": "string",
+      "required": false
+    },
+    {
+      "index": 16,
+      "key": "request_id",
+      "header": "request_id",
+      "type": "string",
+      "required": false
+    },
+    {
+      "index": 17,
+      "key": "idempotency_key",
+      "header": "idempotency_key",
+      "type": "string",
+      "required": false
+    },
+    {
+      "index": 18,
+      "key": "requires_approval",
+      "header": "requires_approval",
+      "type": "string",
+      "required": false
+    },
+    {
+      "index": 19,
+      "key": "proposal_hash",
+      "header": "proposal_hash",
+      "type": "string",
+      "required": false
+    },
+    {
+      "index": 20,
+      "key": "approval_hash",
+      "header": "approval_hash",
+      "type": "string",
+      "required": false
+    },
+    {
+      "index": 21,
+      "key": "approval_version",
+      "header": "approval_version",
+      "type": "string",
+      "required": false
+    },
+    {
+      "index": 22,
+      "key": "rejection_reason",
+      "header": "rejection_reason",
+      "type": "string",
+      "required": false
+    },
+    {
+      "index": 23,
+      "key": "committed_at",
+      "header": "committed_at",
+      "type": "datetime",
+      "required": false
     }
   ],
   "schemaConfigTab": "_sys_config",
@@ -123,6 +186,15 @@
     "submitted_at",
     "approved_at",
     "created_at",
-    "updated_at"
+    "updated_at",
+    "action",
+    "request_id",
+    "idempotency_key",
+    "requires_approval",
+    "proposal_hash",
+    "approval_hash",
+    "approval_version",
+    "rejection_reason",
+    "committed_at"
   ]
 }

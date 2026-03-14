@@ -66,23 +66,50 @@ function buildId_(prefix) {
   return String(prefix || 'ID') + '-' + new Date().getTime();
 }
 
+
+function getIdempotencyKeyForSubmission_(proposalInput) {
+  var ingress = getSubmissionIngress_();
+  if (ingress && typeof ingress.submissionNormalizeIdempotencyKey_ === 'function') {
+    return String(ingress.submissionNormalizeIdempotencyKey_(proposalInput || {}, getSubmissionPolicy_()) || '');
+  }
+  return String((proposalInput && proposalInput.request_id) || (proposalInput && proposalInput.trace_id) || '');
+}
+
+function getScriptLockForSubmission_() {
+  if (typeof LockService === 'undefined' || !LockService || typeof LockService.getScriptLock !== 'function') return null;
+  return LockService.getScriptLock();
+}
+
+function withSubmissionScriptLock_(callback) {
+  var lock = getScriptLockForSubmission_();
+  if (!lock) return callback();
+  lock.waitLock(30000);
+  try {
+    return callback();
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function createProposal(input) {
   var proposalInput = input || {};
-  var normalizedAction = normalizeActionKeyForSubmission_(proposalInput.action || proposalInput.intent || '');
-  var entityType = String(proposalInput.entity_type || inferEntityTypeForSubmission_(proposalInput)).toLowerCase();
+  var normalizedAction = normalizeActionKey_(proposalInput.action || proposalInput.intent || '');
+  var entityType = String(proposalInput.entity_type || inferEntityType_(proposalInput)).toLowerCase();
+  var idempotencyKey = getIdempotencyKeyForSubmission_(proposalInput);
   var proposal = {
-    id: String(proposalInput.id || buildSubmissionId_('PROP')),
+    id: String(proposalInput.id || buildId_('PROP')),
     source: String(proposalInput.source || 'unknown'),
     action: normalizedAction,
     actor: String(proposalInput.actor || 'unknown'),
-    request_id: String(proposalInput.request_id || ''),
+    request_id: String(proposalInput.request_id || idempotencyKey),
     payload: proposalInput.payload || {},
     approval_status: String(proposalInput.approval_status || 'PENDING').toUpperCase(),
     approved_by: String(proposalInput.approved_by || ''),
     approved_at: proposalInput.approved_at || '',
-    trace_id: String(proposalInput.trace_id || buildSubmissionId_('TRACE')),
+    trace_id: String(proposalInput.trace_id || idempotencyKey || buildId_('TRACE')),
+    idempotency_key: idempotencyKey,
     entity_type: entityType || 'proposal',
-    entity_key: String(proposalInput.entity_key || inferEntityKeyForSubmission_(proposalInput)),
+    entity_key: String(proposalInput.entity_key || inferEntityKey_(proposalInput)),
     requires_approval: requiresApprovalForAction_(entityType, normalizedAction),
     proposal_version: Number(proposalInput.proposal_version || 1),
     proposal_hash: String(proposalInput.proposal_hash || ''),
@@ -259,11 +286,24 @@ function getRepositoryFromOptions_(options) {
 
 function createProposalInRepository_(proposal, repository, options) {
   var repo = repository || getDefaultSubmissionRepository_();
-  var persisted = persistProposal_(proposal, repo, options);
-  if (shouldUseProposalCache_({ repository: repo })) {
-    getSubmissionIngress_().ProposalStore_.proposals[persisted.id] = persisted;
-  }
-  return persisted;
+  var opts = options || {};
+  var key = String(proposal.idempotency_key || proposal.request_id || proposal.trace_id || '');
+
+  return withSubmissionScriptLock_(function () {
+    var existing = key ? loadProposalByIdempotencyKey_(key, repo) : null;
+    if (existing) {
+      if (shouldUseProposalCache_({ repository: repo })) {
+        getSubmissionIngress_().ProposalStore_.proposals[existing.id] = existing;
+      }
+      return existing;
+    }
+
+    var persisted = persistProposal_(proposal, repo, opts);
+    if (shouldUseProposalCache_({ repository: repo })) {
+      getSubmissionIngress_().ProposalStore_.proposals[persisted.id] = persisted;
+    }
+    return persisted;
+  });
 }
 
 function persistProposal_(proposal, repository, options) {
@@ -310,6 +350,17 @@ function loadPersistedProposal_(proposalId, repository) {
   }
   if (typeof repo.getProposalById === 'function') {
     return repo.getProposalById(proposalId);
+  }
+  return null;
+}
+
+
+function loadProposalByIdempotencyKey_(idempotencyKey, repository) {
+  var repo = repository || getDefaultSubmissionRepository_();
+  var key = String(idempotencyKey || '');
+  if (!repo || !key) return null;
+  if (typeof repo.getProposalByIdempotencyKey === 'function') {
+    return repo.getProposalByIdempotencyKey(key);
   }
   return null;
 }
