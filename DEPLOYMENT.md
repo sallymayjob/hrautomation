@@ -28,8 +28,9 @@ Follow this order exactly:
 2. Create/configure Slack app.
 3. Deploy Apps Script as a web app.
 4. Add Script Properties (settings).
-5. Create scheduled triggers.
-6. Run smoke tests.
+5. Run environment preflight and resolve any failures.
+6. Create scheduled triggers (only after preflight passes).
+7. Run smoke tests.
 
 ---
 
@@ -140,7 +141,16 @@ If unsure, ask your technical owner to validate your full property list against 
 
 ---
 
-## 8) Create scheduled triggers
+## 8) Run environment preflight (required)
+In Apps Script editor, run `runEnvironmentPreflight`.
+
+Success criteria:
+- Report returns `ok: true`.
+- No failures are logged.
+
+If preflight fails, fix all reported Script Properties, spreadsheet access, and missing tabs first.
+
+## 9) Create scheduled triggers
 In Apps Script editor, run setup functions:
 - `setupDailyTrigger`
 - `setupBirthdayTrigger`
@@ -154,7 +164,7 @@ If triggers look duplicated, run `teardownAllTriggers` and then re-run setup.
 
 ---
 
-## 9) Smoke test (quick checks)
+## 10) Smoke test (quick checks)
 After setup, test these:
 1. Run `/onboarding-status <name>` in Slack.
 2. Add a controlled onboarding test row and run onboarding flow.
@@ -170,7 +180,7 @@ Expected results:
 
 ---
 
-## 10) Troubleshooting
+## 11) Troubleshooting
 ### Problem: “Missing config” or “Sheet not found”
 - Re-check Script Property names and values.
 - Confirm spreadsheet IDs and sheet tab names exactly match.
@@ -193,7 +203,7 @@ Expected results:
 
 ---
 
-## 11) Rollback and safe-change approach
+## 12) Rollback and safe-change approach
 When making major changes:
 1. Backup/export affected sheets.
 2. Apply schema/header changes first.
@@ -204,7 +214,7 @@ When making major changes:
 
 ---
 
-## 12) Operational notes (daily/weekly care)
+## 13) Operational notes (daily/weekly care)
 - Review Apps Script execution logs regularly.
 - Watch for repeated failures, blocked rows, or missing reminders.
 - Keep sheet headers stable (avoid manual renaming).
@@ -217,7 +227,7 @@ Helpful docs:
 
 ---
 
-## 13) Open questions (be transparent)
+## 14) Open questions (be transparent)
 These are not fully confirmed by current code alone:
 1. Slack signing-secret verification implementation for ingress endpoints.
 2. Durable (non-memory) production storage path for proposal state.

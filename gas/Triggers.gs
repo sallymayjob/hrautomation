@@ -1,4 +1,4 @@
-/* global ScriptApp, Config */
+/* global ScriptApp, runEnvironmentPreflight */
 /**
  * @fileoverview Trigger setup and teardown helpers.
  * CONTRACT: no SpreadsheetApp writes in this file.
@@ -25,12 +25,12 @@ function validateStartupConfig_() {
 }
 
 function setupDailyTrigger() {
-  validateStartupConfig_();
+  ensurePreflightPassBeforeTriggers_('setupDailyTrigger');
   ensureTimeTrigger_(TRIGGER_HANDLERS.DAILY_REMINDERS, 9);
 }
 
 function setupBirthdayTrigger() {
-  validateStartupConfig_();
+  ensurePreflightPassBeforeTriggers_('setupBirthdayTrigger');
   ensureTimeTrigger_(TRIGGER_HANDLERS.BIRTHDAY_CHECK, 8);
 }
 
@@ -53,12 +53,12 @@ function teardownAllTriggers() {
 }
 
 function setupOnboardingBusinessHoursTrigger() {
-  validateStartupConfig_();
+  ensurePreflightPassBeforeTriggers_('setupOnboardingBusinessHoursTrigger');
   ensureOnboardingTrigger_();
 }
 
 function setupAuditTriggers() {
-  validateStartupConfig_();
+  ensurePreflightPassBeforeTriggers_('setupAuditTriggers');
   ensureTimeTrigger_(TRIGGER_HANDLERS.AUDIT_DAILY, 7);
   ensureWeeklyTrigger_(TRIGGER_HANDLERS.AUDIT_WEEKLY_DEEP, ScriptApp.WeekDay.SUNDAY, 6);
 }
@@ -70,160 +70,20 @@ function setupPeriodicValidatorTrigger() {
 }
 
 function setupTrainingTriggers() {
-  validateStartupConfig_();
+  ensurePreflightPassBeforeTriggers_('setupTrainingTriggers');
   ensureTimeTrigger_(TRIGGER_HANDLERS.TRAINING_ASSIGNMENTS, 6);
   ensureWeekdayTrigger_(TRIGGER_HANDLERS.TRAINING_REMINDERS, 9);
   ensureEveryHoursTrigger_(TRIGGER_HANDLERS.TRAINING_SYNC, 4);
 }
 
-function validateRequiredTriggers(options) {
-  var opts = options || {};
-  var requiredHandlers = opts.requiredHandlers || listRequiredTriggerHandlers_();
-  var triggers = opts.projectTriggers || ScriptApp.getProjectTriggers();
-  var handlerCounts = countTriggerHandlers_(triggers);
-  var missingHandlers = [];
 
-  for (var i = 0; i < requiredHandlers.length; i += 1) {
-    if (!handlerCounts[requiredHandlers[i]]) {
-      missingHandlers.push(requiredHandlers[i]);
-    }
-  }
-
-  var result = {
-    checkedAt: new Date(),
-    requiredHandlers: requiredHandlers.slice(),
-    presentHandlers: Object.keys(handlerCounts),
-    missingHandlers: missingHandlers,
-    healthy: missingHandlers.length === 0
-  };
-
-  if (opts.logHealth !== false) {
-    logTriggerHealthResult_(result, opts.auditService);
-  }
-  if (opts.notify === true) {
-    notifyTriggerHealth_(result, opts.slackClient);
-  }
-
-  return result;
-}
-
-function listRequiredTriggerHandlers_() {
-  return [
-    TRIGGER_HANDLERS.DAILY_REMINDERS,
-    TRIGGER_HANDLERS.BIRTHDAY_CHECK,
-    TRIGGER_HANDLERS.ONBOARDING,
-    TRIGGER_HANDLERS.AUDIT_DAILY,
-    TRIGGER_HANDLERS.AUDIT_WEEKLY_DEEP,
-    TRIGGER_HANDLERS.TRAINING_ASSIGNMENTS,
-    TRIGGER_HANDLERS.TRAINING_REMINDERS,
-    TRIGGER_HANDLERS.TRAINING_SYNC
-  ];
-}
-
-function countTriggerHandlers_(projectTriggers) {
-  var counts = {};
-  var triggers = projectTriggers || [];
-  for (var i = 0; i < triggers.length; i += 1) {
-    var handlerName = triggers[i].getHandlerFunction();
-    counts[handlerName] = (counts[handlerName] || 0) + 1;
-  }
-  return counts;
-}
-
-function logTriggerHealthResult_(result, auditService) {
-  var audit = auditService || createAuditService_();
-  if (!audit || typeof audit.logEvent !== 'function') {
+function ensurePreflightPassBeforeTriggers_(source) {
+  if (typeof runEnvironmentPreflight !== 'function') {
     return;
   }
-
-  var action = result.healthy ? 'TRIGGER_HEALTHY' : 'TRIGGER_MISSING';
-  var details = 'required=' + result.requiredHandlers.length +
-    ', present=' + result.presentHandlers.length +
-    ', missing=[' + result.missingHandlers.join(', ') + ']';
-
-  audit.logEvent({
-    entityType: 'Trigger',
-    entityId: 'project',
-    action: action,
-    details: details
-  });
-}
-
-function createAuditService_() {
-  if (typeof AuditService === 'undefined' || !AuditService) {
-    return null;
-  }
-  if (typeof SheetClient === 'undefined' || !SheetClient) {
-    return new AuditService();
-  }
-  return new AuditService(new SheetClient());
-}
-
-function notifyTriggerHealth_(result, slackClient) {
-  var message = buildTriggerHealthMessage_(result);
-  notifyTriggerHealthSlack_(message, slackClient);
-  notifyTriggerHealthEmail_(message);
-}
-
-function buildTriggerHealthMessage_(result) {
-  return 'Trigger health check ' + (result.healthy ? 'passed' : 'failed') +
-    '. Missing handlers: ' + (result.missingHandlers.length ? result.missingHandlers.join(', ') : 'none') +
-    '. Present handlers: ' + result.presentHandlers.join(', ');
-}
-
-function notifyTriggerHealthSlack_(message, slackClient) {
-  if (typeof Config === 'undefined' || !Config || typeof Config.getHrOpsAlertsChannelId !== 'function') {
-    return;
-  }
-
-  var channelId = Config.getHrOpsAlertsChannelId();
-  if (!channelId) {
-    return;
-  }
-
-  var client = slackClient || (typeof SlackClient !== 'undefined' && SlackClient ? new SlackClient() : null);
-  if (!client || typeof client.postMessage !== 'function') {
-    return;
-  }
-
-  try {
-    client.postMessage(channelId, [{
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: '*Scheduled trigger health check*\n' + message
-      }
-    }]);
-  } catch (err) {
-    if (typeof console !== 'undefined' && console && typeof console.error === 'function') {
-      console.error('Failed to notify trigger health in Slack: ' + err);
-    }
-  }
-}
-
-function notifyTriggerHealthEmail_(message) {
-  if (typeof MailApp === 'undefined' || !MailApp || typeof MailApp.sendEmail !== 'function') {
-    return;
-  }
-  if (typeof Config === 'undefined' || !Config || typeof Config.getHrAlertEmail !== 'function') {
-    return;
-  }
-
-  var recipient = Config.getHrAlertEmail();
-  if (!recipient) {
-    return;
-  }
-
-  try {
-    MailApp.sendEmail({
-      to: recipient,
-      subject: 'HR Automation Trigger Health Check',
-      body: message
-    });
-  } catch (err) {
-    if (typeof console !== 'undefined' && console && typeof console.error === 'function') {
-      console.error('Failed to send trigger health email: ' + err);
-    }
+  var preflight = runEnvironmentPreflight({ source: source || 'trigger_setup' });
+  if (preflight && preflight.ok === false) {
+    throw new Error('Environment preflight failed. Fix reported issues before enabling triggers.');
   }
 }
 
