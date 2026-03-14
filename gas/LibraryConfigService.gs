@@ -9,7 +9,7 @@ function getPropertyStore_() {
 
 function getRawProperty_(key) {
   var value = getPropertyStore_().getProperty(key);
-  if (value === null || value === '') {
+  if (value === null || typeof value === 'undefined' || value === '') {
     throw new Error('Missing required Script Property: ' + key + '. Configure it in Apps Script > Project Settings > Script Properties.');
   }
   return value;
@@ -21,7 +21,7 @@ function getStringProperty_(key) {
 
 function getOptionalStringProperty_(key) {
   var value = getPropertyStore_().getProperty(key);
-  if (value === null || value === '') return '';
+  if (value === null || typeof value === 'undefined' || value === '') return '';
   return String(value);
 }
 

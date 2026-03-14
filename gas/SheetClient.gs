@@ -151,9 +151,44 @@ function createSheetSchemaSpec_(schemaKey, spreadsheetIdGetter, sheetNameGetter)
     expectedVersion: schemaDefinition.expectedVersion,
     optional: Boolean(schemaDefinition.optional),
     requiredHeaders: schemaDefinition.requiredHeaders || [],
+    legacyHeaderAliases: schemaDefinition.legacyHeaderAliases || {},
     spreadsheetIdGetter: spreadsheetIdGetter,
     sheetNameGetter: sheetNameGetter
   };
+}
+
+
+function buildLegacyAliasLookup_(legacyHeaderAliases) {
+  var aliases = legacyHeaderAliases || {};
+  var lookup = {};
+  var canonicalKeys = Object.keys(aliases);
+  for (var i = 0; i < canonicalKeys.length; i += 1) {
+    var canonicalKey = String(canonicalKeys[i] || '').trim();
+    if (!canonicalKey) {
+      continue;
+    }
+    var normalizedCanonical = String(canonicalKey).toLowerCase();
+    var aliasValues = aliases[canonicalKey] || [];
+    lookup[normalizedCanonical] = normalizedCanonical;
+    for (var j = 0; j < aliasValues.length; j += 1) {
+      var aliasKey = String(aliasValues[j] || '').trim().toLowerCase();
+      if (aliasKey) {
+        lookup[aliasKey] = normalizedCanonical;
+      }
+    }
+  }
+  return lookup;
+}
+
+function normalizeHeadersWithAliases_(headers, legacyHeaderAliases) {
+  var normalizedHeaders = headers || [];
+  var aliasLookup = buildLegacyAliasLookup_(legacyHeaderAliases);
+  var mapped = [];
+  for (var i = 0; i < normalizedHeaders.length; i += 1) {
+    var normalized = String(normalizedHeaders[i] || '').trim().toLowerCase();
+    mapped.push(aliasLookup[normalized] || normalized);
+  }
+  return mapped;
 }
 
 var SHEET_SCHEMA_SPECS = {
@@ -479,8 +514,10 @@ SheetClient.prototype.assertSchemaVersionCompatibility_ = function (sheetName, e
   return true;
 };
 
-SheetClient.prototype.validateSheetSchema_ = function (sheet, expectedVersion, requiredHeaders) {
+SheetClient.prototype.validateSheetSchema_ = function (sheet, expectedVersion, requiredHeaders, options) {
+  var opts = options || {};
   var actualHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0] || [];
+  var normalizedHeaders = normalizeHeadersWithAliases_(actualHeaders, opts.legacyHeaderAliases);
   var spreadsheet = sheet.getParent();
   var currentVersion = this.getSchemaVersionFromConfig_(spreadsheet, sheet.getName());
   var validationService = getValidationService_();
@@ -488,11 +525,13 @@ SheetClient.prototype.validateSheetSchema_ = function (sheet, expectedVersion, r
   if (validationService && typeof validationService.assertSchemaConformance === 'function') {
     return validationService.assertSchemaConformance(sheet.getName(), {
       requiredHeaders: requiredHeaders,
-      actualHeaders: actualHeaders,
+      actualHeaders: normalizedHeaders,
+      sourceHeaders: actualHeaders,
       requireOrder: true,
       expectedVersion: expectedVersion,
       configuredVersion: currentVersion,
-      configTabName: SCHEMA_CONFIG_TAB
+      configTabName: SCHEMA_CONFIG_TAB,
+      strictVersion: true
     });
   }
 
@@ -525,7 +564,7 @@ SheetClient.prototype.validateSchemaForSheetName_ = function (sheetName) {
     var spec = SHEET_SCHEMA_SPECS[schemaKey];
     if (spec.sheetNameGetter() === sheetName) {
       var sheet = this.getSheetFromSpreadsheet_(spec.spreadsheetIdGetter(), sheetName, schemaKey.toUpperCase() + '_SHEET_NAME');
-      this.validateSheetSchema_(sheet, spec.expectedVersion, spec.requiredHeaders);
+      this.validateSheetSchema_(sheet, spec.expectedVersion, spec.requiredHeaders, { legacyHeaderAliases: spec.legacyHeaderAliases || {} });
       return;
     }
   }
@@ -543,14 +582,20 @@ SheetClient.prototype.validateWorkbookSchemas = function () {
       }
       throw new Error('Sheet not found: ' + spec.sheetNameGetter() + ' (configured by ' + schemaKeys[i].toUpperCase() + '_SHEET_NAME)');
     }
-    this.validateSheetSchema_(sheet, spec.expectedVersion, spec.requiredHeaders);
+    this.validateSheetSchema_(sheet, spec.expectedVersion, spec.requiredHeaders, { legacyHeaderAliases: spec.legacyHeaderAliases || {} });
   }
+  return true;
+};
+
+
+SheetClient.prototype.validateWriteSchema_ = function (sheetName, context) {
+  this.validateSchemaForSheetName_(sheetName);
   return true;
 };
 
 SheetClient.prototype.safeWrite_ = function (sheetName, writeOperation, context) {
   try {
-    this.validateSchemaForSheetName_(sheetName);
+    this.validateWriteSchema_(sheetName, context || {});
     return writeOperation();
   } catch (err) {
     var details = JSON.stringify({

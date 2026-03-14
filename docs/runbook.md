@@ -228,6 +228,10 @@ When rolling out schema-affecting releases, apply changes in this exact order to
 3. **Script deploy**
    - Deploy Apps Script code only after sheet schema + named functions are ready.
    - Run a controlled test execution and verify no `SCHEMA_WRITE_BLOCKED` structured errors are appended to Audit.
+4. **Scheduled trigger health verification (post-deploy)**
+   - Run `validateRequiredTriggers` once after deployment and confirm all required handlers are present.
+   - Verify a `TRIGGER_HEALTHY` audit event is recorded; if any handlers are missing, remediate trigger setup and re-run validation.
+   - Enable notifications (`notify: true`) during deployment windows so missing handlers alert HR Ops Slack/email immediately.
 
 Rollback note: if deployment fails validation, revert script deployment, restore prior sheet headers/metadata, and re-apply migration in order.
 

@@ -1,4 +1,4 @@
-/* global Config, SpreadsheetApp, MailApp, Session, HRLib, console, WorkflowSheetRepository, runWorkflowController_, runOnboardingBusinessHours_, runWorkflowRunner_ */
+/* global Config, SpreadsheetApp, MailApp, Session, HRLib, console, WorkflowSheetRepository, runWorkflowController_, runOnboardingBusinessHours_, runWorkflowRunner_, SheetClient */
 /**
  * @fileoverview Thin spreadsheet wrappers around shared HR library entry points.
  */
@@ -177,6 +177,8 @@ function runLibraryWorkflow_(options) {
     callbacks: {
       assertReady: function () {
         assertLibraryAvailable_();
+        var sheetClient = new SheetClient();
+        sheetClient.validateWriteSchema_(opts.sheetName, { operation: 'workflow_wrapper_preflight', workflowName: opts.workflowName });
       },
       onTelemetry: function (phase, details) {
         logWorkflowEvent_(opts.workflowName, details.runId, phase, 'elapsed_ms=' + Number(details.elapsedMs || 0));

@@ -29,10 +29,41 @@ var CoreConstants = {
     PENDING: 'PENDING',
     APPROVED: 'APPROVED',
     REJECTED: 'REJECTED',
+    IN_PROGRESS: 'IN_PROGRESS',
+    NOT_STARTED: 'NOT_STARTED',
+    OVERDUE: 'OVERDUE',
     COMPLETE: 'COMPLETE',
     COMPLETED: 'COMPLETED',
     BLOCKED: 'BLOCKED',
     DONE: 'DONE'
+  },
+
+  STATUS_SETS: {
+    ONBOARDING: ['PENDING', 'IN_PROGRESS', 'BLOCKED', 'COMPLETE'],
+    CHECKLIST: ['PENDING', 'IN_PROGRESS', 'BLOCKED', 'COMPLETE'],
+    TRAINING: ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'OVERDUE'],
+    APPROVALS: ['PENDING', 'APPROVED', 'REJECTED']
+  },
+
+  STATUS_ALIASES: {
+    ONBOARDING: {
+      COMPLETED: 'COMPLETE',
+      DONE: 'COMPLETE'
+    },
+    CHECKLIST: {
+      DONE: 'COMPLETE',
+      COMPLETED: 'COMPLETE'
+    },
+    TRAINING: {
+      COMPLETE: 'COMPLETED',
+      Completed: 'COMPLETED',
+      'COMPLETED ': 'COMPLETED',
+      'NOT STARTED': 'NOT_STARTED',
+      'In Progress': 'IN_PROGRESS',
+      'Not Started': 'NOT_STARTED',
+      'Overdue': 'OVERDUE'
+    },
+    APPROVALS: {}
   },
 
   ENTITY_NAMES: {
@@ -75,7 +106,17 @@ var CoreConstants = {
       },
       training: {
         expectedVersion: 1,
-        requiredHeaders: ['employee_id', 'module_code', 'module_name', 'assigned_date', 'due_date', 'completion_date', 'training_status', 'last_updated_at', 'completion_hash', 'celebration_posted']
+        requiredHeaders: ['employee_id', 'module_code', 'module_name', 'assigned_date', 'due_date', 'completion_date', 'training_status', 'owner_email', 'reminder_count', 'last_reminder_at', 'last_updated_at', 'completion_hash', 'celebration_posted'],
+        legacyHeaderAliases: {
+          employee_id: ['training_id', 'onboarding_id'],
+          module_code: ['modulecode', 'resource_code'],
+          module_name: ['resource_title'],
+          assigned_date: ['assigned_at'],
+          completion_date: ['completed_at'],
+          training_status: ['status'],
+          owner_email: ['owner', 'manager_email', 'resource_owner_email'],
+          last_updated_at: ['updated_at']
+        }
       },
       audit: {
         expectedVersion: 1,
@@ -112,4 +153,55 @@ var CoreConstants = {
   }
 };
 
-if (typeof module !== 'undefined') module.exports = { CoreConstants: CoreConstants };
+function normalizeStatusValue_(rawValue, statusSet, aliases) {
+  var normalized = String(rawValue || '').trim();
+  if (!normalized) {
+    return '';
+  }
+
+  if (aliases && aliases[normalized]) {
+    return aliases[normalized];
+  }
+
+  var upper = normalized.toUpperCase().replace(/\s+/g, '_');
+  if (aliases && aliases[upper]) {
+    return aliases[upper];
+  }
+
+  if ((statusSet || []).indexOf(upper) > -1) {
+    return upper;
+  }
+
+  return upper;
+}
+
+function normalizeOnboardingStatus(rawValue) {
+  return normalizeStatusValue_(rawValue, CoreConstants.STATUS_SETS.ONBOARDING, CoreConstants.STATUS_ALIASES.ONBOARDING);
+}
+
+function normalizeChecklistStatus(rawValue) {
+  return normalizeStatusValue_(rawValue, CoreConstants.STATUS_SETS.CHECKLIST, CoreConstants.STATUS_ALIASES.CHECKLIST);
+}
+
+function normalizeTrainingStatus(rawValue) {
+  return normalizeStatusValue_(rawValue, CoreConstants.STATUS_SETS.TRAINING, CoreConstants.STATUS_ALIASES.TRAINING);
+}
+
+function normalizeApprovalStatus(rawValue) {
+  return normalizeStatusValue_(rawValue, CoreConstants.STATUS_SETS.APPROVALS, CoreConstants.STATUS_ALIASES.APPROVALS);
+}
+
+function isChecklistDoneStatus(rawValue) {
+  return normalizeChecklistStatus(rawValue) === CoreConstants.STATUSES.COMPLETE;
+}
+
+if (typeof module !== 'undefined') {
+  module.exports = {
+    CoreConstants: CoreConstants,
+    normalizeOnboardingStatus: normalizeOnboardingStatus,
+    normalizeChecklistStatus: normalizeChecklistStatus,
+    normalizeTrainingStatus: normalizeTrainingStatus,
+    normalizeApprovalStatus: normalizeApprovalStatus,
+    isChecklistDoneStatus: isChecklistDoneStatus
+  };
+}

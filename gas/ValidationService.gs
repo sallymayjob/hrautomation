@@ -292,7 +292,8 @@ function assertSchemaConformance(sheetName, schemaSpec) {
       previousIndex = actualIndex;
     }
     if (outOfOrder) {
-      details.push('Header order mismatch. Expected sequence: [' + requiredHeaders.join(', ') + '] but found headers: [' + actualHeaders.join(', ') + '].');
+      var seenHeaders = spec.sourceHeaders || actualHeaders;
+      details.push('Header order mismatch. Expected canonical sequence: [' + requiredHeaders.join(', ') + '] but found headers: [' + seenHeaders.join(', ') + '].');
     }
   }
 
