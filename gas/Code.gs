@@ -74,15 +74,18 @@ function routeIngressEvent_(ingressEvent) {
   emitIngressLifecycle_(auditRepository, ingressEvent.workflowContext, WORKFLOW_EVENT_TYPES.WORKFLOW_CALLED, '');
 
   var lastRow = sheet.getLastRow();
-  for (var rowIndex = 2; rowIndex <= lastRow; rowIndex += 1) {
-    hydrateOnboardingDefaults_(sheet, rowIndex, headerMap, onboardingRepository);
-    if (!shouldProcessOnboardingRow_(sheet, rowIndex, headerMap)) {
+  var rows = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues() : [];
+  for (var i = 0; i < rows.length; i += 1) {
+    var rowIndex = i + 2;
+    var rowValues = rows[i];
+    hydrateOnboardingDefaults_(sheet, rowIndex, headerMap, onboardingRepository, rowValues);
+    if (!shouldProcessOnboardingRow_(rowValues, headerMap)) {
       continue;
     }
-    var onboardingId = String(sheet.getRange(rowIndex, headerMap.onboarding_id).getValue() || '').trim();
+    var onboardingId = String(rowValues[headerMap.onboarding_id - 1] || '').trim();
     var rowWorkflowContext = cloneWorkflowContext_(ingressEvent.workflowContext);
     rowWorkflowContext.onboardingId = onboardingId;
-    processOnboardingRow_(sheet, rowIndex, rowWorkflowContext, dependencies);
+    processOnboardingRow_(sheet, rowIndex, rowWorkflowContext, dependencies, rowValues);
   }
 
   return buildControllerResponse_(ingressEvent.traceId, 'processed', { processed: true });
@@ -175,13 +178,13 @@ function extractWorkflowMetadata_(e, source) {
   };
 }
 
-function shouldProcessOnboardingRow_(sheet, rowIndex, headerMap) {
+function shouldProcessOnboardingRow_(rowValues, headerMap) {
   if (headerMap.status) {
-    var statusValue = String(sheet.getRange(rowIndex, headerMap.status).getValue() || '').trim().toUpperCase();
+    var statusValue = String(rowValues[headerMap.status - 1] || '').trim().toUpperCase();
     return statusValue === 'PENDING';
   }
   if (headerMap.checklist_completed) {
-    return !Boolean(sheet.getRange(rowIndex, headerMap.checklist_completed).getValue());
+    return !Boolean(rowValues[headerMap.checklist_completed - 1]);
   }
   return true;
 }

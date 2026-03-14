@@ -30,7 +30,8 @@ describe('Reminders', () => {
     global.BlockKit = { reminderDM: jest.fn(() => []), birthdayDM: jest.fn(() => []), anniversaryDM: jest.fn(() => []) };
     global.TrainingRepository = jest.fn((sheetClient) => ({
       getRows: jest.fn(() => sheetClient.getTrainingRows()),
-      updateReminderMetadata: jest.fn((employeeId, moduleCode, reminderCount, lastReminderAt) => sheetClient.updateTrainingReminderMetadata && sheetClient.updateTrainingReminderMetadata(employeeId, moduleCode, reminderCount, lastReminderAt))
+      updateReminderMetadata: jest.fn((employeeId, moduleCode, reminderCount, lastReminderAt) => sheetClient.updateTrainingReminderMetadata && sheetClient.updateTrainingReminderMetadata(employeeId, moduleCode, reminderCount, lastReminderAt)),
+      updateReminderMetadataBatch: jest.fn((updates) => sheetClient.updateTrainingReminderMetadataBatch && sheetClient.updateTrainingReminderMetadataBatch(updates))
     }));
     global.OnboardingRepository = jest.fn((sheetClient) => ({
       findByEmployeeId: jest.fn((employeeId) => sheetClient.findOnboardingByEmployeeId(employeeId)),
@@ -118,4 +119,25 @@ describe('Reminders', () => {
     escalateToManager(['E1', 'M1', 'Module', '', new Date().toISOString(), '', 'ASSIGNED', 'm@x.com']);
     expect(client.appendAuditIfNotExists).toHaveBeenCalled();
   });
+
+
+  test('runDailyReminders uses batched reminder metadata persistence when available', () => {
+    const client = {
+      getTrainingRows: jest.fn(() => [['E1', 'M1', 'Module', '', new Date().toISOString(), '', 'ASSIGNED', 'm@x.com', 0]]),
+      getChecklistRows: jest.fn(() => []),
+      findOnboardingByEmployeeId: jest.fn(() => ({ values: ['E1', 'Alex', 'a@x.com'] })),
+      checkDuplicate: jest.fn(() => -1),
+      appendAuditIfNotExists: jest.fn(),
+      updateTrainingReminderMetadataBatch: jest.fn()
+    };
+    global.SheetClient = jest.fn(() => client);
+    global.AuditLogger = jest.fn(() => ({ log: jest.fn() }));
+    global.SlackClient = jest.fn(() => ({ lookupUserByEmail: jest.fn(() => ({ user: { id: 'U1' } })), postMessage: jest.fn() }));
+
+    const { runDailyReminders } = require('../../gas/Reminders.gs');
+    runDailyReminders();
+
+    expect(client.updateTrainingReminderMetadataBatch).toHaveBeenCalledTimes(1);
+  });
+
 });

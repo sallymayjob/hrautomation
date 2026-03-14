@@ -104,4 +104,23 @@ describe('OnboardingStatusTracker', () => {
       value: 'DONE'
     }));
   });
+
+
+  test('parses valid rows consistently across repeated invocations', () => {
+    const { parseOnboardingStatusRows_, ONBOARDING_STATUS_HEADERS } = require('../../gas/OnboardingStatusTracker.gs');
+    const row = ONBOARDING_STATUS_HEADERS.map((header, index) => {
+      if (index === 0) return 'TSK-100';
+      if (index === 1) return 'ONB-100';
+      if (index === 2) return 'USR-100';
+      if (index === 3) return 'Taylor Lee';
+      return 'Pending';
+    });
+
+    const first = parseOnboardingStatusRows_([ONBOARDING_STATUS_HEADERS, row]);
+    const second = parseOnboardingStatusRows_([ONBOARDING_STATUS_HEADERS, row]);
+
+    expect(first).toEqual(second);
+    expect(first.isValid).toBe(true);
+  });
+
 });
